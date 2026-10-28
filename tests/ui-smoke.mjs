@@ -299,7 +299,7 @@ async function suiteNeo(d, b) {
   await test('drag & drop: an action dropped onto a key', async () => {
     const p = await d.page();
     await d.api(`/api/pages/${p.profile}/${p.id}/slot?controller=Keypad&coord=2,1`, 'DELETE');
-    await b.waitFor(`!document.querySelector('${slotSel('Keypad', '2,1')}').classList.contains('has-action')`, 'empty slot', 2000).catch(() => {});
+    await b.waitFor(`document.querySelector('${slotSel('Keypad', '2,1')}')?.classList.contains('empty')`, 'empty slot', 2000).catch(() => {});
     await b.eval(`(() => {
       const dt = new DataTransfer();
       const src = document.querySelector('.action-item[data-uuid="com.elgato.streamdeck.system.text"]');
@@ -366,11 +366,14 @@ async function suiteNeo(d, b) {
   });
 
   await test('offline: an edit made while the service is down is saved after reconnecting', async () => {
+    // The previous test reloaded the page (language switch); wait until the page data is
+    // back and key 0,0 shows its action before opening the editor.
+    await b.waitFor(`document.querySelector('${slotSel('Keypad', '0,0')}')?.classList.contains('filled')`, 'slot 0,0 ready', 10000);
     await b.eval(`document.querySelector('${slotSel('Keypad', '0,0')}').click()`);
-    await b.waitFor(`!!document.querySelector('#editor .ed-titlecol textarea')`, 'title field');
+    await b.waitFor(`!!document.querySelector('#editor .ed-titlecol textarea')`, 'title field', 10000);
     b.offline = true;
     await d.stop();
-    await b.waitFor(`!document.getElementById('conn-indicator').classList.contains('ok')`, 'disconnected');
+    await b.waitFor(`!document.getElementById('conn-indicator').classList.contains('ok')`, 'disconnected', 10000);
     await b.eval(`(() => { const t = document.querySelector('#editor .ed-titlecol textarea'); t.focus(); t.value = 'Offline edit'; t.dispatchEvent(new Event('input', { bubbles: true })); t.blur(); })()`);
     await sleep(800);
     await d.start();
