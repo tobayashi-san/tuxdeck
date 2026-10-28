@@ -54,7 +54,7 @@ impl Engine {
                 mk(MULTIMEDIA, json!({"actionIdx": 4}), ""),
                 mk(MULTIMEDIA, json!({"actionIdx": 6}), ""),
                 mk(MULTIMEDIA, json!({"actionIdx": 5}), ""),
-                mk(WEBSITE, json!({"openInBrowser": true, "path": "https://www.elgato.com"}), "Elgato"),
+                mk(WEBSITE, json!({"openInBrowser": true, "path": "https://github.com/tobayashi-san/tuxdeck"}), "TuxDeck"),
                 mk(BRIGHTNESS, json!({"actionIdx": 0}), ""),
             ];
             // Fill row by row; small decks (Mini: 3x2) get the first actions.
