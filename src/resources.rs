@@ -204,3 +204,11 @@ pub fn write_default_iconpack(paths: &Paths) {
         tracing::warn!("could not write the default icon pack: {e}");
     }
 }
+
+/// SVG of a bundled default icon as a `data:` URL, used by the Linux default profile so its
+/// keys show the shipped icons without referencing files on disk.
+pub fn default_icon_data_url(name: &str) -> Option<String> {
+    use base64::Engine as _;
+    let file = DefaultIconPack::get(&format!("icons/{name}.svg"))?;
+    Some(format!("data:image/svg+xml;base64,{}", base64::engine::general_purpose::STANDARD.encode(file.data.as_ref())))
+}

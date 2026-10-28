@@ -395,6 +395,12 @@ async function suiteCommon(d, { keys }) {
     assert(st.devices[0].connected, 'connected');
     eq([st.devices[0].cols, st.devices[0].rows], [cols, rows], 'geometry');
     assert(st.profiles.some((p) => p.id === st.devices[0].profile), 'profile exists');
+    // The starter profile is a usable media remote: key 0,0 plays/controls media and
+    // shows a bundled icon.
+    const page = await d.page();
+    const kp = page.controllers.find((c) => c.Type === 'Keypad').Actions;
+    assert(kp['0,0']?.UUID === 'com.elgato.streamdeck.system.multimedia', 'media key present');
+    assert(/^data:image\/svg/.test(kp['0,0']?.States?.[0]?.Image || ''), 'starter key has an icon');
   });
 
   await test('render: every key preview is a PNG', async () => {

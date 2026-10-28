@@ -65,6 +65,15 @@ addEventListener('keydown', (e) => {
   }
 });
 
+// This UI runs inside a Chromium window. Suppress the browser's own right-click menu
+// everywhere except in text fields, where the native copy/paste menu is useful. Our own
+// menus (slots, profile tabs) call preventDefault and show a custom menu themselves.
+addEventListener('contextmenu', (e) => {
+  const t = e.target;
+  if (t && (t.closest?.('input, textarea, [contenteditable]') || t.isContentEditable)) return;
+  e.preventDefault();
+});
+
 
 // ============================================================================================
 // Boot

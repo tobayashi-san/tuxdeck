@@ -37,25 +37,31 @@ impl Engine {
         let mut p = Profile::new(&self.paths.profiles(), &crate::tr!("Default Profile"), model.model_id);
         let page_id = p.manifest.pages.pages[0].clone();
         let page = p.pages.get_mut(&page_id).unwrap();
-        let mk = |uuid: &str, settings: Value, title: &str| {
+        // Icon-only keys using the bundled icon pack, so the starter profile looks tidy and
+        // every key is self-explanatory.
+        let mk = |uuid: &str, settings: Value, icon: &str| {
             let d = builtin::def(uuid).unwrap();
             let mut a = ActionInstance::new(uuid, d.name, d.states);
             a.settings = settings;
-            if !title.is_empty() {
-                a.states[0].title = Some(title.into());
+            if let Some(url) = crate::resources::default_icon_data_url(icon) {
+                for st in a.states.iter_mut() {
+                    st.image = Some(url.clone());
+                }
             }
             a
         };
         if model.key_px > 0 {
+            // A media remote plus deck controls: works on a stock Linux desktop with no
+            // setup (media keys via playerctl/wpctl/pactl; brightness and sleep are the deck's).
             let defaults = [
-                mk(MULTIMEDIA, json!({"actionIdx": 0}), ""),
-                mk(MULTIMEDIA, json!({"actionIdx": 1}), ""),
-                mk(MULTIMEDIA, json!({"actionIdx": 2}), ""),
-                mk(MULTIMEDIA, json!({"actionIdx": 4}), ""),
-                mk(MULTIMEDIA, json!({"actionIdx": 6}), ""),
-                mk(MULTIMEDIA, json!({"actionIdx": 5}), ""),
-                mk(WEBSITE, json!({"openInBrowser": true, "path": "https://github.com/tobayashi-san/tuxdeck"}), "TuxDeck"),
-                mk(BRIGHTNESS, json!({"actionIdx": 0}), ""),
+                mk(MULTIMEDIA, json!({"actionIdx": 0}), "previous"),
+                mk(MULTIMEDIA, json!({"actionIdx": 1}), "play"),
+                mk(MULTIMEDIA, json!({"actionIdx": 2}), "next"),
+                mk(MULTIMEDIA, json!({"actionIdx": 4}), "mute"),
+                mk(MULTIMEDIA, json!({"actionIdx": 6}), "volume-down"),
+                mk(MULTIMEDIA, json!({"actionIdx": 5}), "volume-up"),
+                mk(SLEEP, json!({}), "sleep"),
+                mk(BRIGHTNESS, json!({"actionIdx": 0}), "brightness"),
             ];
             // Fill row by row; small decks (Mini: 3x2) get the first actions.
             let cols = (model.cols as usize).min(4);
@@ -67,8 +73,8 @@ impl Engine {
             }
         }
         if model.encoders > 0 {
-            page.controller_mut("Encoder").actions.insert("0,0".into(), mk(BRIGHTNESS, json!({"actionIdx": 0}), ""));
-            page.controller_mut("Encoder").actions.insert("1,0".into(), mk(MULTIMEDIA, json!({"actionIdx": 4}), &crate::i18n::tr("Volume")));
+            page.controller_mut("Encoder").actions.insert("0,0".into(), mk(BRIGHTNESS, json!({"actionIdx": 0}), "brightness"));
+            page.controller_mut("Encoder").actions.insert("1,0".into(), mk(MULTIMEDIA, json!({"actionIdx": 4}), "mute"));
         }
         if model.kind == Kind::Neo {
             let d = builtin::def(DIGITAL_TIME).unwrap();
