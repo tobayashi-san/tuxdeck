@@ -575,9 +575,12 @@ pub fn encode_png(img: &RgbaImage) -> Vec<u8> {
 
 /// Simple icon used for built-in actions when the original Elgato resources
 /// have not been imported.
-pub fn fallback_icon_svg(glyph: &str, color: &str) -> String {
+/// Fallback icon for an action without its own image: a simple light glyph on a
+/// transparent background, matching the flat line style of the bundled icons. `_color`
+/// is kept for call-site compatibility but no longer drawn.
+pub fn fallback_icon_svg(glyph: &str, _color: &str) -> String {
     format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144"><rect width="144" height="144" rx="0" fill="{color}"/><text x="72" y="76" font-family="sans-serif" font-weight="bold" font-size="64" fill="#ffffff" text-anchor="middle" dominant-baseline="central">{}</text></svg>"##,
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144"><text x="72" y="78" font-family="sans-serif" font-weight="600" font-size="62" fill="#e6e9ef" text-anchor="middle" dominant-baseline="central">{}</text></svg>"##,
         xml_escape(glyph)
     )
 }
