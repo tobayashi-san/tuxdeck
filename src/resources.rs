@@ -12,6 +12,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// Vector icons for the built-in actions (see `assets/action-icons/<uuid>.svg`).
+#[derive(rust_embed::RustEmbed)]
+#[folder = "assets/action-icons/"]
+struct ActionIcons;
+
 /// Write `builtin/<plugin>.sdPlugin` stand-ins so the native actions are always
 /// available, even without the original resources.
 pub fn write_builtin_plugins(paths: &Paths) {
@@ -21,7 +26,9 @@ pub fn write_builtin_plugins(paths: &Paths) {
         let dir = root.join(format!("{}.sdPlugin", d.plugin));
         let _ = fs::create_dir_all(dir.join("Images"));
         let img = format!("Images/{}", d.uuid);
-        let _ = fs::write(dir.join(format!("{img}.svg")), fallback_icon_svg(d.glyph, d.color));
+        // Use the bundled vector icon for this action; fall back to a glyph-on-colour tile.
+        let svg = ActionIcons::get(&format!("{}.svg", d.uuid)).map(|f| f.data.into_owned()).unwrap_or_else(|| fallback_icon_svg(d.glyph, d.color).into_bytes());
+        let _ = fs::write(dir.join(format!("{img}.svg")), svg);
         groups.entry(d.plugin).or_default().push(json!({
             "UUID": d.uuid, "Name": d.name, "Tooltip": d.tooltip, "Icon": img,
             "States": vec![json!({"Image": img}); d.states],
