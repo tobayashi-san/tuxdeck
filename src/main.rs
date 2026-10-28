@@ -145,6 +145,18 @@ fn open_ui(paths: &paths::Paths) -> Result<()> {
     if let Some(b) = plugins::html_browser() {
         let mut c = std::process::Command::new(b);
         c.arg(format!("--app={url}")).arg("--class=tuxdeck");
+        // Own browser profile, so this starts an independent browser process instead of
+        // handing the window to an already-running one (which would ignore the flags below).
+        c.arg(format!("--user-data-dir={}", paths.data.join("ui-browser").display()));
+        // Chromium ignores --class for the Wayland app_id of an --app window (it derives one
+        // from the URL), so a Wayland taskbar shows the browser's name and icon. Run the
+        // window through XWayland, where --class sets WM_CLASS and the desktop entry
+        // (StartupWMClass=tuxdeck) supplies the name and icon. Override via TUXDECK_UI_OZONE
+        // (e.g. empty to keep the browser default, or "wayland").
+        let ozone = std::env::var("TUXDECK_UI_OZONE").unwrap_or_else(|_| "x11".into());
+        if !ozone.is_empty() {
+            c.arg(format!("--ozone-platform={ozone}"));
+        }
         if engine::spawn_detached(c).is_ok() {
             return Ok(());
         }

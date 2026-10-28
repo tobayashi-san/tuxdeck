@@ -184,6 +184,18 @@ Plugin logs are in `~/.local/share/tuxdeck/logs/`.
 </details>
 
 <details>
+<summary><b>The taskbar shows the browser's name/icon instead of TuxDeck</b></summary>
+
+The UI opens in a Chromium-based browser in app mode. On Wayland, Chromium derives the
+window's `app_id` from the URL and ignores the app name, so a Wayland taskbar would show
+the browser. TuxDeck therefore opens the UI window through XWayland with its own window
+class (`tuxdeck`), which the installed desktop entry (`StartupWMClass=tuxdeck`) and icon
+match. If you prefer the browser's native Wayland window, set `TUXDECK_UI_OZONE=wayland`
+(or empty to use the browser default). Make sure the app was installed (so the `tuxdeck`
+icon is in the icon theme); after installing you may need to log out and back in once.
+</details>
+
+<details>
 <summary><b>It does not start with the session</b></summary>
 
 Check `systemctl --user status tuxdeck`. Some compositors (Hyprland, Sway) do not pass
