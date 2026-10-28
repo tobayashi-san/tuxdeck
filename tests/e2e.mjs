@@ -1146,10 +1146,22 @@ async function suiteNeoSystem(d) {
   const P = st0.devices[0].profile;
   const page0 = st0.devices[0].page;
 
+  await test('icon packs: the bundled default pack is seeded', async () => {
+    const def = (await d.get('/api/iconpacks')).find((p) => p.id === 'tuxdeck-essentials');
+    assert(def, 'default pack present');
+    eq([def.name, def.author], ['TuxDeck Essentials', 'TuxDeck']);
+    assert(def.count >= 40, `has icons (${def.count})`);
+    assert((await d.get(def.icon)).toString().includes('<svg'), 'cover served');
+    assert((await d.get('/api/iconpacks/tuxdeck-essentials/icons?search=play')).items.length >= 1, 'searchable');
+  });
+
+  // Other icon-pack tests ignore the bundled default pack.
+  const userPacks = async () => (await d.get('/api/iconpacks')).filter((p) => p.id !== 'tuxdeck-essentials');
+
   await test('icon packs: import, list, search, serve, apply, delete', async () => {
     const r = await d.req('POST', '/api/import', ICONPACK, { 'x-filename': 'e2e.streamDeckIconPack' });
     eq([r.kind, r.id, r.name], ['iconpack', 'com.e2e.icons', 'E2E Icons']);
-    const packs = await d.get('/api/iconpacks');
+    const packs = await userPacks();
     eq(packs.map((p) => [p.id, p.name, p.count]), [['com.e2e.icons', 'E2E Icons', 3]]);
     const icon = await d.get(packs[0].icon);
     assert(icon.toString().includes('<svg'), 'pack icon served');
@@ -1162,7 +1174,7 @@ async function suiteNeoSystem(d) {
     await d.patch(`/api/pages/${P}/${page0}/slot`, { controller: 'Keypad', coord: '3,1', image: 'data:image/svg+xml;base64,' + svg.toString('base64') });
     assert([403, 404].includes(await d.status('GET', '/iconpack-files/com.e2e.icons/..%2F..%2Fsettings.json')), 'path traversal blocked');
     await d.del('/api/iconpacks/com.e2e.icons');
-    eq(await d.get('/api/iconpacks'), []);
+    eq(await userPacks(), []);
   });
 
   await test('settings: validation of touch color and input backend', async () => {

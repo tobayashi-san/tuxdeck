@@ -1,0 +1,9 @@
+{
+ "Name": "TuxDeck Essentials",
+ "Author": "TuxDeck",
+ "Version": "1.0",
+ "Icon": "cover.svg",
+ "License": "MIT",
+ "Description": "A set of clean, original icons for common actions. Shipped with TuxDeck.",
+ "URL": "https://github.com/tobayashi-san/tuxdeck"
+}

@@ -260,6 +260,7 @@ impl Engine {
         paths.migrate_plugin_data();
         crate::i18n::set_language(&crate::i18n::resolve(&settings.language));
         crate::resources::write_builtin_plugins(&paths);
+        crate::resources::write_default_iconpack(&paths);
         let registry = Self::scan_registry(&paths, &settings);
         let input = InputWorker::start(&settings.injector);
         let api_token = paths.api_token().unwrap_or_else(|e| {

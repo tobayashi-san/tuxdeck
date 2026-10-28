@@ -1,0 +1,626 @@
+[
+ {
+  "path": "play.svg",
+  "name": "Play",
+  "tags": [
+   "media",
+   "start",
+   "go"
+  ]
+ },
+ {
+  "path": "pause.svg",
+  "name": "Pause",
+  "tags": [
+   "media",
+   "stop",
+   "hold"
+  ]
+ },
+ {
+  "path": "stop.svg",
+  "name": "Stop",
+  "tags": [
+   "media",
+   "end"
+  ]
+ },
+ {
+  "path": "record.svg",
+  "name": "Record",
+  "tags": [
+   "media",
+   "rec",
+   "capture"
+  ]
+ },
+ {
+  "path": "next.svg",
+  "name": "Next",
+  "tags": [
+   "media",
+   "skip",
+   "forward"
+  ]
+ },
+ {
+  "path": "previous.svg",
+  "name": "Previous",
+  "tags": [
+   "media",
+   "back",
+   "rewind"
+  ]
+ },
+ {
+  "path": "fast-forward.svg",
+  "name": "Fast Forward",
+  "tags": [
+   "media",
+   "speed"
+  ]
+ },
+ {
+  "path": "rewind.svg",
+  "name": "Rewind",
+  "tags": [
+   "media",
+   "speed",
+   "back"
+  ]
+ },
+ {
+  "path": "shuffle.svg",
+  "name": "Shuffle",
+  "tags": [
+   "media",
+   "random"
+  ]
+ },
+ {
+  "path": "repeat.svg",
+  "name": "Repeat",
+  "tags": [
+   "media",
+   "loop"
+  ]
+ },
+ {
+  "path": "volume-up.svg",
+  "name": "Volume Up",
+  "tags": [
+   "sound",
+   "audio",
+   "louder",
+   "speaker"
+  ]
+ },
+ {
+  "path": "volume-down.svg",
+  "name": "Volume Down",
+  "tags": [
+   "sound",
+   "audio",
+   "quieter",
+   "speaker"
+  ]
+ },
+ {
+  "path": "mute.svg",
+  "name": "Mute",
+  "tags": [
+   "sound",
+   "audio",
+   "silent",
+   "off"
+  ]
+ },
+ {
+  "path": "microphone.svg",
+  "name": "Microphone",
+  "tags": [
+   "mic",
+   "voice",
+   "record"
+  ]
+ },
+ {
+  "path": "mic-mute.svg",
+  "name": "Mic Mute",
+  "tags": [
+   "mic",
+   "voice",
+   "off",
+   "silent"
+  ]
+ },
+ {
+  "path": "headphones.svg",
+  "name": "Headphones",
+  "tags": [
+   "audio",
+   "music",
+   "sound"
+  ]
+ },
+ {
+  "path": "music.svg",
+  "name": "Music",
+  "tags": [
+   "note",
+   "song",
+   "audio",
+   "sound"
+  ]
+ },
+ {
+  "path": "power.svg",
+  "name": "Power",
+  "tags": [
+   "on",
+   "off",
+   "shutdown",
+   "start"
+  ]
+ },
+ {
+  "path": "sleep.svg",
+  "name": "Sleep",
+  "tags": [
+   "moon",
+   "night",
+   "standby",
+   "dnd"
+  ]
+ },
+ {
+  "path": "brightness.svg",
+  "name": "Brightness",
+  "tags": [
+   "sun",
+   "light",
+   "display",
+   "day"
+  ]
+ },
+ {
+  "path": "settings.svg",
+  "name": "Settings",
+  "tags": [
+   "gear",
+   "cog",
+   "config",
+   "options",
+   "preferences"
+  ]
+ },
+ {
+  "path": "lock.svg",
+  "name": "Lock",
+  "tags": [
+   "secure",
+   "password",
+   "private",
+   "closed"
+  ]
+ },
+ {
+  "path": "unlock.svg",
+  "name": "Unlock",
+  "tags": [
+   "secure",
+   "open",
+   "access"
+  ]
+ },
+ {
+  "path": "refresh.svg",
+  "name": "Refresh",
+  "tags": [
+   "reload",
+   "sync",
+   "update",
+   "renew"
+  ]
+ },
+ {
+  "path": "search.svg",
+  "name": "Search",
+  "tags": [
+   "find",
+   "magnifier",
+   "zoom",
+   "look"
+  ]
+ },
+ {
+  "path": "battery.svg",
+  "name": "Battery",
+  "tags": [
+   "power",
+   "charge",
+   "energy"
+  ]
+ },
+ {
+  "path": "wifi.svg",
+  "name": "Wifi",
+  "tags": [
+   "network",
+   "wireless",
+   "internet",
+   "signal"
+  ]
+ },
+ {
+  "path": "bluetooth.svg",
+  "name": "Bluetooth",
+  "tags": [
+   "wireless",
+   "connect",
+   "pair"
+  ]
+ },
+ {
+  "path": "trash.svg",
+  "name": "Trash",
+  "tags": [
+   "delete",
+   "remove",
+   "bin",
+   "discard"
+  ]
+ },
+ {
+  "path": "keyboard.svg",
+  "name": "Keyboard",
+  "tags": [
+   "keys",
+   "input",
+   "type"
+  ]
+ },
+ {
+  "path": "clock.svg",
+  "name": "Clock",
+  "tags": [
+   "time",
+   "timer",
+   "watch",
+   "alarm"
+  ]
+ },
+ {
+  "path": "calendar.svg",
+  "name": "Calendar",
+  "tags": [
+   "date",
+   "schedule",
+   "event",
+   "day"
+  ]
+ },
+ {
+  "path": "bell.svg",
+  "name": "Bell",
+  "tags": [
+   "notification",
+   "alert",
+   "reminder",
+   "ring"
+  ]
+ },
+ {
+  "path": "arrow-up.svg",
+  "name": "Arrow Up",
+  "tags": [
+   "up",
+   "north",
+   "top"
+  ]
+ },
+ {
+  "path": "arrow-down.svg",
+  "name": "Arrow Down",
+  "tags": [
+   "down",
+   "south",
+   "bottom"
+  ]
+ },
+ {
+  "path": "arrow-left.svg",
+  "name": "Arrow Left",
+  "tags": [
+   "left",
+   "west",
+   "back",
+   "previous"
+  ]
+ },
+ {
+  "path": "arrow-right.svg",
+  "name": "Arrow Right",
+  "tags": [
+   "right",
+   "east",
+   "forward",
+   "next"
+  ]
+ },
+ {
+  "path": "home.svg",
+  "name": "Home",
+  "tags": [
+   "house",
+   "main",
+   "start"
+  ]
+ },
+ {
+  "path": "folder.svg",
+  "name": "Folder",
+  "tags": [
+   "directory",
+   "files",
+   "store"
+  ]
+ },
+ {
+  "path": "plus.svg",
+  "name": "Plus",
+  "tags": [
+   "add",
+   "new",
+   "create",
+   "more"
+  ]
+ },
+ {
+  "path": "minus.svg",
+  "name": "Minus",
+  "tags": [
+   "remove",
+   "subtract",
+   "less"
+  ]
+ },
+ {
+  "path": "check.svg",
+  "name": "Check",
+  "tags": [
+   "ok",
+   "done",
+   "yes",
+   "confirm",
+   "success"
+  ]
+ },
+ {
+  "path": "close.svg",
+  "name": "Close",
+  "tags": [
+   "x",
+   "cancel",
+   "no",
+   "remove",
+   "exit"
+  ]
+ },
+ {
+  "path": "menu.svg",
+  "name": "Menu",
+  "tags": [
+   "list",
+   "hamburger",
+   "options"
+  ]
+ },
+ {
+  "path": "grid.svg",
+  "name": "Grid",
+  "tags": [
+   "apps",
+   "dashboard",
+   "all",
+   "tiles"
+  ]
+ },
+ {
+  "path": "globe.svg",
+  "name": "Globe",
+  "tags": [
+   "web",
+   "internet",
+   "browser",
+   "world",
+   "language"
+  ]
+ },
+ {
+  "path": "mail.svg",
+  "name": "Mail",
+  "tags": [
+   "email",
+   "message",
+   "envelope",
+   "inbox"
+  ]
+ },
+ {
+  "path": "chat.svg",
+  "name": "Chat",
+  "tags": [
+   "message",
+   "bubble",
+   "talk",
+   "comment"
+  ]
+ },
+ {
+  "path": "camera.svg",
+  "name": "Camera",
+  "tags": [
+   "photo",
+   "picture",
+   "snapshot"
+  ]
+ },
+ {
+  "path": "video.svg",
+  "name": "Video",
+  "tags": [
+   "film",
+   "movie",
+   "record",
+   "clip"
+  ]
+ },
+ {
+  "path": "image.svg",
+  "name": "Image",
+  "tags": [
+   "picture",
+   "photo",
+   "gallery",
+   "media"
+  ]
+ },
+ {
+  "path": "document.svg",
+  "name": "Document",
+  "tags": [
+   "file",
+   "page",
+   "text",
+   "note"
+  ]
+ },
+ {
+  "path": "link.svg",
+  "name": "Link",
+  "tags": [
+   "url",
+   "chain",
+   "connect",
+   "attach"
+  ]
+ },
+ {
+  "path": "star.svg",
+  "name": "Star",
+  "tags": [
+   "favorite",
+   "rate",
+   "bookmark"
+  ]
+ },
+ {
+  "path": "heart.svg",
+  "name": "Heart",
+  "tags": [
+   "like",
+   "love",
+   "favorite"
+  ]
+ },
+ {
+  "path": "bookmark.svg",
+  "name": "Bookmark",
+  "tags": [
+   "save",
+   "favorite",
+   "tag",
+   "mark"
+  ]
+ },
+ {
+  "path": "flag.svg",
+  "name": "Flag",
+  "tags": [
+   "mark",
+   "report",
+   "milestone"
+  ]
+ },
+ {
+  "path": "pin.svg",
+  "name": "Pin",
+  "tags": [
+   "location",
+   "map",
+   "place",
+   "gps"
+  ]
+ },
+ {
+  "path": "lightbulb.svg",
+  "name": "Lightbulb",
+  "tags": [
+   "idea",
+   "hint",
+   "tip",
+   "light"
+  ]
+ },
+ {
+  "path": "terminal.svg",
+  "name": "Terminal",
+  "tags": [
+   "console",
+   "command",
+   "shell",
+   "code",
+   "cli"
+  ]
+ },
+ {
+  "path": "download.svg",
+  "name": "Download",
+  "tags": [
+   "save",
+   "get",
+   "arrow",
+   "import"
+  ]
+ },
+ {
+  "path": "upload.svg",
+  "name": "Upload",
+  "tags": [
+   "send",
+   "arrow",
+   "export,share"
+  ]
+ },
+ {
+  "path": "copy.svg",
+  "name": "Copy",
+  "tags": [
+   "duplicate",
+   "clone",
+   "files"
+  ]
+ },
+ {
+  "path": "eye.svg",
+  "name": "Eye",
+  "tags": [
+   "view",
+   "show",
+   "visible",
+   "watch",
+   "preview"
+  ]
+ },
+ {
+  "path": "gamepad.svg",
+  "name": "Gamepad",
+  "tags": [
+   "game",
+   "controller",
+   "play",
+   "joystick"
+  ]
+ }
+]

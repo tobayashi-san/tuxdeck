@@ -164,3 +164,43 @@ pub fn layout_font_dirs(paths: &Paths) -> Vec<PathBuf> {
     }
     out
 }
+
+/// The default icon pack shipped with TuxDeck (original icons; see `assets/iconpack/`).
+#[derive(rust_embed::RustEmbed)]
+#[folder = "assets/iconpack/"]
+struct DefaultIconPack;
+
+const DEFAULT_ICONPACK_ID: &str = "tuxdeck-essentials";
+/// Bump to re-seed the pack after changing the icons (user deletions still stick for the
+/// current version).
+const DEFAULT_ICONPACK_VERSION: u32 = 1;
+
+/// Write the bundled icon pack into `IconPacks/` on first run. A version marker next to it
+/// records that it was seeded, so removing the pack in the UI is respected and only a
+/// version bump re-seeds it.
+pub fn write_default_iconpack(paths: &Paths) {
+    let root = paths.icon_packs();
+    let marker = root.join(format!(".{DEFAULT_ICONPACK_ID}.seeded"));
+    let seeded = fs::read_to_string(&marker).ok().and_then(|s| s.trim().parse::<u32>().ok());
+    if seeded == Some(DEFAULT_ICONPACK_VERSION) {
+        return;
+    }
+    let dir = root.join(format!("{DEFAULT_ICONPACK_ID}.sdIconPack"));
+    if let Err(e) = (|| -> std::io::Result<()> {
+        if dir.exists() {
+            fs::remove_dir_all(&dir)?;
+        }
+        for path in DefaultIconPack::iter() {
+            let Some(file) = DefaultIconPack::get(&path) else { continue };
+            let out = dir.join(path.as_ref());
+            if let Some(parent) = out.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(out, file.data)?;
+        }
+        fs::create_dir_all(&root)?;
+        fs::write(&marker, DEFAULT_ICONPACK_VERSION.to_string())
+    })() {
+        tracing::warn!("could not write the default icon pack: {e}");
+    }
+}
