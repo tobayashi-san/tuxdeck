@@ -505,6 +505,7 @@
  "URL": "URL",
  "Underline": "Unterstrichen",
  "Undo": "Rückgängig",
+ "Uninstall": "Deinstallieren",
  "Uninstall \"{name}\"? Keys with actions of this plugin will stop working.": "Soll „{name}“ deinstalliert werden? Tasten mit Aktionen dieses Plugins funktionieren danach nicht mehr.",
  "Unknown folder target": "Ordnerziel unbekannt",
  "Unknown page ({id}…)": "Unbekannte Seite ({id}…)",

@@ -613,10 +613,35 @@ function renderDetailButton() {
   else if (upToDate) button = { label: t('Installed'), disabled: true };
   else button = source().installButton?.(item, st, button) || button;
   box.replaceChildren(...kids(
-    h('button.btn.primary.mk-install-btn', { disabled: button.disabled, onclick: button.action }, busy ? spinner('small light') : null, button.label),
+    h('div.mk-install-row', null,
+      h('button.btn.primary.mk-install-btn', { disabled: button.disabled, onclick: button.action }, busy ? spinner('small light') : null, button.label),
+      st.installed && !busy ? h('button.btn.danger-outline', { onclick: () => uninstall(item) }, t('Uninstall')) : null),
     source().notes?.(item, st),
     item.isPlugin !== false ? h('div.mk-note', null, t(LINUX_NOTE)) : null,
     busy ? h('div.mk-note', null, t('Download and installation can take a while…')) : null));
+}
+
+/** Remove an installed catalogue item (plugin or icon pack) from the detail panel. */
+async function uninstall(item) {
+  const st = item.state || {};
+  const name = item.name || t('Plugin');
+  const isPack = st.kind === 'iconpack';
+  const yes = await confirmDialog(
+    isPack ? t('Remove icon pack') : t('Remove plugin'),
+    isPack ? t('Remove "{name}"? Icons already assigned to keys are kept.', { name })
+      : t('Uninstall "{name}"? Keys with actions of this plugin will stop working.', { name }),
+    t('Remove'));
+  if (!yes) return;
+  try {
+    await api(isPack ? `/api/iconpacks/${enc(item.uuid || item.id)}` : `/api/plugins/${enc(item.uuid)}`, { method: 'DELETE' });
+    toast(t('"{name}" removed', { name }), 'info', 3000);
+    hooks.installed?.({ kind: isPack ? 'iconpack' : 'plugin', id: item.uuid || item.id, removed: true });
+    delete M.checks[item.uuid];
+  } catch (e) {
+    toast(t('Removing failed: {msg}', { msg: e.message }), 'error');
+    return;
+  }
+  await refreshAfterInstall(item.id);
 }
 
 async function install(item) {

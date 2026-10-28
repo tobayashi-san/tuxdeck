@@ -697,6 +697,8 @@ div.mk-detail-banner { font-size: 48px; }
 .mk-detail-org { color: var(--muted); }
 .mk-detail-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
 .mk-install { padding: 10px 16px 4px; display: flex; flex-direction: column; gap: 6px; }
+.mk-install-row { display: flex; gap: 8px; align-items: center; }
+.mk-install-row .mk-install-btn { flex: 1; }
 .mk-install-btn { height: 36px; font-size: 14px; }
 .mk-install-btn:disabled { opacity: .6; }
 .mk-hint { color: #fbbf24; font-size: 12px; }
