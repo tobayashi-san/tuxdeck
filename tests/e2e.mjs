@@ -712,7 +712,16 @@ async function suiteNeoEditing(d) {
     assert(!s1.equals(await d.render('Keypad', '3,0', '&state=0')), 'state previews differ');
     await patch({ state: 1, image: '' });
     eq((await d.page()).controllers.find((x) => x.Type === 'Keypad').Actions['3,0'].States[1].Image, undefined, 'image reset');
-    await patch({ state: 0, style: { Title: null, ShowTitle: null, TitleColor: null } });
+    // Per-key background colour: shows through a transparent icon.
+    const transparentIcon = 'data:image/svg+xml;base64,' + Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144"><circle cx="72" cy="72" r="22" fill="#fff"/></svg>').toString('base64');
+    await patch({ state: 0, image: transparentIcon });
+    const plain = await d.render('Keypad', '3,0');
+    await patch({ state: 0, style: { Background: '#2563eb' } });
+    eq((await d.page()).controllers.find((x) => x.Type === 'Keypad').Actions['3,0'].States[0].Background, '#2563eb', 'background stored');
+    assert(!plain.equals(await d.render('Keypad', '3,0')), 'background rendered');
+    await patch({ state: 0, style: { Background: null } });
+    eq((await d.page()).controllers.find((x) => x.Type === 'Keypad').Actions['3,0'].States[0].Background, undefined, 'background cleared');
+    await patch({ state: 0, image: '', style: { Title: null, ShowTitle: null, TitleColor: null } });
   });
 
   await test('multi action: entries run in order with delay', async () => {

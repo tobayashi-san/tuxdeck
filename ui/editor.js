@@ -292,6 +292,7 @@ function buildEditor(sel, inst) {
         },
       }, t('Icon…')),
       h('button.btn.small', { title: t('Use the default image of the action'), onclick: () => patch({ state: stateIdx, image: '' }) }, t('Default'))),
+    sel.controller === 'Keypad' ? backgroundRow(states[stateIdx] || {}, setStyle) : null,
     fileInput);
 
   // ---- title column --------------------------------------------------------------------
@@ -359,6 +360,24 @@ function buildEditor(sel, inst) {
 function formFields(action) {
   const form = action?.form || [];
   return action?.uuid === HOTKEY_SWITCH ? form.map((f) => (f.type === 'hotkey' ? { ...f, rows: 2 } : f)) : form;
+}
+
+/** Key background colour: preset swatches, a custom picker and "none" (black). */
+function backgroundRow(st, setStyle) {
+  const presets = ['#1e1e1e', '#2563eb', '#059669', '#e11d48', '#d97706', '#7c3aed', '#0d9488', '#475569'];
+  const cur = (st.Background || '').toLowerCase();
+  return h('div.ed-bg', null,
+    h('span.field-label', null, t('Background')),
+    h('div.bg-swatches', null,
+      h('button.bg-swatch.bg-none', { class: cur ? null : 'active', title: t('No background (black)'), onclick: () => setStyle({ Background: null }, true) }),
+      presets.map((c) => h('button.bg-swatch', {
+        class: cur === c ? 'active' : null, style: { background: c }, title: c,
+        onclick: () => setStyle({ Background: c }, true),
+      })),
+      h('input.color.bg-custom', {
+        type: 'color', title: t('Custom colour'), value: normColor(st.Background, '#1e1e1e'),
+        oninput: (e) => setStyle({ Background: e.target.value }, true),
+      })));
 }
 
 function normColor(c, fallback) {

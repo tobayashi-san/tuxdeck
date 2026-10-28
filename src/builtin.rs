@@ -47,7 +47,7 @@ pub struct BuiltinDef {
     pub supported: bool,
 }
 
-pub const CAT_NAV: &str = "TuxDeck";
+pub const CAT_NAV: &str = "Deck";
 pub const CAT_SYSTEM: &str = "System";
 pub const CAT_MULTI: &str = "Multi Action";
 pub const CAT_SOUND: &str = "Soundboard";

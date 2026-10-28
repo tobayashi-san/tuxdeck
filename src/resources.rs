@@ -173,7 +173,7 @@ struct DefaultIconPack;
 const DEFAULT_ICONPACK_ID: &str = "tuxdeck-essentials";
 /// Bump to re-seed the pack after changing the icons (user deletions still stick for the
 /// current version).
-const DEFAULT_ICONPACK_VERSION: u32 = 3;
+const DEFAULT_ICONPACK_VERSION: u32 = 4;
 
 /// Write the bundled icon pack into `IconPacks/` on first run. A version marker next to it
 /// records that it was seeded, so removing the pack in the UI is respected and only a

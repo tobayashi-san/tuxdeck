@@ -109,6 +109,9 @@ pub struct StateDef {
     pub font_underline: Option<bool>,
     #[serde(rename = "Image", skip_serializing_if = "Option::is_none")]
     pub image: Option<String>,
+    /// Key background colour (`#rrggbb`), shown behind the image. Our own extension.
+    #[serde(rename = "Background", skip_serializing_if = "Option::is_none")]
+    pub background: Option<String>,
     #[serde(rename = "OutlineThickness", skip_serializing_if = "Option::is_none")]
     pub outline_thickness: Option<f32>,
     #[serde(rename = "ShowTitle", skip_serializing_if = "Option::is_none")]

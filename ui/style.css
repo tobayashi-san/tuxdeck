@@ -1,12 +1,12 @@
 :root {
-  --bg: #1e1e1e;
-  --panel: #2b2b2b;
-  --panel-2: #252525;
-  --panel-3: #333;
-  --border: #3a3a3a;
-  --border-dark: #151515;
-  --text: #e8e8e8;
-  --muted: #9a9a9a;
+  --bg: #16171b;
+  --panel: #202228;
+  --panel-2: #1b1d22;
+  --panel-3: #2c2f37;
+  --border: #33363e;
+  --border-dark: #101114;
+  --text: #e9ebf0;
+  --muted: #a3a8b2;
   --accent: #3b82f6;
   --accent-hover: #2563eb;
   --ok: #22c55e;
@@ -136,7 +136,7 @@ input[type=range]:disabled { opacity: .35; }
 #profile-select { width: 220px; }
 .brightness { color: #cfcfcf; }
 .brightness input { width: 110px; }
-.tb-value { width: 38px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.tb-value { min-width: 44px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .status-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .status-dot.on { background: var(--ok); box-shadow: 0 0 6px #22c55e88; }
@@ -405,6 +405,13 @@ body.file-dragging.file-import #file-drop { display: grid; }
 .ed-preview.static:hover { box-shadow: 0 0 0 1px #3a3a3a; }
 .ed-note { text-align: center; max-width: 140px; }
 .ed-imgbtns { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 150px; }
+.ed-bg { display: flex; flex-direction: column; align-items: center; gap: 5px; margin-top: 2px; }
+.bg-swatches { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; max-width: 152px; }
+.bg-swatch { width: 20px; height: 20px; border-radius: 5px; border: 1px solid #00000066; cursor: pointer; padding: 0; }
+.bg-swatch.active { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bg-none { background: #111; position: relative; overflow: hidden; }
+.bg-none::after { content: ''; position: absolute; left: 1px; right: 1px; top: 9px; height: 2px; background: #e11d48; transform: rotate(-45deg); }
+.bg-custom { width: 26px; height: 22px; padding: 1px; border-radius: 5px; }
 
 .ed-titlecol { display: flex; flex-direction: column; gap: 8px; }
 .ed-titlecol textarea { width: 100%; min-height: 56px; }
@@ -416,7 +423,7 @@ body.file-dragging.file-import #file-drop { display: grid; }
 .field-label { color: var(--muted); font-size: 12px; }
 .field-help { color: #888; font-size: 11.5px; margin-top: 3px; }
 
-.ed-settings { min-width: 0; }
+.ed-settings { min-width: 0; max-width: 580px; }
 .form { display: grid; grid-template-columns: minmax(90px, 130px) minmax(0, 1fr); gap: 9px 12px; align-items: center; }
 .form-row { display: contents; }
 .form-row .field-label { text-align: right; align-self: center; }

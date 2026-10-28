@@ -244,6 +244,8 @@ impl Engine {
         let mstate = mdef.and_then(|a| a.states.get(state_idx).or(a.states.first()));
 
         let mut spec = KeySpec { ..Default::default() };
+        // User-chosen key background, shown behind the (possibly transparent) image.
+        spec.background = st.background.clone().filter(|s| !s.is_empty());
         // Image precedence: plugin override > user image > built-in variant > manifest default.
         spec.image = rt
             .and_then(|r| r.images.get(&Some(state_idx)).or(r.images.get(&None)).cloned())
@@ -306,7 +308,7 @@ impl Engine {
         if spec.image.is_none() && spec.big_text.is_none() {
             if let Some(d) = builtin::def(&inst.uuid) {
                 spec.image = Some(ImageData::svg(render::fallback_icon_svg(d.glyph, d.color)));
-            } else {
+            } else if spec.background.is_none() {
                 spec.background = Some("#202020".into());
             }
         }
