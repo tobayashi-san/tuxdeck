@@ -151,9 +151,12 @@ fn open_ui(paths: &paths::Paths) -> Result<()> {
         // Chromium ignores --class for the Wayland app_id of an --app window (it derives one
         // from the URL), so a Wayland taskbar shows the browser's name and icon. Run the
         // window through XWayland, where --class sets WM_CLASS and the desktop entry
-        // (StartupWMClass=tuxdeck) supplies the name and icon. Override via TUXDECK_UI_OZONE
-        // (e.g. empty to keep the browser default, or "wayland").
-        let ozone = std::env::var("TUXDECK_UI_OZONE").unwrap_or_else(|_| "x11".into());
+        // (StartupWMClass=tuxdeck) supplies the name and icon — this is the same mechanism
+        // KDE, GNOME and wlroots bars use. Only when an X server is reachable (DISPLAY set,
+        // i.e. a real X11 session or Wayland with XWayland); a pure-Wayland session without
+        // XWayland keeps the browser's native window. Override via TUXDECK_UI_OZONE.
+        let ozone = std::env::var("TUXDECK_UI_OZONE")
+            .unwrap_or_else(|_| if std::env::var_os("DISPLAY").is_some() { "x11".into() } else { String::new() });
         if !ozone.is_empty() {
             c.arg(format!("--ozone-platform={ozone}"));
         }
