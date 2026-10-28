@@ -63,6 +63,8 @@ define install_files
 	install -Dm644 THIRD-PARTY-LICENSES.md $(call q,$(4)/doc/tuxdeck/THIRD-PARTY-LICENSES.md)
 	install -Dm644 tuxdeck.desktop.tmp $(call q,$(4)/applications/tuxdeck.desktop)
 	install -Dm644 tuxdeck.service.tmp $(call q,$(3)/tuxdeck.service)
+	install -Dm644 assets/icon/tuxdeck.svg $(call q,$(4)/icons/hicolor/scalable/apps/tuxdeck.svg)
+	for s in 16 24 32 48 64 128 256; do install -Dm644 assets/icon/tuxdeck-$$s.png $(call q,$(4)/icons/hicolor/$${s}x$${s}/apps/tuxdeck.png); done
 	rm -f tuxdeck.desktop.tmp tuxdeck.service.tmp
 endef
 
@@ -84,6 +86,8 @@ uninstall:
 	rm -f $(call q,$(DESTDIR)$(BINDIR)/tuxdeck) $(call q,$(DESTDIR)$(DATADIR)/applications/tuxdeck.desktop) \
 	      $(call q,$(DESTDIR)$(SYSTEMDUSERDIR)/tuxdeck.service) \
 	      $(call q,$(DESTDIR)$(UDEVRULESDIR)/70-tuxdeck.rules) $(call q,$(DESTDIR)$(UDEVRULESDIR)/71-tuxdeck-uinput.rules)
+	rm -f $(call q,$(DESTDIR)$(DATADIR)/icons/hicolor/scalable/apps/tuxdeck.svg)
+	for s in 16 24 32 48 64 128 256; do rm -f $(call q,$(DESTDIR)$(DATADIR))/icons/hicolor/$${s}x$${s}/apps/tuxdeck.png; done
 	rm -rf $(call q,$(DESTDIR)$(DATADIR)/doc/tuxdeck)
 	@echo "Users who used it: make uninstall-user (removes their service link and streamdeck:// handler)"
 
@@ -100,7 +104,9 @@ install-user: $(BIN)
 uninstall-user:
 	-if command -v systemctl >/dev/null; then systemctl --user disable --now tuxdeck.service; fi
 	rm -f $(call q,$(USER_BINDIR)/tuxdeck) $(call q,$(USER_DATADIR)/applications/tuxdeck.desktop) \
-	      $(call q,$(USER_SYSTEMDDIR)/tuxdeck.service)
+	      $(call q,$(USER_SYSTEMDDIR)/tuxdeck.service) \
+	      $(call q,$(USER_DATADIR)/icons/hicolor/scalable/apps/tuxdeck.svg)
+	for s in 16 24 32 48 64 128 256; do rm -f $(call q,$(USER_DATADIR))/icons/hicolor/$${s}x$${s}/apps/tuxdeck.png; done
 	rm -rf $(call q,$(USER_DATADIR)/doc/tuxdeck)
 	$(HELPER) unregister-url-handler $(call q,$(USER_DATADIR)) $(call q,$(USER_CONFIGDIR))
 	-if command -v systemctl >/dev/null; then systemctl --user daemon-reload; fi

@@ -30,6 +30,22 @@ contents:
     file_info: { mode: 0644 }
   - src: packaging/tuxdeck.desktop
     dst: /usr/share/applications/tuxdeck.desktop
+  - src: assets/icon/tuxdeck.svg
+    dst: /usr/share/icons/hicolor/scalable/apps/tuxdeck.svg
+  - src: assets/icon/tuxdeck-16.png
+    dst: /usr/share/icons/hicolor/16x16/apps/tuxdeck.png
+  - src: assets/icon/tuxdeck-24.png
+    dst: /usr/share/icons/hicolor/24x24/apps/tuxdeck.png
+  - src: assets/icon/tuxdeck-32.png
+    dst: /usr/share/icons/hicolor/32x32/apps/tuxdeck.png
+  - src: assets/icon/tuxdeck-48.png
+    dst: /usr/share/icons/hicolor/48x48/apps/tuxdeck.png
+  - src: assets/icon/tuxdeck-64.png
+    dst: /usr/share/icons/hicolor/64x64/apps/tuxdeck.png
+  - src: assets/icon/tuxdeck-128.png
+    dst: /usr/share/icons/hicolor/128x128/apps/tuxdeck.png
+  - src: assets/icon/tuxdeck-256.png
+    dst: /usr/share/icons/hicolor/256x256/apps/tuxdeck.png
   - src: build/tuxdeck.service
     dst: /usr/lib/systemd/user/tuxdeck.service
   - src: README.md

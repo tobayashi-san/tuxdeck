@@ -54,10 +54,11 @@ jobs:
           sed -e 's|%h/.local/bin/tuxdeck|/usr/bin/tuxdeck|' -e 's|%h/.local/share/doc|/usr/share/doc|' \
             packaging/tuxdeck.service > build/tuxdeck.service
           name=tuxdeck-$v-x86_64
-          mkdir -p "$name/packaging"
+          mkdir -p "$name/packaging/icon"
           cp build/tuxdeck packaging/install.sh README.md LICENSE THIRD-PARTY-LICENSES.md assets/fonts/LICENSE-DejaVu.txt "$name/"
           cp packaging/70-tuxdeck.rules packaging/71-tuxdeck-uinput.rules packaging/install-helper.sh \
             packaging/tuxdeck.desktop packaging/tuxdeck.service "$name/packaging/"
+          cp assets/icon/tuxdeck.svg assets/icon/tuxdeck-*.png "$name/packaging/icon/"
           chmod 755 "$name/tuxdeck" "$name/install.sh"
           tar --owner=0 --group=0 --numeric-owner -czf "dist/$name.tar.gz" "$name"
 

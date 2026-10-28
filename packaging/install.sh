@@ -75,6 +75,8 @@ if [ "$action" = uninstall ]; then
         systemctl --user disable --now tuxdeck.service 2>/dev/null || true
     fi
     rm -f "$bindir/tuxdeck" "$datadir/applications/tuxdeck.desktop" "$unitdir/tuxdeck.service"
+    rm -f "$datadir/icons/hicolor/scalable/apps/tuxdeck.svg"
+    for s in 16 24 32 48 64 128 256; do rm -f "$datadir/icons/hicolor/${s}x${s}/apps/tuxdeck.png"; done
     rm -rf "$datadir/doc/tuxdeck"
     if [ "$mode" = user ]; then
         # streamdeck:// handler registered by the app at startup (src/urlhandler.rs)
@@ -121,6 +123,13 @@ install -Dm644 "$here/README.md" "$datadir/doc/tuxdeck/README.md"
 [ -f "$here/THIRD-PARTY-LICENSES.md" ] && install -Dm644 "$here/THIRD-PARTY-LICENSES.md" "$datadir/doc/tuxdeck/THIRD-PARTY-LICENSES.md"
 install -Dm644 "$tmp/tuxdeck.desktop" "$datadir/applications/tuxdeck.desktop"
 install -Dm644 "$tmp/tuxdeck.service" "$unitdir/tuxdeck.service"
+if [ -f "$here/packaging/icon/tuxdeck.svg" ]; then
+    install -Dm644 "$here/packaging/icon/tuxdeck.svg" "$datadir/icons/hicolor/scalable/apps/tuxdeck.svg"
+    for s in 16 24 32 48 64 128 256; do
+        install -Dm644 "$here/packaging/icon/tuxdeck-$s.png" "$datadir/icons/hicolor/${s}x${s}/apps/tuxdeck.png"
+    done
+    have gtk-update-icon-cache && gtk-update-icon-cache -qtf "$datadir/icons/hicolor" 2>/dev/null || true
+fi
 if have update-desktop-database; then
     update-desktop-database "$datadir/applications" 2>/dev/null || true
 fi
