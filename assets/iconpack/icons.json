@@ -92,7 +92,8 @@
    "sound",
    "audio",
    "louder",
-   "speaker"
+   "speaker",
+   "plus"
   ]
  },
  {
@@ -102,7 +103,8 @@
    "sound",
    "audio",
    "quieter",
-   "speaker"
+   "speaker",
+   "minus"
   ]
  },
  {

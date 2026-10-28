@@ -43,7 +43,7 @@ impl Engine {
             let d = builtin::def(uuid).unwrap();
             let mut a = ActionInstance::new(uuid, d.name, d.states);
             a.settings = settings;
-            if let Some(url) = crate::resources::default_icon_data_url(icon) {
+            if let Some(url) = crate::resources::starter_icon_data_url(icon) {
                 for st in a.states.iter_mut() {
                     st.image = Some(url.clone());
                 }
@@ -74,7 +74,7 @@ impl Engine {
         }
         if model.encoders > 0 {
             page.controller_mut("Encoder").actions.insert("0,0".into(), mk(BRIGHTNESS, json!({"actionIdx": 0}), "brightness"));
-            page.controller_mut("Encoder").actions.insert("1,0".into(), mk(MULTIMEDIA, json!({"actionIdx": 4}), "mute"));
+            page.controller_mut("Encoder").actions.insert("1,0".into(), mk(MULTIMEDIA, json!({"actionIdx": 4}), "volume-up"));
         }
         if model.kind == Kind::Neo {
             let d = builtin::def(DIGITAL_TIME).unwrap();

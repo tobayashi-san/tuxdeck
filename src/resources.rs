@@ -173,7 +173,7 @@ struct DefaultIconPack;
 const DEFAULT_ICONPACK_ID: &str = "tuxdeck-essentials";
 /// Bump to re-seed the pack after changing the icons (user deletions still stick for the
 /// current version).
-const DEFAULT_ICONPACK_VERSION: u32 = 2;
+const DEFAULT_ICONPACK_VERSION: u32 = 3;
 
 /// Write the bundled icon pack into `IconPacks/` on first run. A version marker next to it
 /// records that it was seeded, so removing the pack in the UI is respected and only a
@@ -205,10 +205,15 @@ pub fn write_default_iconpack(paths: &Paths) {
     }
 }
 
-/// SVG of a bundled default icon as a `data:` URL, used by the Linux default profile so its
-/// keys show the shipped icons without referencing files on disk.
-pub fn default_icon_data_url(name: &str) -> Option<String> {
+
+/// Colourful key icons for the starter profile (see `assets/starter/`).
+#[derive(rust_embed::RustEmbed)]
+#[folder = "assets/starter/"]
+struct StarterIcons;
+
+/// A starter-profile icon as a `data:` URL.
+pub fn starter_icon_data_url(name: &str) -> Option<String> {
     use base64::Engine as _;
-    let file = DefaultIconPack::get(&format!("icons/{name}.svg"))?;
+    let file = StarterIcons::get(&format!("{name}.svg"))?;
     Some(format!("data:image/svg+xml;base64,{}", base64::engine::general_purpose::STANDARD.encode(file.data.as_ref())))
 }
