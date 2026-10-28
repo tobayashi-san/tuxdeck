@@ -1,0 +1,13 @@
+# tuxdeck, OPTIONAL: let the logged-in user write to /dev/uinput, the virtual
+# keyboard used for hotkey and text actions (the most reliable way on GNOME and KDE
+# Wayland; without it the app falls back to Hyprland, wtype or xdotool).
+#
+# Security: with this rule every program running as the logged-in user can inject
+# keystrokes and mouse input, also into other applications. Only install it if you need it.
+#
+# Not installed by default. Enable with ./install.sh --with-uinput, sudo make install-uinput,
+# or (packages) sudo cp /usr/share/tuxdeck/udev/71-tuxdeck-uinput.rules /etc/udev/rules.d/
+# then: sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=misc --sysname-match=uinput
+# and restart the app (systemctl --user restart tuxdeck).
+# Disable: delete the file from /etc/udev/rules.d/ and reboot (removes the access already granted).
+KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess", OPTIONS+="static_node=uinput"

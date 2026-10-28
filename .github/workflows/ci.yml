@@ -1,0 +1,46 @@
+# Build and test on every push and pull request.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libudev-dev pkg-config
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: cargo fmt --check
+      - run: cargo build --release --locked
+      - run: cargo test --release --locked
+      - run: cargo clippy --release --locked -- -D warnings
+      - run: node tests/i18n-check.mjs
+      - run: node tests/e2e.mjs --bin target/release/tuxdeck
+      # GitHub's Ubuntu runners come with Google Chrome.
+      - run: node tests/ui-smoke.mjs --bin target/release/tuxdeck --screenshots ui-screenshots
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: ui-screenshots
+          if-no-files-found: ignore
+
+  msrv:
+    name: Rust 1.85 (minimum)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libudev-dev pkg-config
+      - uses: dtolnay/rust-toolchain@1.85.0
+      - run: cargo build --locked
+      - run: cargo test --locked

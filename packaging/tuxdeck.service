@@ -1,0 +1,13 @@
+[Unit]
+Description=TuxDeck (Elgato Stream Deck devices)
+Documentation=file://%h/.local/share/doc/tuxdeck/README.md
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/tuxdeck run --no-browser
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target

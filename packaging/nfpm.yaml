@@ -1,0 +1,66 @@
+# .deb/.rpm packaging (https://nfpm.goreleaser.com). Used by .github/workflows/release.yml:
+#   VERSION=0.1.0 nfpm package -f packaging/nfpm.yaml -p deb -t dist/
+# Expects the stripped binary and the generated user unit in build/ (see the workflow).
+name: tuxdeck
+arch: amd64
+platform: linux
+version: ${VERSION}
+section: utils
+priority: optional
+maintainer: tobayashi-san <135519396+tobayashi-san@users.noreply.github.com>
+description: |
+  Linux software for Elgato Stream Deck devices.
+  Configure Stream Deck devices (Neo, MK.2, XL, +, Mini, Pedal) in a web UI,
+  run plugins made for the Stream Deck SDK and import profiles from the official app.
+homepage: https://github.com/tobayashi-san/tuxdeck
+license: MIT
+
+contents:
+  - src: build/tuxdeck
+    dst: /usr/bin/tuxdeck
+    file_info: { mode: 0755 }
+  - src: packaging/70-tuxdeck.rules
+    dst: /usr/lib/udev/rules.d/70-tuxdeck.rules
+  # Optional /dev/uinput rule (lets every program of the logged-in user inject keystrokes).
+  # Shipped inactive, outside the udev rules directories; the admin opts in with
+  #   sudo cp /usr/share/tuxdeck/udev/71-tuxdeck-uinput.rules /etc/udev/rules.d/
+  # Not under /usr/share/doc, which minimal Debian/Ubuntu installs strip.
+  - src: packaging/71-tuxdeck-uinput.rules
+    dst: /usr/share/tuxdeck/udev/71-tuxdeck-uinput.rules
+    file_info: { mode: 0644 }
+  - src: packaging/tuxdeck.desktop
+    dst: /usr/share/applications/tuxdeck.desktop
+  - src: build/tuxdeck.service
+    dst: /usr/lib/systemd/user/tuxdeck.service
+  - src: README.md
+    dst: /usr/share/doc/tuxdeck/README.md
+  - src: LICENSE
+    dst: /usr/share/doc/tuxdeck/LICENSE
+  - src: assets/fonts/LICENSE-DejaVu.txt
+    dst: /usr/share/doc/tuxdeck/LICENSE-DejaVu.txt
+  - src: THIRD-PARTY-LICENSES.md
+    dst: /usr/share/doc/tuxdeck/THIRD-PARTY-LICENSES.md
+
+scripts:
+  postinstall: packaging/scripts/postinstall.sh
+  postremove: packaging/scripts/postremove.sh
+
+overrides:
+  deb:
+    depends:
+      - libc6 (>= 2.35)
+      - libudev1
+    recommends:
+      - playerctl
+      - wl-clipboard | xclip
+      - xdg-utils
+    suggests:
+      - nodejs
+      - chromium | google-chrome-stable | brave-browser
+  rpm:
+    depends:
+      - libudev.so.1()(64bit)
+    recommends:
+      - playerctl
+      - wl-clipboard
+      - xdg-utils

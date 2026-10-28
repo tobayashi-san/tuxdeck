@@ -1,0 +1,40 @@
+[package]
+name = "tuxdeck"
+version = "0.5.0"
+edition = "2021"
+rust-version = "1.85"
+description = "Linux software for Elgato Stream Deck devices"
+license = "MIT"
+repository = "https://github.com/tobayashi-san/tuxdeck"
+
+[[bin]]
+name = "tuxdeck"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+axum = { version = "0.8", features = ["ws"] }
+base64 = "0.22"
+chrono = "0.4"
+clap = { version = "4", features = ["derive"] }
+dirs = "6"
+evdev = "0.13"
+futures-util = "0.3"
+libc = "0.2"
+hidapi = { version = "2", default-features = false, features = ["linux-native"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }
+mime_guess = "2"
+parking_lot = "0.12"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+resvg = "0.45"
+rust-embed = "8"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[profile.release]
+lto = "thin"

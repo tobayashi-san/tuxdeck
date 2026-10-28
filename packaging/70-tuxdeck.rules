@@ -1,0 +1,19 @@
+# Elgato Stream Deck: access for the logged-in user
+# Installation: sudo cp 70-tuxdeck.rules /etc/udev/rules.d/ && sudo udevadm control --reload && sudo udevadm trigger
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", TAG+="uaccess"
+KERNEL=="hidraw*", ATTRS{idVendor}=="0fd9", TAG+="uaccess"
+#
+# Optional and NOT part of this file: the virtual keyboard /dev/uinput for hotkey/text
+# actions (needed on GNOME/KDE Wayland). It lets every program of the logged-in user
+# inject keystrokes, so it is a separate opt-in rule, 71-tuxdeck-uinput.rules:
+#   ./install.sh --with-uinput, sudo make install-uinput, or with the .deb/.rpm:
+#   sudo cp /usr/share/tuxdeck/udev/71-tuxdeck-uinput.rules /etc/udev/rules.d/
+# Its rule line:
+#   KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess", OPTIONS+="static_node=uinput"
+#
+# NixOS (configuration.nix):
+#   services.udev.extraRules = ''
+#     SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", TAG+="uaccess"
+#     KERNEL=="hidraw*", ATTRS{idVendor}=="0fd9", TAG+="uaccess"
+#   '';
+#   (add the uinput line above only if you want the virtual keyboard)

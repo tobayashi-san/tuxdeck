@@ -1,0 +1,3 @@
+# The code base uses long lines; keep diffs small.
+max_width = 160
+use_small_heuristics = "Max"

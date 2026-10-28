@@ -1,0 +1,3 @@
+# Keep Cargo.lock compatible with rust-version (Debian stable ships Rust 1.85).
+[resolver]
+incompatible-rust-versions = "fallback"

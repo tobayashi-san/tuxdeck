@@ -1,0 +1,42 @@
+name: Bug report
+description: Something does not work as expected.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `tuxdeck --version`
+      placeholder: tuxdeck 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      placeholder: Stream Deck Neo
+  - type: input
+    id: system
+    attributes:
+      label: Distribution and desktop
+      placeholder: Fedora 42, GNOME (Wayland)
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installed via
+      options: [".deb", ".rpm", "archive with install.sh", "built from source", "Nix"]
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: "`journalctl --user -u tuxdeck -n 100 --no-pager` (please remove personal data)"
+      render: text

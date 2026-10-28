@@ -1,0 +1,109 @@
+# Builds a portable Linux release when a version tag (v1.2.3) is pushed.
+# Built on Ubuntu 22.04, so the binary runs on distributions with glibc >= 2.35.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build, e.g. v0.1.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-22.04
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Build dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libudev-dev pkg-config
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Version matches Cargo.toml
+        run: |
+          v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          [ "v$v" = "$TAG" ] || { echo "Tag $TAG does not match Cargo.toml ($v)"; exit 1; }
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Test
+        run: |
+          cargo test --release --locked
+          node tests/e2e.mjs --bin target/release/tuxdeck
+
+      - name: Archive
+        run: |
+          v=${TAG#v}
+          mkdir -p build dist
+          strip -o build/tuxdeck target/release/tuxdeck
+          sed -e 's|%h/.local/bin/tuxdeck|/usr/bin/tuxdeck|' -e 's|%h/.local/share/doc|/usr/share/doc|' \
+            packaging/tuxdeck.service > build/tuxdeck.service
+          name=tuxdeck-$v-x86_64
+          mkdir -p "$name/packaging"
+          cp build/tuxdeck packaging/install.sh README.md LICENSE THIRD-PARTY-LICENSES.md assets/fonts/LICENSE-DejaVu.txt "$name/"
+          cp packaging/70-tuxdeck.rules packaging/71-tuxdeck-uinput.rules packaging/install-helper.sh \
+            packaging/tuxdeck.desktop packaging/tuxdeck.service "$name/packaging/"
+          chmod 755 "$name/tuxdeck" "$name/install.sh"
+          tar --owner=0 --group=0 --numeric-owner -czf "dist/$name.tar.gz" "$name"
+
+      - name: .deb and .rpm
+        run: |
+          curl -sSfL -o /tmp/nfpm.deb https://github.com/goreleaser/nfpm/releases/download/v2.48.0/nfpm_2.48.0_amd64.deb
+          sudo dpkg -i /tmp/nfpm.deb
+          export VERSION=${TAG#v}
+          nfpm package -f packaging/nfpm.yaml -p deb -t dist/
+          nfpm package -f packaging/nfpm.yaml -p rpm -t dist/
+          cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=${TAG#v}
+          cat > notes.md <<EOF
+          ## Installation
+
+          **Debian, Ubuntu, Linux Mint, Pop!_OS** (Ubuntu 22.04 / Debian 12 or newer):
+          \`\`\`sh
+          sudo apt install ./tuxdeck_${v}_amd64.deb
+          \`\`\`
+
+          **Fedora, openSUSE** (Fedora 36 or newer):
+          \`\`\`sh
+          sudo dnf install ./tuxdeck-${v}-1.x86_64.rpm
+          # openSUSE: sudo zypper install --allow-unsigned-rpm ./tuxdeck-${v}-1.x86_64.rpm
+          \`\`\`
+
+          **Other distributions** (Arch, …): extract the archive and run \`./install.sh\`:
+          \`\`\`sh
+          tar xzf tuxdeck-${v}-x86_64.tar.gz
+          cd tuxdeck-${v}-x86_64
+          ./install.sh
+          \`\`\`
+
+          Then start it with your session: \`systemctl --user enable --now tuxdeck\`
+          (if the device is not detected, unplug it and plug it back in).
+
+          For x86_64 with glibc ≥ 2.35. Checksums in \`SHA256SUMS\`.
+          EOF
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --notes-file notes.md
+          else
+            gh release create "$TAG" dist/* --title "tuxdeck $TAG" --notes-file notes.md
+          fi

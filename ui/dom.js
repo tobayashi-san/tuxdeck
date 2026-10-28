@@ -1,0 +1,33 @@
+// DOM references of the page.
+
+export const $ = (id) => document.getElementById(id);
+export const el = {
+  deviceSelect: $('device-select'),
+  deviceStatus: $('device-status'),
+  profileSelect: $('profile-select'),
+  profileMenuBtn: $('profile-menu-btn'),
+  brightness: $('brightness'),
+  brightnessVal: $('brightness-val'),
+  settingsBtn: $('settings-btn'),
+  settingsDialog: $('settings-dialog'),
+  setCmd: $('set-cmd'),
+  setPlatform: $('set-platform'),
+  setLanguage: $('set-language'),
+  setTouch: $('set-touch'),
+  setTouchRow: $('set-touch-row'),
+  setInjector: $('set-injector'),
+  setInjectorRow: $('set-injector-row'),
+  setDevices: $('set-devices'),
+  importInput: $('import-input'),
+  conn: $('conn-indicator'),
+  crumbs: $('crumbs'),
+  deviceWrap: $('device-wrap'),
+  device: $('device'),
+  pagebar: $('pagebar'),
+  trash: $('trash'),
+  editor: $('editor'),
+  sidebar: $('sidebar'),
+  sidebarBtn: $('sidebar-btn'),
+  search: $('action-search'),
+  catalogue: $('catalogue'),
+};

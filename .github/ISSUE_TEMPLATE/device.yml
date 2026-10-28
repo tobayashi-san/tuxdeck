@@ -1,0 +1,46 @@
+name: Test a device
+description: Feedback on a Stream Deck model that has not been tested on real hardware yet.
+labels: [hardware]
+body:
+  - type: dropdown
+    id: model
+    attributes:
+      label: Model
+      options:
+        - Stream Deck +
+        - Stream Deck MK.2
+        - Stream Deck (2nd gen)
+        - Stream Deck XL
+        - Stream Deck Mini / Mini MK.2
+        - Stream Deck Original (1st gen)
+        - Stream Deck Pedal
+        - Stream Deck Neo
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: list
+    attributes:
+      label: Output of `tuxdeck list`
+      render: text
+    validations:
+      required: true
+  - type: checkboxes
+    id: works
+    attributes:
+      label: What works? (`tuxdeck probe` shows test images and prints input)
+      options:
+        - label: Images appear on all keys
+        - label: Images are the right way up (not rotated or mirrored)
+        - label: Each key triggers the matching key in the UI
+        - label: Brightness can be changed
+        - label: "Stream Deck +: dials and touch strip work"
+  - type: textarea
+    id: notes
+    attributes:
+      label: What is wrong? Photos help a lot.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: tuxdeck 0.1.0

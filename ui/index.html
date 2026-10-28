@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TuxDeck</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='6' width='28' height='20' rx='5' fill='%23111'/%3E%3Crect x='6' y='10' width='5' height='5' rx='1.5' fill='%233b82f6'/%3E%3Crect x='13.5' y='10' width='5' height='5' rx='1.5' fill='%23ddd'/%3E%3Crect x='21' y='10' width='5' height='5' rx='1.5' fill='%23ddd'/%3E%3Crect x='6' y='17' width='5' height='5' rx='1.5' fill='%23ddd'/%3E%3Crect x='13.5' y='17' width='5' height='5' rx='1.5' fill='%23ddd'/%3E%3Crect x='21' y='17' width='5' height='5' rx='1.5' fill='%23ddd'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand" title="Stream Deck for Linux" data-i18n-attr="title">
+      <svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true">
+        <rect x="2" y="6" width="28" height="20" rx="5" fill="#0d0d0d" stroke="#555"/>
+        <rect x="6" y="10" width="5" height="5" rx="1.5" fill="#3b82f6"/>
+        <rect x="13.5" y="10" width="5" height="5" rx="1.5" fill="#ddd"/>
+        <rect x="21" y="10" width="5" height="5" rx="1.5" fill="#ddd"/>
+        <rect x="6" y="17" width="5" height="5" rx="1.5" fill="#ddd"/>
+        <rect x="13.5" y="17" width="5" height="5" rx="1.5" fill="#ddd"/>
+        <rect x="21" y="17" width="5" height="5" rx="1.5" fill="#ddd"/>
+      </svg>
+      <span>TuxDeck</span>
+    </div>
+
+    <div class="tb-group">
+      <label for="device-select" class="tb-label" data-i18n>Device</label>
+      <select id="device-select" class="select"></select>
+      <span id="device-status" class="status-dot off" role="img"></span>
+    </div>
+
+    <div class="tb-group">
+      <label for="profile-select" class="tb-label" data-i18n>Profile</label>
+      <select id="profile-select" class="select wide"></select>
+      <button id="profile-menu-btn" class="icon-btn" title="Profile options" data-i18n-attr="title" aria-haspopup="menu">⋯</button>
+    </div>
+
+    <div class="tb-group brightness" title="Brightness" data-i18n-attr="title">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></g></svg>
+      <input id="brightness" type="range" min="0" max="100" step="1" value="70" aria-label="Brightness" data-i18n-attr="aria-label">
+      <span id="brightness-val" class="tb-value">–</span>
+    </div>
+
+    <div class="tb-right">
+    <button id="sidebar-btn" class="btn sidebar-btn" title="Show the action list" data-i18n-attr="title" aria-controls="sidebar" aria-expanded="false">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 5h16v2H4V5zm0 6h16v2H4v-2zm0 6h16v2H4v-2z"/></svg>
+      <span data-i18n>Actions</span>
+    </button>
+    <button id="market-btn" class="btn market-btn" title="Install and manage plugins" data-i18n-attr="title">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M7 8V7a5 5 0 0 1 10 0v1h3l-1 13H5L4 8h3zm2 0h6V7a3 3 0 0 0-6 0v1zm-3 2 .8 9h10.4l.8-9H6z"/></svg>
+      <span data-i18n>Plugins</span>
+    </button>
+    <span id="conn-indicator" class="conn"></span>
+    <button id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings" data-i18n-attr="title,aria-label">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.5 7.5 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.5 7.5 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1l.4 2.6h4l.4-2.6c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5L19.4 13zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
+    </button>
+    </div>
+    <input id="import-input" type="file" hidden accept=".streamDeckProfile,.streamDeckPlugin,.streamDeckIconPack">
+  </header>
+
+  <main id="main">
+    <section id="workspace">
+      <div id="canvas-area">
+        <div id="crumbs"></div>
+        <div id="device-wrap">
+          <div id="device" class="device"></div>
+        </div>
+        <div id="pagebar"></div>
+        <div id="trash" class="trash" aria-label="Trash" data-i18n-attr="aria-label">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12H7L6 9z"/></svg>
+          <span data-i18n>Drop here to delete</span>
+        </div>
+      </div>
+      <section id="editor" aria-label="Properties" data-i18n-attr="aria-label"></section>
+    </section>
+
+    <aside id="sidebar" aria-label="Actions" data-i18n-attr="aria-label">
+      <div class="search">
+        <input id="action-search" type="search" class="text" placeholder="Search actions…" data-i18n-attr="placeholder" autocomplete="off" spellcheck="false">
+      </div>
+      <div id="catalogue"></div>
+    </aside>
+    <section id="market" class="market" hidden aria-label="Plugins"></section>
+  </main>
+
+  <div id="toasts" aria-live="polite"></div>
+  <div id="file-drop" aria-hidden="true"><span data-i18n>Drop to import (profile, plugin or icon pack)</span></div>
+
+  <dialog id="settings-dialog" class="modal">
+    <form method="dialog">
+      <h2 data-i18n>Settings</h2>
+      <label class="check modal-check">
+        <input id="set-cmd" type="checkbox">
+        <span data-i18n>Treat ⌘ (Mac profiles) as Ctrl</span>
+      </label>
+      <label class="modal-field">
+        <span data-i18n>Platform reported to plugins</span>
+        <select id="set-platform" class="select">
+          <option value="mac">macOS</option>
+          <option value="windows">Windows</option>
+          <option value="linux">Linux</option>
+        </select>
+      </label>
+      <label class="modal-field">
+        <span data-i18n>Language</span>
+        <select id="set-language" class="select">
+          <option value="auto" data-i18n>System language</option>
+        </select>
+      </label>
+      <label class="modal-field" id="set-touch-row" hidden>
+        <span data-i18n>Touch point color (Neo)</span>
+        <input id="set-touch" type="color" class="color">
+      </label>
+      <label class="modal-field" id="set-injector-row" hidden>
+        <span data-i18n>Send keyboard input via</span>
+        <select id="set-injector" class="select">
+          <option value="auto" data-i18n>Automatic</option>
+          <option value="hyprctl">hyprctl (Hyprland)</option>
+          <option value="wtype">wtype (Wayland)</option>
+          <option value="xdotool">xdotool (X11)</option>
+          <option value="uinput" data-i18n>uinput (virtual keyboard)</option>
+        </select>
+        <span id="set-injector-active" class="field-help"></span>
+      </label>
+      <h3 data-i18n>Devices</h3>
+      <ul id="set-devices" class="device-list"></ul>
+      <h3 data-i18n>Backups</h3>
+      <p class="field-help" data-i18n>A backup contains all profiles, settings, plugin data and plugins. Profiles, settings and plugin data are also backed up automatically every day.</p>
+      <label class="check modal-check">
+        <input id="backup-iconpacks" type="checkbox">
+        <span data-i18n>Include icon packs (can be large)</span>
+      </label>
+      <div class="backup-buttons">
+        <button type="button" id="backup-create" class="btn" data-i18n>Download backup</button>
+        <button type="button" id="backup-restore" class="btn" data-i18n>Restore from file…</button>
+        <input id="backup-file" type="file" accept=".zip,.streamDeckProfilesBackup" hidden>
+      </div>
+      <ul id="backup-list" class="backup-list"></ul>
+      <div class="modal-buttons">
+        <button class="btn primary" value="close" data-i18n>Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

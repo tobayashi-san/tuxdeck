@@ -1,0 +1,26 @@
+# Third-party licenses
+
+TuxDeck is distributed under the MIT license (see `LICENSE`). The program contains the
+following Rust libraries; their licenses are reproduced below. The bundled DejaVu Sans font
+is covered by `assets/fonts/LICENSE-DejaVu.txt`. This file is generated with
+[cargo-about](https://github.com/EmbarkStudios/cargo-about) (`about.toml`, `about.hbs`).
+
+## Overview
+
+{{#each overview}}
+- {{{name}}} ({{count}} crates)
+{{/each}}
+
+{{#each licenses}}
+## {{{name}}}
+
+Used by:
+{{#each used_by}}
+- [{{crate.name}} {{crate.version}}]({{#if crate.repository}}{{crate.repository}}{{else}}https://crates.io/crates/{{crate.name}}{{/if}})
+{{/each}}
+
+```text
+{{{text}}}
+```
+
+{{/each}}
