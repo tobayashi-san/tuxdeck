@@ -521,13 +521,14 @@ span.act-icon { background: #3a3a3a; }
   pointer-events: auto;
   display: flex; align-items: flex-start; gap: 10px;
   max-width: 420px; padding: 9px 10px 9px 12px;
-  background: #333; border: 1px solid #444; border-left: 4px solid var(--accent);
+  background: #333; border: 1px solid #444;
   border-radius: var(--radius); box-shadow: 0 6px 20px #0008;
   animation: toast-in .18s ease-out;
   transition: opacity .3s, transform .3s;
 }
-.toast-warn { border-left-color: var(--warn); }
-.toast-error { border-left-color: var(--danger); }
+.toast::before { content: ""; flex: none; width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--accent); }
+.toast-warn::before { background: var(--warn); }
+.toast-error::before { background: var(--danger); }
 .toast-msg { flex: 1; white-space: pre-wrap; word-break: break-word; }
 .toast-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 2px; }
 .toast-close:hover { color: #fff; }
@@ -811,18 +812,18 @@ dialog.modal:has(.icon-picker), dialog.modal:has(.iconpack-list) { max-width: mi
 .compat-close { background: none; border: 0; color: inherit; font-size: 17px; line-height: 1; padding: 2px 6px; cursor: pointer; opacity: .7; }
 .compat-close:hover { opacity: 1; }
 .linux-note { display: flex; align-items: center; gap: 10px; margin: 0 16px 10px; padding: 7px 12px; border-radius: var(--radius);
-  border-left: 3px solid var(--muted); background: var(--panel-2); color: var(--text); }
-.linux-note.ok { border-left-color: var(--ok); }
-.linux-note.fix { border-left-color: var(--accent); }
-.linux-note.missing { border-left-color: var(--warn); }
+  background: var(--panel-2); color: var(--text); }
 dialog.modal:has(.compat-dialog) { max-width: min(720px, 94vw); }
 .compat-dialog { width: min(680px, calc(94vw - 42px)); max-height: 65vh; overflow-y: auto; padding-right: 4px; }
 .compat-intro { color: var(--muted); margin: 0 0 10px; }
 .compat-row { display: flex; align-items: center; gap: 12px; padding: 9px 12px; margin-bottom: 6px; border-radius: var(--radius);
-  background: var(--panel-2); border-left: 3px solid var(--muted); }
-.compat-row.ok { border-left-color: var(--ok); }
-.compat-row.fix { border-left-color: var(--accent); }
-.compat-row.missing { border-left-color: var(--warn); }
+  background: var(--panel-2); }
+/* Status as a small dot in front of the text: green works, blue fixable, amber missing. */
+.linux-note::before, .compat-name::before { content: ""; display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.compat-name::before { margin-right: 8px; vertical-align: 1px; }
+.linux-note.ok::before, .compat-row.ok .compat-name::before { background: var(--ok); }
+.linux-note.fix::before, .compat-row.fix .compat-name::before { background: var(--accent); }
+.linux-note.missing::before, .compat-row.missing .compat-name::before { background: var(--warn); }
 .compat-main { flex: 1; min-width: 0; }
 .compat-name { font-weight: 600; }
 .compat-keys { font-weight: 400; color: var(--muted); margin-left: 8px; }
