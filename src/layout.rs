@@ -272,9 +272,7 @@ fn infobar_themes() -> Vec<Value> {
         "textFont": {"family": "sans-serif", "size": 22, "weight": 700},
         "numberFont": {"family": "sans-serif", "size": 20, "weight": 600},
     });
-    let mk = |id: &str, bg: &str, tx: &str, sub: &str| {
-        serde_json::json!({"id": id, "colors": {"backgroundColor": bg, "textColor": tx, "subtextColor": sub, "accentColor1": tx}, "fonts": fonts})
-    };
+    let mk = |id: &str, bg: &str, tx: &str, sub: &str| serde_json::json!({"id": id, "colors": {"backgroundColor": bg, "textColor": tx, "subtextColor": sub, "accentColor1": tx}, "fonts": fonts});
     vec![
         mk("black", "#000000", "#ffffff", "#9aa0aa"),
         mk("night", "#0b1220", "#7dd3fc", "#3a5572"),
@@ -290,55 +288,79 @@ fn builtin_layouts(group: &str) -> Vec<(String, Value)> {
     let lay = |elements: Value, items: Value| serde_json::json!({"themes": infobar_themes(), "elements": elements, "template": {"items": items}});
     if group == "DigitalTime" {
         vec![
-            ("digital_time_01".to_string(), lay(
-                serde_json::json!([{"key":"h","type":"hours"},{"key":"m","type":"minutes"},{"key":"d","type":"day","dateFormat":"Long"},{"key":"dt","type":"date","dateFormat":"Short"}]),
-                serde_json::json!([
-                    {"key":"d","type":"text","rect":[6,8,96,16],"font":"{{font2}}","color":"{{subtextColor}}","alignment":"left"},
-                    {"key":"dt","type":"text","rect":[6,26,96,16],"font":"{{font2}}","color":"{{subtextColor}}","alignment":"left"},
-                    {"key":"h","type":"text","rect":[100,0,56,50],"font":"{{font0}}","color":"{{textColor}}","alignment":"right"},
-                    {"key":"c","type":"text","rect":[156,0,14,50],"value":":","font":"{{font0}}","color":"{{textColor}}","alignment":"center"},
-                    {"key":"m","type":"text","rect":[170,0,56,50],"font":"{{font0}}","color":"{{textColor}}","alignment":"left"}
-                ]))),
-            ("digital_time_02".to_string(), lay(
-                serde_json::json!([{"key":"h","type":"hours"},{"key":"m","type":"minutes"},{"key":"d","type":"date","dateFormat":"Long"}]),
-                serde_json::json!([
-                    {"key":"h","type":"text","rect":[26,-1,86,38],"font":"{{font0}}","color":"{{textColor}}","alignment":"right"},
-                    {"key":"c","type":"text","rect":[112,-1,10,38],"value":":","font":"{{font0}}","color":"{{textColor}}","alignment":"center"},
-                    {"key":"m","type":"text","rect":[122,-1,86,38],"font":"{{font0}}","color":"{{textColor}}","alignment":"left"},
-                    {"key":"d","type":"text","rect":[0,38,232,14],"font":"{{font2}}","color":"{{subtextColor}}","alignment":"center"}
-                ]))),
-            ("digital_time_03".to_string(), lay(
-                serde_json::json!([{"key":"h","type":"hours"},{"key":"m","type":"minutes"},{"key":"d","type":"day","dateFormat":"Long"},{"key":"dt","type":"date","dateFormat":"Short"}]),
-                serde_json::json!([
-                    {"key":"h","type":"text","rect":[4,0,54,50],"font":"{{font0}}","color":"{{textColor}}","alignment":"right"},
-                    {"key":"c","type":"text","rect":[58,0,12,50],"value":":","font":"{{font0}}","color":"{{textColor}}","alignment":"center"},
-                    {"key":"m","type":"text","rect":[70,0,54,50],"font":"{{font0}}","color":"{{textColor}}","alignment":"left"},
-                    {"key":"d","type":"text","rect":[132,8,96,16],"font":"{{font2}}","color":"{{subtextColor}}","alignment":"right"},
-                    {"key":"dt","type":"text","rect":[132,26,96,16],"font":"{{font2}}","color":"{{subtextColor}}","alignment":"right"}
-                ]))),
-            ("digital_time_04".to_string(), lay(
-                serde_json::json!([{"key":"h","type":"hours"},{"key":"m","type":"minutes"}]),
-                serde_json::json!([
-                    {"key":"h","type":"text","rect":[24,0,86,50],"font":"{{font0}}","color":"{{textColor}}","alignment":"right"},
-                    {"key":"c","type":"text","rect":[110,0,12,50],"value":":","font":"{{font0}}","color":"{{textColor}}","alignment":"center"},
-                    {"key":"m","type":"text","rect":[122,0,86,50],"font":"{{font0}}","color":"{{textColor}}","alignment":"left"}
-                ]))),
+            (
+                "digital_time_01".to_string(),
+                lay(
+                    serde_json::json!([{"key":"h","type":"hours"},{"key":"m","type":"minutes"},{"key":"d","type":"day","dateFormat":"Long"},{"key":"dt","type":"date","dateFormat":"Short"}]),
+                    serde_json::json!([
+                        {"key":"d","type":"text","rect":[6,8,96,16],"font":"{{font2}}","color":"{{subtextColor}}","alignment":"left"},
+                        {"key":"dt","type":"text","rect":[6,26,96,16],"font":"{{font2}}","color":"{{subtextColor}}","alignment":"left"},
+                        {"key":"h","type":"text","rect":[100,0,56,50],"font":"{{font0}}","color":"{{textColor}}","alignment":"right"},
+                        {"key":"c","type":"text","rect":[156,0,14,50],"value":":","font":"{{font0}}","color":"{{textColor}}","alignment":"center"},
+                        {"key":"m","type":"text","rect":[170,0,56,50],"font":"{{font0}}","color":"{{textColor}}","alignment":"left"}
+                    ]),
+                ),
+            ),
+            (
+                "digital_time_02".to_string(),
+                lay(
+                    serde_json::json!([{"key":"h","type":"hours"},{"key":"m","type":"minutes"},{"key":"d","type":"date","dateFormat":"Long"}]),
+                    serde_json::json!([
+                        {"key":"h","type":"text","rect":[26,-1,86,38],"font":"{{font0}}","color":"{{textColor}}","alignment":"right"},
+                        {"key":"c","type":"text","rect":[112,-1,10,38],"value":":","font":"{{font0}}","color":"{{textColor}}","alignment":"center"},
+                        {"key":"m","type":"text","rect":[122,-1,86,38],"font":"{{font0}}","color":"{{textColor}}","alignment":"left"},
+                        {"key":"d","type":"text","rect":[0,38,232,14],"font":"{{font2}}","color":"{{subtextColor}}","alignment":"center"}
+                    ]),
+                ),
+            ),
+            (
+                "digital_time_03".to_string(),
+                lay(
+                    serde_json::json!([{"key":"h","type":"hours"},{"key":"m","type":"minutes"},{"key":"d","type":"day","dateFormat":"Long"},{"key":"dt","type":"date","dateFormat":"Short"}]),
+                    serde_json::json!([
+                        {"key":"h","type":"text","rect":[4,0,54,50],"font":"{{font0}}","color":"{{textColor}}","alignment":"right"},
+                        {"key":"c","type":"text","rect":[58,0,12,50],"value":":","font":"{{font0}}","color":"{{textColor}}","alignment":"center"},
+                        {"key":"m","type":"text","rect":[70,0,54,50],"font":"{{font0}}","color":"{{textColor}}","alignment":"left"},
+                        {"key":"d","type":"text","rect":[132,8,96,16],"font":"{{font2}}","color":"{{subtextColor}}","alignment":"right"},
+                        {"key":"dt","type":"text","rect":[132,26,96,16],"font":"{{font2}}","color":"{{subtextColor}}","alignment":"right"}
+                    ]),
+                ),
+            ),
+            (
+                "digital_time_04".to_string(),
+                lay(
+                    serde_json::json!([{"key":"h","type":"hours"},{"key":"m","type":"minutes"}]),
+                    serde_json::json!([
+                        {"key":"h","type":"text","rect":[24,0,86,50],"font":"{{font0}}","color":"{{textColor}}","alignment":"right"},
+                        {"key":"c","type":"text","rect":[110,0,12,50],"value":":","font":"{{font0}}","color":"{{textColor}}","alignment":"center"},
+                        {"key":"m","type":"text","rect":[122,0,86,50],"font":"{{font0}}","color":"{{textColor}}","alignment":"left"}
+                    ]),
+                ),
+            ),
         ]
     } else {
         vec![
-            ("pagination_01".to_string(), lay(
-                serde_json::json!([{"key":"icon","type":"carousel_page","display":"Icon"},{"key":"name","type":"carousel_page","display":"Name"},{"key":"num","type":"carousel_page","display":"Number"}]),
-                serde_json::json!([
-                    {"key":"icon","type":"pixmap","rect":[11,8,36,36]},
-                    {"key":"name","type":"text","rect":[51,9,134,32],"font":"{{textFont}}","color":"{{textColor}}","alignment":"left"},
-                    {"key":"num","type":"text","rect":[189,10,30,30],"background":"{{accentColor1}}","border_radius":4,"font":"{{numberFont}}","color":"{{backgroundColor}}","alignment":"center"}
-                ]))),
-            ("pagination_02".to_string(), lay(
-                serde_json::json!([{"key":"name","type":"carousel_page","display":"Name"},{"key":"num","type":"carousel_page","display":"Number"}]),
-                serde_json::json!([
-                    {"key":"name","type":"text","rect":[14,9,170,32],"font":"{{textFont}}","color":"{{textColor}}","alignment":"left"},
-                    {"key":"num","type":"text","rect":[190,9,32,32],"background":"{{accentColor1}}","border_radius":16,"font":"{{numberFont}}","color":"{{backgroundColor}}","alignment":"center"}
-                ]))),
+            (
+                "pagination_01".to_string(),
+                lay(
+                    serde_json::json!([{"key":"icon","type":"carousel_page","display":"Icon"},{"key":"name","type":"carousel_page","display":"Name"},{"key":"num","type":"carousel_page","display":"Number"}]),
+                    serde_json::json!([
+                        {"key":"icon","type":"pixmap","rect":[11,8,36,36]},
+                        {"key":"name","type":"text","rect":[51,9,134,32],"font":"{{textFont}}","color":"{{textColor}}","alignment":"left"},
+                        {"key":"num","type":"text","rect":[189,10,30,30],"background":"{{accentColor1}}","border_radius":4,"font":"{{numberFont}}","color":"{{backgroundColor}}","alignment":"center"}
+                    ]),
+                ),
+            ),
+            (
+                "pagination_02".to_string(),
+                lay(
+                    serde_json::json!([{"key":"name","type":"carousel_page","display":"Name"},{"key":"num","type":"carousel_page","display":"Number"}]),
+                    serde_json::json!([
+                        {"key":"name","type":"text","rect":[14,9,170,32],"font":"{{textFont}}","color":"{{textColor}}","alignment":"left"},
+                        {"key":"num","type":"text","rect":[190,9,32,32],"background":"{{accentColor1}}","border_radius":16,"font":"{{numberFont}}","color":"{{backgroundColor}}","alignment":"center"}
+                    ]),
+                ),
+            ),
         ]
     }
 }
@@ -346,13 +368,20 @@ fn builtin_layouts(group: &str) -> Vec<(String, Value)> {
 /// Manifest for a layout id (falls back to the first in the group).
 fn builtin_layout(group: &str, id: &str) -> Value {
     let all = builtin_layouts(group);
-    all.iter().find(|(i, _)| i == id).or_else(|| all.first()).map(|(_, m)| m.clone()).unwrap_or_else(|| serde_json::json!({"themes": [], "template": {"items": []}}))
+    all.iter()
+        .find(|(i, _)| i == id)
+        .or_else(|| all.first())
+        .map(|(_, m)| m.clone())
+        .unwrap_or_else(|| serde_json::json!({"themes": [], "template": {"items": []}}))
 }
 
 /// All layout ids available for a group (built-ins plus any imported Elgato layouts).
 pub fn list_layouts(root: Option<&Path>, group: &str) -> Vec<(String, Vec<String>)> {
     let theme_ids = |m: &Value| -> Vec<String> {
-        m.get("themes").and_then(|t| t.as_array()).map(|a| a.iter().filter_map(|t| t.get("id").and_then(|i| i.as_str()).map(str::to_string)).collect()).unwrap_or_default()
+        m.get("themes")
+            .and_then(|t| t.as_array())
+            .map(|a| a.iter().filter_map(|t| t.get("id").and_then(|i| i.as_str()).map(str::to_string)).collect())
+            .unwrap_or_default()
     };
     let mut out: Vec<(String, Vec<String>)> = builtin_layouts(group).iter().map(|(id, m)| (id.clone(), theme_ids(m))).collect();
     if let Some(root) = root {
@@ -363,7 +392,11 @@ pub fn list_layouts(root: Option<&Path>, group: &str) -> Vec<(String, Vec<String
                 if out.iter().any(|(i, _)| i == stem) {
                     continue;
                 }
-                let themes = std::fs::read(p.join("manifest.json")).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).map(|m| theme_ids(&m)).unwrap_or_default();
+                let themes = std::fs::read(p.join("manifest.json"))
+                    .ok()
+                    .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+                    .map(|m| theme_ids(&m))
+                    .unwrap_or_default();
                 out.push((stem.to_string(), themes));
             }
         }

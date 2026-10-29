@@ -155,8 +155,7 @@ fn open_ui(paths: &paths::Paths) -> Result<()> {
         // KDE, GNOME and wlroots bars use. Only when an X server is reachable (DISPLAY set,
         // i.e. a real X11 session or Wayland with XWayland); a pure-Wayland session without
         // XWayland keeps the browser's native window. Override via TUXDECK_UI_OZONE.
-        let ozone = std::env::var("TUXDECK_UI_OZONE")
-            .unwrap_or_else(|_| if std::env::var_os("DISPLAY").is_some() { "x11".into() } else { String::new() });
+        let ozone = std::env::var("TUXDECK_UI_OZONE").unwrap_or_else(|_| if std::env::var_os("DISPLAY").is_some() { "x11".into() } else { String::new() });
         if !ozone.is_empty() {
             c.arg(format!("--ozone-platform={ozone}"));
         }

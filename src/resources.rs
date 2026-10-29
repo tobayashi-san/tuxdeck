@@ -212,7 +212,6 @@ pub fn write_default_iconpack(paths: &Paths) {
     }
 }
 
-
 /// Colourful key icons for the starter profile (see `assets/starter/`).
 #[derive(rust_embed::RustEmbed)]
 #[folder = "assets/starter/"]
