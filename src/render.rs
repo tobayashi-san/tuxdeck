@@ -742,4 +742,388 @@ mod tests {
         let img = render_key(&spec, 96);
         assert!(img.pixels().any(|p| p.0[0] > 200), "title pixels expected");
     }
+
+    fn title(text: &str, align: &str, size: u32) -> Title {
+        Title {
+            text: text.into(),
+            align: align.into(),
+            size,
+            color: "#ffffff".into(),
+            family: String::new(),
+            bold: false,
+            italic: false,
+            underline: false,
+            outline: 0,
+        }
+    }
+
+    fn png(img: &RgbaImage) -> ImageData {
+        ImageData::new("image/png", encode_png(img))
+    }
+
+    /// Bounding rows (min, max) and mean row of bright pixels.
+    fn bright_rows(img: &RgbaImage) -> (u32, u32, f32) {
+        let ys: Vec<u32> = img.enumerate_pixels().filter(|(_, _, p)| p.0[0] > 128 && p.0[1] > 128 && p.0[2] > 128).map(|(_, y, _)| y).collect();
+        assert!(!ys.is_empty(), "no bright pixels");
+        (*ys.iter().min().unwrap(), *ys.iter().max().unwrap(), ys.iter().sum::<u32>() as f32 / ys.len() as f32)
+    }
+
+    #[test]
+    fn key_backgrounds() {
+        let black = render_key(&KeySpec::default(), 72);
+        assert_eq!(black.dimensions(), (72, 72));
+        assert!(black.pixels().all(|p| p.0 == [0, 0, 0, 255]));
+        let red = render_key(&KeySpec { background: Some("#ff0000".into()), ..Default::default() }, 72);
+        assert!(red.pixels().all(|p| p.0 == [255, 0, 0, 255]));
+        let named = render_key(&KeySpec { background: Some("blue".into()), ..Default::default() }, 96);
+        assert_eq!(named.get_pixel(48, 48).0, [0, 0, 255, 255]);
+        // Markup in the colour can't break out of the attribute.
+        let svg = key_svg(&KeySpec { background: Some(r#"red"/><script/>"#.into()), ..Default::default() });
+        assert!(svg.contains("fill=\"red&quot;/&gt;&lt;script/&gt;\"") && !svg.contains("<script"));
+    }
+
+    #[test]
+    fn key_images() {
+        let green = png(&RgbaImage::from_pixel(10, 10, Rgba([0, 255, 0, 255])));
+        let img = render_key(&KeySpec { image: Some(green), ..Default::default() }, 72);
+        assert_eq!(img.get_pixel(1, 1).0, [0, 255, 0, 255]);
+        assert_eq!(img.get_pixel(70, 70).0, [0, 255, 0, 255]);
+        // Wide images are letterboxed (meet) over the background.
+        let wide = png(&RgbaImage::from_pixel(20, 10, Rgba([0, 0, 255, 255])));
+        let img = render_key(&KeySpec { background: Some("#ff0000".into()), image: Some(wide), ..Default::default() }, 72);
+        assert_eq!(img.get_pixel(36, 2).0, [255, 0, 0, 255]);
+        assert_eq!(img.get_pixel(36, 36).0, [0, 0, 255, 255]);
+        assert_eq!(img.get_pixel(36, 69).0, [255, 0, 0, 255]);
+        // Transparent images show the background through.
+        let clear = png(&RgbaImage::from_pixel(8, 8, Rgba([0, 0, 0, 0])));
+        let img = render_key(&KeySpec { background: Some("#ff0000".into()), image: Some(clear), ..Default::default() }, 72);
+        assert_eq!(img.get_pixel(36, 36).0, [255, 0, 0, 255]);
+        // Broken image data falls back to the plain background.
+        let plain = KeySpec { background: Some("#336699".into()), ..Default::default() };
+        let broken = KeySpec { image: Some(ImageData::new("image/png", b"not a png".to_vec())), ..plain.clone() };
+        assert_eq!(render_key(&broken, 72).as_raw(), render_key(&plain, 72).as_raw());
+        let broken_svg = KeySpec { image: Some(ImageData::svg("<svg")), ..plain.clone() };
+        assert_eq!(render_key(&broken_svg, 72).as_raw(), render_key(&plain, 72).as_raw());
+    }
+
+    #[test]
+    fn title_alignment() {
+        let render = |align: &str| render_key(&KeySpec { title: Some(title("Hg", align, 14)), ..Default::default() }, 144);
+        let (top, middle, bottom) = (bright_rows(&render("top")), bright_rows(&render("middle")), bright_rows(&render("bottom")));
+        assert!(top.2 < 48.0, "top {top:?}");
+        assert!((56.0..88.0).contains(&middle.2), "middle {middle:?}");
+        assert!(bottom.2 > 96.0, "bottom {bottom:?}");
+        assert!(top.0 < 20 && bottom.1 > 124);
+        // Unknown alignments use the bottom position (Elgato default).
+        assert_eq!(render("").as_raw(), render("bottom").as_raw());
+        assert_eq!(render("sideways").as_raw(), render("bottom").as_raw());
+    }
+
+    #[test]
+    fn title_size_and_lines() {
+        let height = |t: Title| {
+            let (a, b, _) = bright_rows(&render_key(&KeySpec { title: Some(t), ..Default::default() }, 144));
+            b - a
+        };
+        let small = height(title("H", "middle", 10));
+        let large = height(title("H", "middle", 20));
+        assert!(large > small * 3 / 2, "{small} vs {large}");
+        let two = height(title("H\nH", "middle", 10));
+        assert!(two > small * 2, "{small} vs {two}");
+        // Sizes below 4 pt are raised to 4 pt.
+        assert_eq!(title_svg(&title("x", "top", 0)), title_svg(&title("x", "top", 4)));
+        assert!(title_svg(&title("x", "top", 0)).contains(r#"font-size="8""#));
+        assert_eq!(title_svg(&title("", "top", 12)), "");
+        let svg = title_svg(&title("a\nb\nc", "middle", 12));
+        assert_eq!(svg.matches("<tspan").count(), 3);
+    }
+
+    #[test]
+    fn title_markup() {
+        let mut t = title("A & <B>", "top", 12);
+        t.family = r#"Fira "Code""#.into();
+        t.bold = true;
+        t.italic = true;
+        t.underline = true;
+        t.outline = 2;
+        t.color = "#123456".into();
+        let svg = title_svg(&t);
+        assert!(svg.contains(r#"font-family="'Fira &quot;Code&quot;', sans-serif""#), "{svg}");
+        assert!(svg.contains(r##"font-weight="bold" font-style="italic" text-decoration="underline" fill="#123456""##), "{svg}");
+        assert!(svg.contains(r#"stroke-width="4.8""#), "{svg}");
+        assert!(svg.contains("A &amp; &lt;B&gt;"));
+        let plain = title_svg(&title("x", "top", 12));
+        assert!(plain.contains(r#"font-family="sans-serif""#) && plain.contains(r#"font-weight="normal" font-style="normal" text-decoration="none""#));
+        assert!(!plain.contains("stroke"));
+        // Outlined titles get dark pixels around the glyphs on a light background.
+        let mut o = title("O", "middle", 24);
+        o.outline = 3;
+        let img = render_key(&KeySpec { background: Some("#808080".into()), title: Some(o), ..Default::default() }, 144);
+        assert!(img.pixels().any(|p| p.0[0] < 40));
+    }
+
+    #[test]
+    fn overlays_and_big_text() {
+        let base = KeySpec { background: Some("#ff0000".into()), ..Default::default() };
+        let ok = render_key(&KeySpec { overlay: Some(Overlay::Ok), ..base.clone() }, 144);
+        // Dimmed background, green circle.
+        let corner = ok.get_pixel(2, 2).0;
+        assert!(corner[0] > 90 && corner[0] < 140 && corner[1] == 0, "{corner:?}");
+        let c = ok.get_pixel(72, 46).0;
+        assert!(c[1] > 180 && c[0] < 80, "{c:?}");
+        let alert = render_key(&KeySpec { overlay: Some(Overlay::Alert), ..base.clone() }, 144);
+        let y = alert.get_pixel(50, 100).0;
+        assert!(y[0] > 200 && y[1] > 160 && y[2] < 60, "{y:?}");
+        assert_eq!(alert.get_pixel(72, 70).0[..3], [0, 0, 0]);
+
+        let big = KeySpec { big_text: Some("3<".into()), ..base.clone() };
+        assert!(key_svg(&big).contains(">3&lt;</text>"));
+        let img = render_key(&big, 144);
+        let (top, bottom, mean) = bright_rows(&img);
+        assert!(top > 20 && bottom < 124 && (60.0..84.0).contains(&mean), "{top} {bottom} {mean}");
+    }
+
+    #[test]
+    fn render_cache() {
+        let spec = KeySpec { big_text: Some(format!("cache-{}", std::process::id())), ..Default::default() };
+        let first = cached(&spec, 72, "test-kind", |img| {
+            assert_eq!(img.dimensions(), (72, 72));
+            vec![1, 2, 3]
+        });
+        assert_eq!(first, [1, 2, 3]);
+        assert_eq!(cached(&spec, 72, "test-kind", |_| panic!("must be cached")), [1, 2, 3]);
+        // Size and kind are part of the key.
+        assert_eq!(cached(&spec, 96, "test-kind", |img| vec![img.width() as u8]), [96]);
+        assert_eq!(cached(&spec, 72, "other-kind", |_| vec![9]), [9]);
+    }
+
+    #[test]
+    fn device_encoding_details() {
+        let tags: std::collections::HashSet<_> =
+            [ImageFormat::Jpeg180, ImageFormat::Jpeg, ImageFormat::Bmp180, ImageFormat::BmpTranspose].into_iter().map(format_tag).collect();
+        assert_eq!(tags.len(), 4);
+        let mut src = RgbaImage::from_pixel(30, 20, Rgba([0, 0, 0, 255]));
+        src.put_pixel(29, 0, Rgba([10, 20, 30, 255]));
+        for (f, dims) in
+            [(ImageFormat::Jpeg180, (30, 20)), (ImageFormat::Jpeg, (30, 20)), (ImageFormat::Bmp180, (30, 20)), (ImageFormat::BmpTranspose, (20, 30))]
+        {
+            let out = encode_device(&src, f);
+            assert_eq!(image::load_from_memory(&out).unwrap().to_rgba8().dimensions(), dims, "{f:?}");
+        }
+        assert_eq!(encode_device_jpeg(&src), encode_device(&src, ImageFormat::Jpeg180));
+        // 24 bit bottom-up BMP with a 54 byte header, BGR pixels: the first stored pixel
+        // is the bottom left one of the device image = the top right one of the source.
+        for f in [ImageFormat::Bmp180, ImageFormat::BmpTranspose] {
+            let bmp = encode_device(&src, f);
+            let le32 = |o: usize| u32::from_le_bytes(bmp[o..o + 4].try_into().unwrap());
+            let (w, h): (u32, u32) = if f == ImageFormat::Bmp180 { (30, 20) } else { (20, 30) };
+            assert_eq!(&bmp[..2], b"BM");
+            assert_eq!(le32(2) as usize, bmp.len());
+            assert_eq!((le32(10), le32(14)), (54, 40));
+            assert_eq!((le32(18), le32(22) as i32), (w, h as i32), "{f:?}");
+            assert_eq!(u16::from_le_bytes([bmp[28], bmp[29]]), 24);
+            assert_eq!(le32(30), 0, "uncompressed");
+            assert_eq!(bmp.len(), 54 + (w * 3).next_multiple_of(4) as usize * h as usize);
+            assert_eq!(&bmp[54..57], &[30, 20, 10], "{f:?}");
+        }
+        // Rows are padded to 4 bytes.
+        assert_eq!(encode_device(&RgbaImage::new(5, 3), ImageFormat::Bmp180).len(), 54 + 16 * 3);
+        // Alpha is dropped, not blended.
+        let semi = RgbaImage::from_pixel(16, 16, Rgba([200, 100, 50, 0]));
+        let back = image::load_from_memory(&encode_device(&semi, ImageFormat::Bmp180)).unwrap().to_rgb8();
+        assert_eq!(back.get_pixel(3, 3).0, [200, 100, 50]);
+    }
+
+    #[test]
+    fn png_round_trip() {
+        let img = RgbaImage::from_fn(7, 5, |x, y| Rgba([x as u8 * 30, y as u8 * 40, 7, (x * y * 9) as u8]));
+        let out = encode_png(&img);
+        assert_eq!(&out[..4], b"\x89PNG");
+        assert_eq!(image::load_from_memory(&out).unwrap().to_rgba8(), img);
+    }
+
+    #[test]
+    fn rasterize_edge_cases() {
+        let bad = rasterize("not an svg", 10, 5);
+        assert_eq!(bad.dimensions(), (10, 5));
+        assert!(bad.pixels().all(|p| p.0[3] == 0));
+        // Non-uniform scaling to the requested size.
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="#00ff00"/></svg>"##;
+        let img = rasterize(svg, 40, 20);
+        assert_eq!(img.dimensions(), (40, 20));
+        assert!(img.pixels().all(|p| p.0 == [0, 255, 0, 255]));
+        // Semi transparent colours come back un-premultiplied.
+        let semi = r##"<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"><rect width="4" height="4" fill="#ff0000" fill-opacity="0.5"/></svg>"##;
+        let p = rasterize(semi, 4, 4).get_pixel(1, 1).0;
+        assert!(p[0] > 250 && (120..136).contains(&p[3]), "{p:?}");
+    }
+
+    #[test]
+    fn paints_and_escaping() {
+        let mut defs = String::new();
+        assert_eq!(svg_paint(" v$#abcdef ", &mut defs, "x"), "#abcdef");
+        assert_eq!(svg_paint("<b>", &mut defs, "x"), "&lt;b&gt;");
+        assert!(defs.is_empty());
+        assert_eq!(svg_paint("v$-1:red, 0.5 : #00f ,9:lime,x:#fff", &mut defs, "v"), "url(#v)");
+        assert!(defs.starts_with(r#"<linearGradient id="v" x1="0" y1="0" x2="0" y2="1">"#), "{defs}");
+        assert!(defs.contains(r##"<stop offset="0" stop-color="red"/><stop offset="0.5" stop-color="#00f"/><stop offset="1" stop-color="lime"/><stop offset="0" stop-color="#fff"/>"##), "{defs}");
+        let mut defs = String::new();
+        svg_paint("0:#000,1:#fff", &mut defs, "h");
+        assert!(defs.contains(r#"x2="1" y2="0""#));
+
+        assert_eq!(xml_escape("a&b<c>\"d\"'"), "a&amp;b&lt;c&gt;&quot;d&quot;'");
+        assert_eq!(xml_escape("x\u{0}y\u{7}z\n\tw\u{9b}"), "xyz\n\tw");
+        assert_eq!(percent_decode("%41%zz%4"), "A%zz%4");
+        assert_eq!(percent_decode("caf%C3%A9%20%"), "café %");
+        assert_eq!(percent_decode("%ff"), "\u{fffd}");
+    }
+
+    #[test]
+    fn sniffing_and_data_url_errors() {
+        assert_eq!(sniff(b"\x89PNG\r\n"), "image/png");
+        assert_eq!(sniff(b"\xff\xd8\xff"), "image/jpeg");
+        assert_eq!(sniff(b"GIF89a"), "image/gif");
+        assert_eq!(sniff(b"RIFF....WEBP"), "image/webp");
+        assert_eq!(sniff(b"BM"), "image/bmp");
+        assert_eq!(sniff(b"<svg/>"), "image/svg+xml");
+        assert_eq!(sniff(b""), "image/svg+xml");
+
+        assert!(ImageData::from_data_url("image/png;base64,iVBORw0K").is_none());
+        assert!(ImageData::from_data_url("data:image/png;base64").is_none());
+        assert!(ImageData::from_data_url("data:image/png;base64,!!!").is_none());
+        let jpg = ImageData::from_data_url("data:image/jpg;base64,/9j/").unwrap();
+        assert_eq!((jpg.mime.as_str(), &jpg.bytes[..]), ("image/jpeg", &[0xff, 0xd8, 0xff][..]));
+        assert_eq!(ImageData::from_data_url("data:image/pjpeg;BASE64,/9j/").unwrap().mime, "image/jpeg");
+        assert_eq!(ImageData::from_data_url("data:IMAGE/PNG;base64,iVBORw0K").unwrap().mime, "image/png");
+        assert_eq!(ImageData::from_data_url("data:;base64,R0lGODlh").unwrap().mime, "image/gif");
+        assert_eq!(ImageData::from_data_url("data:application/octet-stream;base64,Qk0=").unwrap().mime, "image/bmp");
+        assert_eq!(ImageData::from_data_url("data:,<svg/>").unwrap().mime, "image/svg+xml");
+        // Percent encoded base64 (`+` and `/` escaped).
+        assert_eq!(&ImageData::from_data_url("data:image/jpeg;base64,%2F9j%2F").unwrap().bytes[..], &[0xff, 0xd8, 0xff]);
+    }
+
+    #[test]
+    fn image_identity() {
+        let a = ImageData::new("image/png", vec![1, 2, 3]);
+        assert_eq!(a, ImageData::new("image/png", vec![1, 2, 3]));
+        assert_ne!(a, ImageData::new("image/jpeg", vec![1, 2, 3]));
+        assert_ne!(a, ImageData::new("image/png", vec![1, 2, 4]));
+        let hash = |i: &ImageData| {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            i.hash(&mut h);
+            h.finish()
+        };
+        assert_eq!(hash(&a), hash(&a.clone()));
+        assert_ne!(hash(&a), hash(&ImageData::new("image/png", vec![3, 2, 1])));
+        // Spec hashes change with any visible property.
+        let spec = KeySpec { image: Some(a.clone()), title: Some(title("t", "top", 10)), ..Default::default() };
+        let mut other = spec.clone();
+        other.title.as_mut().unwrap().bold = true;
+        assert_ne!(spec, other);
+        assert_eq!(spec, spec.clone());
+    }
+
+    #[test]
+    fn hrefs() {
+        let p = png(&RgbaImage::from_pixel(2, 2, Rgba([1, 2, 3, 255])));
+        assert_eq!(p.to_href(), format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(&p.bytes)));
+        // BMP, GIF and WebP are converted to PNG for usvg.
+        let mut bmp = Vec::new();
+        DynamicImage::ImageRgb8(image::RgbImage::from_pixel(3, 3, image::Rgb([9, 8, 7])))
+            .write_to(&mut std::io::Cursor::new(&mut bmp), image::ImageFormat::Bmp)
+            .unwrap();
+        let href = ImageData::new("image/bmp", bmp).to_href();
+        let b64 = href.strip_prefix("data:image/png;base64,").expect("png href");
+        let back = image::load_from_memory(&base64::engine::general_purpose::STANDARD.decode(b64).unwrap()).unwrap().to_rgb8();
+        assert_eq!(back.get_pixel(1, 1).0, [9, 8, 7]);
+        // Undecodable data is passed through unchanged.
+        assert_eq!(ImageData::new("image/gif", b"GIF8broken".to_vec()).to_href(), "data:image/gif;base64,R0lGOGJyb2tlbg==");
+        let svg = ImageData::svg("<svg/>");
+        assert_eq!(svg.to_href(), "data:image/svg+xml;base64,PHN2Zy8+");
+    }
+
+    #[test]
+    fn image_files() {
+        let dir = std::env::temp_dir().join(format!("tuxdeck-render-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("icon.png");
+        std::fs::write(&p, encode_png(&RgbaImage::from_pixel(4, 4, Rgba([1, 2, 3, 255])))).unwrap();
+        let a = ImageData::from_file(&p).unwrap();
+        assert_eq!(a.mime, "image/png");
+        // Cached while unchanged, re-read when the file changes.
+        assert_eq!(ImageData::from_file(&p).unwrap(), a);
+        std::fs::write(&p, encode_png(&RgbaImage::from_pixel(9, 9, Rgba([3, 2, 1, 255])))).unwrap();
+        let b = ImageData::from_file(&p).unwrap();
+        assert_ne!(a, b);
+        assert_eq!(image::load_from_memory(&b.bytes).unwrap().width(), 9);
+        // No extension: the content decides.
+        let raw = dir.join("noext");
+        std::fs::write(&raw, b"GIF89a....").unwrap();
+        assert_eq!(ImageData::from_file(&raw).unwrap().mime, "image/gif");
+        let svg = dir.join("icon.svg");
+        std::fs::write(&svg, "<svg/>").unwrap();
+        assert_eq!(ImageData::from_file(&svg).unwrap().mime, "image/svg+xml");
+        assert!(ImageData::from_file(&dir).is_none());
+        assert!(ImageData::from_file(&dir.join("missing.png")).is_none());
+        // Large files that can't be decoded are dropped.
+        let junk = dir.join("junk.png");
+        std::fs::write(&junk, vec![0u8; 70 * 1024]).unwrap();
+        assert!(ImageData::from_file(&junk).is_none());
+        // Large GIFs are kept as they are (animation).
+        let gif_path = dir.join("big.gif");
+        std::fs::write(&gif_path, [&b"GIF89a"[..], &vec![0u8; 70 * 1024]].concat()).unwrap();
+        assert_eq!(ImageData::from_file(&gif_path).unwrap().bytes.len(), 6 + 70 * 1024);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn mid_sized_images_are_kept() {
+        // Over 64 KiB but small dimensions: the original bytes stay.
+        let noise = RgbaImage::from_fn(200, 200, |x, y| {
+            let v = (x * 7919 + y * 104729).wrapping_mul(2654435761);
+            Rgba([(v >> 8) as u8, (v >> 16) as u8, (v >> 24) as u8, 255])
+        });
+        let mut bytes = Vec::new();
+        DynamicImage::ImageRgba8(noise).write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageFormat::Png).unwrap();
+        assert!(bytes.len() > 64 * 1024, "{}", bytes.len());
+        let img = ImageData::new("image/png", bytes.clone()).normalized().unwrap();
+        assert_eq!(&img.bytes[..], &bytes[..]);
+    }
+
+    fn gif_with_delays(delays_ms: &[u32]) -> Vec<u8> {
+        let mut out = Vec::new();
+        {
+            let mut enc = image::codecs::gif::GifEncoder::new(&mut out);
+            for (i, d) in delays_ms.iter().enumerate() {
+                let c = if i % 2 == 0 { [255, 0, 0, 255] } else { [0, 0, 255, 255] };
+                let frame = image::Frame::from_parts(RgbaImage::from_pixel(300, 200, Rgba(c)), 0, 0, image::Delay::from_numer_denom_ms(*d, 1));
+                enc.encode_frame(frame).unwrap();
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn animation_decoding() {
+        let a = decode_animation(&gif_with_delays(&[0, 250, 10])).unwrap();
+        let delays: Vec<u64> = a.frames.iter().map(|f| f.1.as_millis() as u64).collect();
+        // Very short delays are shown for 100 ms like in browsers.
+        assert_eq!(delays, [100, 250, 100]);
+        assert_eq!(a.total.as_millis(), 450);
+        // Frames are scaled to fit 144 px.
+        let f = image::load_from_memory(&a.frames[0].0.bytes).unwrap();
+        assert_eq!((f.width(), f.height()), (144, 96));
+        assert!(decode_animation(b"notagif").is_none());
+        assert_eq!(animation_frame(&ImageData::new("image/png", vec![1])), (None, false));
+    }
+
+    #[test]
+    fn fallback_icons() {
+        let svg = fallback_icon_svg("<&>", "#ff0000");
+        assert!(svg.contains(">&lt;&amp;&gt;</text>"));
+        let img = rasterize(&fallback_icon_svg("X", ""), 72, 72);
+        assert!(img.get_pixel(0, 0).0[3] == 0, "transparent background");
+        assert!(img.pixels().any(|p| p.0[3] > 200 && p.0[0] > 200));
+    }
 }

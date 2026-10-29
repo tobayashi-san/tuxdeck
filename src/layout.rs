@@ -160,11 +160,8 @@ fn template_svg(manifest: &Value, settings: &Value, page: Option<&PageInfo>) -> 
             s += &format!(r#"<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{radius}" fill="{fill}"/>"#);
         }
         if let Some(img) = img {
-            s += &format!(
-                r#"<image x="{x}" y="{y}" width="{w}" height="{h}" preserveAspectRatio="xMidYMid meet" xlink:href="data:{};base64,{}"/>"#,
-                img.mime,
-                base64_encode(&img.bytes)
-            );
+            // to_href: usvg can't decode BMP/WebP (and animated GIF) itself.
+            s += &format!(r#"<image x="{x}" y="{y}" width="{w}" height="{h}" preserveAspectRatio="xMidYMid meet" xlink:href="{}"/>"#, img.to_href());
         }
         if is_text && !text.is_empty() {
             let font = resolve(it.get("font"), &theme).unwrap_or(Value::Null);
@@ -208,11 +205,6 @@ fn template_svg(manifest: &Value, settings: &Value, page: Option<&PageInfo>) -> 
     format!("<defs>{defs}</defs>{s}")
 }
 
-fn base64_encode(b: &[u8]) -> String {
-    use base64::Engine as _;
-    base64::engine::general_purpose::STANDARD.encode(b)
-}
-
 /// Render the info bar (Neo: 248x58 px).
 pub fn render_info_bar(layouts_root: Option<&Path>, content: &InfoContent, w: u32, h: u32) -> RgbaImage {
     let (group, id, settings, page) = match content {
@@ -222,24 +214,13 @@ pub fn render_info_bar(layouts_root: Option<&Path>, content: &InfoContent, w: u3
         InfoContent::Pagination { settings, page } => {
             ("Pagination", settings.get("layout").and_then(|v| v.as_str()).unwrap_or("pagination_01"), settings, Some(page))
         }
-        InfoContent::Text(t) => {
-            // Long titles: smaller font, then cut with an ellipsis (approximate glyph width).
-            let n = t.chars().count().max(1) as f32;
-            let avail = w as f32 - 16.0;
-            let size = (avail / (n * 0.62)).clamp(11.0, 20.0);
-            let fit = (avail / (size * 0.62)) as usize;
-            let text = if t.chars().count() > fit { format!("{}…", t.chars().take(fit.saturating_sub(1)).collect::<String>().trim_end()) } else { t.clone() };
-            let svg = format!(
-                r##"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}"><rect width="{w}" height="{h}" fill="#000"/><text x="{}" y="{}" font-family="sans-serif" font-size="{size:.1}" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="central">{}</text></svg>"##,
-                w / 2,
-                h / 2,
-                xml_escape(&text)
-            );
-            return rasterize(&svg, w, h);
-        }
+        InfoContent::Text(t) => return rasterize(&text_svg(t, w, h), w, h),
     };
+    let is_builtin = builtin_layouts(group).iter().any(|(i, _)| i == id);
     let manifest: Option<Value> = layouts_root
         .and_then(|r| layout_dir(r, group, id))
+        // The fallback to the first imported layout must not replace a chosen built-in one.
+        .filter(|d| !is_builtin || d.ends_with(format!("{id}.sdLayoutEx")))
         .and_then(|d| std::fs::read(d.join("manifest.json")).ok())
         .and_then(|b| serde_json::from_slice(&b).ok());
     let manifest = manifest.unwrap_or_else(|| builtin_layout(group, id));
@@ -254,6 +235,22 @@ pub fn render_info_bar(layouts_root: Option<&Path>, content: &InfoContent, w: u3
         template_svg(&manifest, settings, page)
     );
     rasterize(&svg, w, h)
+}
+
+fn text_svg(t: &str, w: u32, h: u32) -> String {
+    // Long titles: smaller font, then cut with an ellipsis (approximate glyph width).
+    let n = t.chars().count().max(1) as f32;
+    let avail = w as f32 - 16.0;
+    let size = (avail / (n * 0.62)).clamp(11.0, 20.0);
+    // Epsilon: f32 rounding would otherwise cut texts that exactly fit.
+    let fit = (avail / (size * 0.62) + 1e-3) as usize;
+    let text = if t.chars().count() > fit { format!("{}…", t.chars().take(fit.saturating_sub(1)).collect::<String>().trim_end()) } else { t.to_string() };
+    format!(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}"><rect width="{w}" height="{h}" fill="#000"/><text x="{}" y="{}" font-family="sans-serif" font-size="{size:.1}" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="central">{}</text></svg>"##,
+        w / 2,
+        h / 2,
+        xml_escape(&text)
+    )
 }
 
 fn template_background(manifest: &Value, settings: &Value) -> String {
@@ -389,7 +386,8 @@ pub fn list_layouts(root: Option<&Path>, group: &str) -> Vec<(String, Vec<String
             for e in rd.flatten() {
                 let p = e.path();
                 let Some(stem) = p.file_stem().and_then(|s| s.to_str()) else { continue };
-                if out.iter().any(|(i, _)| i == stem) {
+                // Same rule as `layout_dir`: only directories with a manifest are layouts.
+                if !p.join("manifest.json").is_file() || out.iter().any(|(i, _)| i == stem) {
                     continue;
                 }
                 let themes = std::fs::read(p.join("manifest.json"))
@@ -403,4 +401,340 @@ pub fn list_layouts(root: Option<&Path>, group: &str) -> Vec<(String, Vec<String
     }
     out.sort();
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn tmp_dir(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("tuxdeck-layout-test-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    fn write_layout(root: &Path, group: &str, dir: &str, manifest: &Value) {
+        let d = root.join(group).join(dir);
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join("manifest.json"), manifest.to_string()).unwrap();
+    }
+
+    fn page(name: &str, icon: Option<ImageData>) -> PageInfo {
+        PageInfo { number: 3, count: 5, name: name.into(), icon }
+    }
+
+    #[test]
+    fn layout_dirs() {
+        let root = tmp_dir("dirs");
+        assert!(layout_dir(&root, "DigitalTime", "a").is_none());
+        write_layout(&root, "DigitalTime", "b.sdLayoutEx", &json!({}));
+        write_layout(&root, "DigitalTime", "a.sdLayoutEx", &json!({}));
+        std::fs::create_dir_all(root.join("DigitalTime/0-empty.sdLayoutEx")).unwrap();
+        let first = root.join("DigitalTime/a.sdLayoutEx");
+        assert_eq!(layout_dir(&root, "DigitalTime", "b"), Some(root.join("DigitalTime/b.sdLayoutEx")));
+        assert_eq!(layout_dir(&root, "DigitalTime", "a"), Some(first.clone()));
+        // Unknown or unsafe ids fall back to the first layout with a manifest.
+        for id in ["missing", "", "..", "../DigitalTime/b", "x\\b", "0-empty"] {
+            assert_eq!(layout_dir(&root, "DigitalTime", id), Some(first.clone()), "{id:?}");
+        }
+        assert!(layout_dir(&root, "Pagination", "a").is_none());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn theme_substitution() {
+        let theme = json!({"colors": {"textColor": "#123456"}, "fonts": {"font0": {"size": 30}}});
+        assert_eq!(substitute("{{textColor}}", &theme), Some(json!("#123456")));
+        assert_eq!(substitute("{{font0}}", &theme), Some(json!({"size": 30})));
+        assert_eq!(substitute("{{nope}}", &theme), None);
+        assert_eq!(substitute("{{textColor", &theme), None);
+        assert_eq!(substitute("textColor", &theme), None);
+        assert_eq!(resolve(Some(&json!("{{textColor}}")), &theme), Some(json!("#123456")));
+        assert_eq!(resolve(Some(&json!("#fff")), &theme), Some(json!("#fff")));
+        assert_eq!(resolve(Some(&json!({"size": 1})), &theme), Some(json!({"size": 1})));
+        assert_eq!(resolve(Some(&json!("{{nope}}")), &Value::Null), None);
+        assert_eq!(resolve(None, &theme), None);
+    }
+
+    fn text(el: Value, settings: Value) -> String {
+        element_text(&el, &settings, None).0
+    }
+
+    #[test]
+    fn clock_elements() {
+        type Want = dyn Fn(chrono::DateTime<Local>) -> String;
+        let around = |f: &dyn Fn() -> String, want: &Want| {
+            let before = want(Local::now());
+            let got = f();
+            let after = want(Local::now());
+            assert!(got == before || got == after, "{got} not {before} / {after}");
+        };
+        around(&|| text(json!({"type": "hours"}), json!({})), &|n| format!("{:02}", n.hour()));
+        around(&|| text(json!({"type": "hours"}), json!({"24HourFormat": true})), &|n| format!("{:02}", n.hour()));
+        around(&|| text(json!({"type": "hours"}), json!({"24HourFormat": false})), &|n| n.hour12().1.to_string());
+        // `standardTime` is the inverse setting used by older layouts; 24HourFormat wins.
+        around(&|| text(json!({"type": "hours"}), json!({"standardTime": true})), &|n| n.hour12().1.to_string());
+        around(&|| text(json!({"type": "hours"}), json!({"standardTime": true, "24HourFormat": true})), &|n| format!("{:02}", n.hour()));
+        around(&|| text(json!({"type": "minutes"}), json!({})), &|n| format!("{:02}", n.minute()));
+        around(&|| text(json!({"type": "seconds"}), json!({})), &|n| format!("{:02}", n.second()));
+        around(&|| text(json!({"type": "am/pm"}), json!({"24HourFormat": false})), &|n| if n.hour12().0 { "PM".into() } else { "AM".into() });
+        assert_eq!(text(json!({"type": "am/pm"}), json!({})), "");
+        assert_eq!(text(json!({"type": "colon"}), json!({})), ":");
+        assert_eq!(text(json!({"type": "weather"}), json!({})), "");
+        assert_eq!(text(json!({}), json!({})), "");
+        // Day names: two letters unless long (the language may vary between runs).
+        let short = text(json!({"type": "day"}), json!({}));
+        let long = text(json!({"type": "day", "dateFormat": "Long"}), json!({}));
+        assert_eq!(short.chars().count(), 2, "{short}");
+        assert!(long.starts_with(&short) && long.chars().count() > 2, "{long}");
+        let date = text(json!({"type": "date"}), json!({}));
+        let b = date.as_bytes();
+        assert!((b.len() == 5 && b[2] == b'/') || (b.len() == 6 && b[2] == b'.' && b[5] == b'.'), "{date}");
+        let long_date = text(json!({"type": "date", "dateFormat": "Long"}), json!({}));
+        assert!(long_date.contains(&Local::now().day().to_string()) && long_date.chars().any(char::is_alphabetic), "{long_date}");
+    }
+
+    #[test]
+    fn pagination_elements() {
+        let icon = ImageData::svg("<svg/>");
+        let p = page("Music", Some(icon.clone()));
+        let el = |display: &str| json!({"type": "carousel_page", "display": display});
+        assert_eq!(element_text(&el("Number"), &json!({}), Some(&p)), ("3".into(), None));
+        assert_eq!(element_text(&json!({"type": "carousel_page"}), &json!({}), Some(&p)).0, "3");
+        assert_eq!(element_text(&el("Name"), &json!({}), Some(&p)).0, "Music");
+        assert_eq!(element_text(&el("Icon"), &json!({}), Some(&p)), (String::new(), Some(icon)));
+        assert_eq!(element_text(&el("Icon"), &json!({}), Some(&page("", None))), (String::new(), None));
+        // Unnamed pages: "Page 3" in the current language.
+        assert!(element_text(&el("Name"), &json!({}), Some(&page("", None))).0.ends_with('3'));
+        assert_eq!(element_text(&el("Number"), &json!({}), None), (String::new(), None));
+    }
+
+    fn manifest(items: Value) -> Value {
+        json!({
+            "themes": [
+                {"id": "dark", "colors": {"backgroundColor": "#000000", "textColor": "#ffffff"}, "fonts": {"big": {"family": "Big <Font>", "size": 30, "weight": 700, "italic": true}}},
+                {"id": "light", "colors": {"backgroundColor": "#eeeeee", "textColor": "#111111"}, "fonts": {"big": {"size": 10}}}
+            ],
+            "elements": [{"key": "colon", "type": "colon"}, {"key": "ampm", "type": "am/pm"}],
+            "template": {"items": items}
+        })
+    }
+
+    #[test]
+    fn template_markup() {
+        let items = json!([
+            {"key": "label", "type": "text", "rect": [0, 0, 100, 50], "value": "Hi & bye", "font": "{{big}}", "color": "{{textColor}}", "alignment": "left", "zOrder": 2},
+            {"key": "colon", "type": "text", "rect": [100, 0, 10, 50], "alignment": "right", "background": "{{textColor}}", "border_radius": 3, "zOrder": 1},
+            {"key": "ampm", "type": "text", "rect": [110, 0, 20, 50], "background": "#ff0000"},
+            {"key": "bad", "type": "text", "rect": [1, 2], "value": "never"}
+        ]);
+        let m = manifest(items);
+        let s = template_svg(&m, &json!({"theme": "dark"}), None);
+        assert!(
+            s.contains(
+                r##"<text x="0" y="25" font-family="'Big &lt;Font&gt;', sans-serif" font-size="30" font-weight="700" font-style="italic" fill="#ffffff""##
+            ),
+            "{s}"
+        );
+        assert!(s.contains(">Hi &amp; bye</text>"));
+        assert!(s.contains(r##"<rect x="100" y="0" width="10" height="50" rx="3" fill="#ffffff"/>"##), "{s}");
+        assert!(s.contains(r#"text-anchor="end" dominant-baseline="central">:</text>"#), "{s}");
+        // zOrder: the colon (1) is drawn before the label (2).
+        assert!(s.find(">:<").unwrap() < s.find(">Hi &amp; bye<").unwrap());
+        // AM/PM in 24 h mode is hidden including its background.
+        assert!(!s.contains("#ff0000") && !s.contains("never"));
+        let light = template_svg(&m, &json!({"theme": "light"}), None);
+        assert!(light.contains(r##"font-family="'sans-serif', sans-serif" font-size="10" font-weight="400" font-style="normal" fill="#111111""##), "{light}");
+        // Unknown theme: the first one.
+        assert_eq!(template_svg(&m, &json!({"theme": "nope"}), None), s);
+        assert_eq!(template_svg(&m, &json!({}), None), s);
+        // 12 h mode shows AM/PM with its background.
+        assert!(template_svg(&m, &json!({"24HourFormat": false}), None).contains("#ff0000"));
+        assert_eq!(template_svg(&json!({}), &json!({}), None), "<defs></defs>");
+    }
+
+    #[test]
+    fn template_outlines_and_gradients() {
+        let item = |extra: Value| {
+            let mut it = json!({"key": "t", "type": "text", "rect": [0, 0, 50, 50], "value": "X"});
+            it.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            template_svg(&json!({"template": {"items": [it]}}), &json!({}), None)
+        };
+        let plain = item(json!({}));
+        assert!(plain.contains(r##"font-size="16" font-weight="400" font-style="normal" fill="#ffffff" text-anchor="middle""##), "{plain}");
+        assert!(plain.contains(r#"<text x="25" y="25""#));
+        let outlined = item(json!({"outline_w": 2, "outline_c": "#00ff00", "color": "#0000ff"}));
+        assert!(outlined.contains(r##"fill="#0000ff" stroke="#00ff00" stroke-width="2" paint-order="stroke""##), "{outlined}");
+        let only = item(json!({"outline_w": 1.5, "outline_only": true}));
+        assert!(only.contains(r##"fill="none" stroke="#000000" stroke-width="1.5" stroke-linejoin="round""##), "{only}");
+        // outline_only without a width still fills.
+        assert!(item(json!({"outline_only": true})).contains(r##"fill="#ffffff""##));
+        let grad = item(json!({"color": "v$0:#000,1:#fff", "background": "0:#f00,1:#00f"}));
+        assert!(
+            grad.contains(r#"<linearGradient id="lbg0""#) && grad.contains(r#"<linearGradient id="lfg0""#) && grad.contains(r#"fill="url(#lfg0)""#),
+            "{grad}"
+        );
+        // Non-string colours fall back to the defaults.
+        assert!(item(json!({"color": 5})).contains(r##"fill="#ffffff""##));
+        // Page icons are embedded as images.
+        let icon = ImageData::new("image/png", vec![1, 2, 3]);
+        let m = json!({"elements": [{"key": "i", "type": "carousel_page", "display": "Icon"}], "template": {"items": [{"key": "i", "type": "pixmap", "rect": [1, 2, 3, 4]}]}});
+        let s = template_svg(&m, &json!({}), Some(&page("", Some(icon))));
+        assert!(s.contains(r#"<image x="1" y="2" width="3" height="4" preserveAspectRatio="xMidYMid meet" xlink:href="data:image/png;base64,AQID"/>"#), "{s}");
+    }
+
+    #[test]
+    fn backgrounds() {
+        let m = manifest(json!([]));
+        assert_eq!(template_background(&m, &json!({"theme": "light"})), "#eeeeee");
+        assert_eq!(template_background(&m, &json!({"theme": "other"})), "#000000");
+        assert_eq!(template_background(&json!({}), &json!({})), "#000000");
+        assert_eq!(template_background(&json!({"themes": [{"id": "x", "colors": {"backgroundColor": "h$0:#000,1:#fff"}}]}), &json!({})), "h$0:#000,1:#fff");
+    }
+
+    #[test]
+    fn info_text() {
+        let s = text_svg("Hi", 248, 58);
+        assert!(s.contains(r#"<text x="124" y="29" font-family="sans-serif" font-size="20.0""#) && s.contains(">Hi</text>"), "{s}");
+        // Texts that fit at a reduced size are shown completely.
+        for n in 1..=34 {
+            let t = "W".repeat(n);
+            let s = text_svg(&t, 248, 58);
+            assert!(s.contains(&format!(">{t}</text>")), "{n}: {s}");
+        }
+        // Longer ones are cut at the minimum size of 11.
+        let long = "abcdefghij".repeat(10);
+        let s = text_svg(&long, 248, 58);
+        assert!(s.contains(r#"font-size="11.0""#));
+        assert!(s.contains(&format!(">{}…</text>", &long[..33])), "{s}");
+        // No trailing space before the ellipsis, markup escaped.
+        let s = text_svg(&format!("{} {}", "a".repeat(32), "b".repeat(20)), 248, 58);
+        assert!(s.contains(&format!(">{}…</text>", "a".repeat(32))), "{s}");
+        assert!(text_svg("<b>", 248, 58).contains(">&lt;b&gt;</text>"));
+        assert!(text_svg("", 248, 58).contains("></text>"));
+    }
+
+    fn color_at(img: &RgbaImage, x: u32, y: u32) -> [u8; 3] {
+        let p = img.get_pixel(x, y).0;
+        [p[0], p[1], p[2]]
+    }
+
+    #[test]
+    fn info_bar_rendering() {
+        let black = render_info_bar(None, &InfoContent::Black, 248, 58);
+        assert_eq!(black.dimensions(), (248, 58));
+        assert!(black.pixels().all(|p| p.0 == [0, 0, 0, 255]));
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="#ff0000"/></svg>"##;
+        assert_eq!(color_at(&render_info_bar(None, &InfoContent::Svg(svg.into()), 248, 58), 200, 50), [255, 0, 0]);
+        let t = render_info_bar(None, &InfoContent::Text("Hello".into()), 248, 58);
+        assert!(t.pixels().any(|p| p.0[0] > 200));
+        assert_eq!(color_at(&t, 2, 2), [0, 0, 0]);
+
+        // Built-in clock: theme background everywhere, text in the theme colour.
+        for (theme, bg, fg) in [("night", [0x0b, 0x12, 0x20], [0x7d, 0xd3, 0xfc]), ("amber", [5, 5, 5], [0xfb, 0xbf, 0x24])] {
+            let img = render_info_bar(None, &InfoContent::Clock { settings: json!({"theme": theme}) }, 248, 58);
+            assert_eq!(color_at(&img, 0, 0), bg);
+            assert_eq!(color_at(&img, 247, 57), bg);
+            assert!(img.pixels().any(|p| p.0[..3] == fg), "{theme}");
+        }
+        for id in ["digital_time_01", "digital_time_02", "digital_time_03", "digital_time_04", "unknown"] {
+            let img = render_info_bar(None, &InfoContent::Clock { settings: json!({"layout": id}) }, 248, 58);
+            assert!(img.pixels().filter(|p| p.0[0] > 200).count() > 50, "{id}");
+        }
+
+        // Built-in pagination: number box in the accent colour, at layout offset (8, 4).
+        let content = InfoContent::Pagination { settings: json!({}), page: page("Music", None) };
+        let img = render_info_bar(None, &content, 248, 58);
+        assert_eq!(color_at(&img, 8 + 192, 4 + 13), [255, 255, 255]);
+        let p2 = InfoContent::Pagination { settings: json!({"layout": "pagination_02", "theme": "mint"}), page: page("", None) };
+        let img = render_info_bar(None, &p2, 248, 58);
+        assert_eq!(color_at(&img, 8 + 206, 4 + 11), [0x34, 0xd3, 0x99]);
+    }
+
+    #[test]
+    fn page_icons() {
+        // Icons of any supported format are drawn (BMP is not understood by usvg directly).
+        let mut bmp = Vec::new();
+        image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(8, 8, image::Rgb([0, 255, 0])))
+            .write_to(&mut std::io::Cursor::new(&mut bmp), image::ImageFormat::Bmp)
+            .unwrap();
+        let png = crate::render::encode_png(&RgbaImage::from_pixel(8, 8, image::Rgba([0, 255, 0, 255])));
+        for icon in [ImageData::new("image/png", png), ImageData::new("image/bmp", bmp)] {
+            let mime = icon.mime.clone();
+            let content = InfoContent::Pagination { settings: json!({}), page: page("Music", Some(icon)) };
+            let img = render_info_bar(None, &content, 248, 58);
+            // Icon rect [11, 8, 36, 36] at offset (8, 4).
+            assert_eq!(color_at(&img, 8 + 29, 4 + 26), [0, 255, 0], "{mime}");
+        }
+    }
+
+    #[test]
+    fn imported_layouts() {
+        let root = tmp_dir("imported");
+        let custom = json!({
+            "themes": [{"id": "red", "colors": {"backgroundColor": "#ff0000"}}, {"id": "blue", "colors": {"backgroundColor": "#0000ff"}}],
+            "template": {"items": []}
+        });
+        write_layout(&root, "DigitalTime", "custom.sdLayoutEx", &custom);
+        let img = render_info_bar(Some(&root), &InfoContent::Clock { settings: json!({"layout": "custom", "theme": "blue"}) }, 248, 58);
+        assert_eq!(color_at(&img, 120, 30), [0, 0, 255]);
+        // Unknown ids use the first imported layout, built-in ids stay built-in.
+        let img = render_info_bar(Some(&root), &InfoContent::Clock { settings: json!({"layout": "removed"}) }, 248, 58);
+        assert_eq!(color_at(&img, 120, 30), [255, 0, 0]);
+        write_layout(&root, "Pagination", "aaa.sdLayoutEx", &custom);
+        let builtin = InfoContent::Pagination { settings: json!({"layout": "pagination_02", "theme": "night"}), page: page("Music", None) };
+        assert_eq!(render_info_bar(Some(&root), &builtin, 248, 58).as_raw(), render_info_bar(None, &builtin, 248, 58).as_raw());
+        let unknown = InfoContent::Pagination { settings: json!({"layout": "gone"}), page: page("Music", None) };
+        assert_eq!(color_at(&render_info_bar(Some(&root), &unknown, 248, 58), 120, 30), [255, 0, 0]);
+        // Broken manifests use the built-in layout.
+        let bad = root.join("Pagination/broken.sdLayoutEx");
+        std::fs::create_dir_all(&bad).unwrap();
+        std::fs::write(bad.join("manifest.json"), "{").unwrap();
+        let content = InfoContent::Pagination { settings: json!({"layout": "broken"}), page: page("Music", None) };
+        assert_eq!(render_info_bar(Some(&root), &content, 248, 58).as_raw(), render_info_bar(None, &content, 248, 58).as_raw());
+
+        let builtin: Vec<String> = list_layouts(None, "DigitalTime").into_iter().map(|(id, _)| id).collect();
+        assert_eq!(builtin, ["digital_time_01", "digital_time_02", "digital_time_03", "digital_time_04"]);
+        let themes = ["black", "night", "amber", "mint", "purple", "mono"];
+        assert!(list_layouts(None, "Pagination").iter().all(|(_, t)| t == &themes));
+        assert_eq!(list_layouts(None, "Pagination").len(), 2);
+        // Imported layouts are listed with their themes, sorted; built-in ids are not duplicated.
+        write_layout(&root, "DigitalTime", "digital_time_01.sdLayoutEx", &custom);
+        std::fs::write(root.join("DigitalTime/notes.txt"), "not a layout").unwrap();
+        std::fs::create_dir_all(root.join("DigitalTime/empty.sdLayoutEx")).unwrap();
+        let all = list_layouts(Some(&root), "DigitalTime");
+        let ids: Vec<&str> = all.iter().map(|(id, _)| id.as_str()).collect();
+        assert_eq!(ids, ["custom", "digital_time_01", "digital_time_02", "digital_time_03", "digital_time_04"]);
+        assert_eq!(all[0].1, ["red", "blue"]);
+        assert_eq!(all[1].1, themes);
+        assert_eq!(list_layouts(Some(&root.join("missing")), "DigitalTime").len(), 4);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn builtin_fallbacks() {
+        let first = builtin_layout("DigitalTime", "digital_time_01");
+        assert_eq!(builtin_layout("DigitalTime", "nope"), first);
+        assert_ne!(builtin_layout("DigitalTime", "digital_time_02"), first);
+        assert_eq!(builtin_layout("Pagination", "nope"), builtin_layout("Pagination", "pagination_01"));
+        // Every built-in item references an element or carries a value, and all theme keys resolve.
+        for group in ["DigitalTime", "Pagination"] {
+            for (id, m) in builtin_layouts(group) {
+                let elements = m["elements"].as_array().unwrap();
+                for it in m.pointer("/template/items").unwrap().as_array().unwrap() {
+                    let key = it["key"].as_str().unwrap();
+                    assert!(elements.iter().any(|e| e["key"] == key) || it.get("value").is_some(), "{id}: {key}");
+                    for t in m["themes"].as_array().unwrap() {
+                        for f in ["font", "color", "background"] {
+                            if let Some(Value::String(v)) = it.get(f) {
+                                assert!(!v.starts_with("{{") || substitute(v, t).is_some(), "{id}: {v}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

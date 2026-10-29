@@ -300,5 +300,235 @@ mod tests {
         let m = merged_item(&it, Some(&json!({"value": "x", "color": "red", "rect": [1, 1, 1, 1]})));
         assert_eq!(m["color"], "red");
         assert_eq!(m["rect"][0], 0);
+        // `key` and `type` can't be overridden either; missing feedback changes nothing.
+        let m = merged_item(&it, Some(&json!({"key": "other", "type": "bar"})));
+        assert_eq!((m["key"].as_str(), m["type"].as_str()), (Some("value"), Some("text")));
+        assert_eq!(merged_item(&it, None), it);
+        assert_eq!(merged_item(&json!("x"), Some(&json!(1))), json!("x"));
+    }
+
+    fn tmp_dir(name: &str) -> std::path::PathBuf {
+        let d = std::env::temp_dir().join(format!("tuxdeck-strip-test-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    fn svg_for(layout: Value, values: Value, defaults: Value, title_style: Option<&Title>, show_title: bool) -> String {
+        let (Value::Object(values), Value::Object(defaults)) = (values, defaults) else { panic!() };
+        let seg = Segment { layout: &layout, values: &values, defaults: &defaults, title_style, show_title, background: None, plugin_dir: None };
+        segment_svg(&seg)
+    }
+
+    fn svg_items(items: Value, values: Value) -> String {
+        svg_for(json!({ "items": items }), values, json!({}), None, true)
+    }
+
+    #[test]
+    fn layout_loading() {
+        assert_eq!(load_layout("$B2", None).unwrap()["id"], "$B2");
+        assert!(builtin_layout("$Z9").is_none());
+        assert!(load_layout("layouts/custom.json", None).is_none());
+        let dir = tmp_dir("load");
+        std::fs::create_dir_all(dir.join("layouts")).unwrap();
+        std::fs::write(dir.join("layouts/custom.json"), br#"{"id": "custom", "items": [{"key": "a", "type": "text", "rect": [0, 0, 10, 10]}]}"#).unwrap();
+        std::fs::write(dir.join("bom.json"), [&b"\xef\xbb\xbf"[..], br#"{"items": []}"#].concat()).unwrap();
+        std::fs::write(dir.join("noitems.json"), br#"{"id": "x"}"#).unwrap();
+        std::fs::write(dir.join("bad.json"), b"{").unwrap();
+        std::fs::write(dir.join("objitems.json"), br#"{"items": {"a": 1}}"#).unwrap();
+        assert_eq!(load_layout("layouts/custom.json", Some(&dir)).unwrap()["id"], "custom");
+        assert_eq!(load_layout("./layouts/custom.json", Some(&dir)).unwrap()["id"], "custom");
+        assert!(load_layout("bom.json", Some(&dir)).is_some(), "UTF-8 BOM");
+        for bad in ["noitems.json", "bad.json", "objitems.json", "missing.json", "../load/bom.json", "layouts/../bom.json"] {
+            assert!(load_layout(bad, Some(&dir)).is_none(), "{bad}");
+        }
+        let abs = dir.join("bom.json");
+        assert!(load_layout(abs.to_str().unwrap(), Some(&dir)).is_none(), "absolute paths");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn numbers() {
+        assert_eq!(num(Some(&json!(42))), Some(42.0));
+        assert_eq!(num(Some(&json!(-1.5))), Some(-1.5));
+        assert_eq!(num(Some(&json!(" 42 % "))), Some(42.0));
+        assert_eq!(num(Some(&json!("7.5%"))), Some(7.5));
+        assert_eq!(num(Some(&json!("loud"))), None);
+        assert_eq!(num(Some(&json!(true))), None);
+        assert_eq!(num(None), None);
+    }
+
+    #[test]
+    fn image_references() {
+        assert!(image_href("  ", None).is_none());
+        assert!(image_href("data:image/svg+xml,<svg/>", None).unwrap().starts_with("data:image/svg+xml;base64,"));
+        assert!(image_href("<svg xmlns='http://www.w3.org/2000/svg'/>", None).unwrap().starts_with("data:image/svg+xml;base64,"));
+        assert!(image_href("<?xml version='1.0'?><svg/>", None).unwrap().starts_with("data:image/svg+xml;base64,"));
+        assert!(image_href("icons/knob", None).is_none());
+        let dir = tmp_dir("img");
+        std::fs::create_dir_all(dir.join("icons")).unwrap();
+        std::fs::write(dir.join("icons/knob.png"), crate::render::encode_png(&image::RgbaImage::new(2, 2))).unwrap();
+        assert!(image_href("icons/knob", Some(&dir)).unwrap().starts_with("data:image/png;base64,"));
+        assert!(image_href("icons/knob.png", Some(&dir)).is_some());
+        assert!(image_href("icons/missing", Some(&dir)).is_none());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn item_order_and_filtering() {
+        let svg = svg_items(
+            json!([
+                {"key": "b", "type": "text", "rect": [0, 0, 10, 10], "value": "second", "zOrder": 2},
+                "not an item",
+                {"key": "a", "type": "text", "rect": [0, 0, 10, 10], "value": "first", "zOrder": 1},
+                {"key": "c", "type": "text", "rect": [0, 0, 10], "value": "bad rect"},
+                {"key": "d", "type": "text", "rect": [0, 0, 10, 10], "value": "disabled", "enabled": false},
+                {"key": "e", "type": "unknown", "rect": [0, 0, 10, 10], "value": "x"},
+                {"key": "f", "type": "text", "rect": [0, 0, 10, 10]}
+            ]),
+            json!({"f": {"enabled": false}}),
+        );
+        let (a, b) = (svg.find(">first<").unwrap(), svg.find(">second<").unwrap());
+        assert!(a < b, "zOrder");
+        assert!(!svg.contains("bad rect") && !svg.contains("disabled"));
+        assert_eq!(svg.matches("<g ").count(), 2);
+        // A layout without items is just the black canvas.
+        let empty = svg_for(json!({}), json!({}), json!({}), None, true);
+        assert!(empty.ends_with(r##"<defs></defs><rect width="200" height="100" fill="#000"/></svg>"##), "{empty}");
+    }
+
+    #[test]
+    fn text_items() {
+        let item = |align: &str, value: Value| json!([{"key": "v", "type": "text", "rect": [10, 20, 100, 30], "alignment": align, "value": value}]);
+        assert!(svg_items(item("left", json!("L")), json!({})).contains(r#"<text x="10" y="35""#));
+        assert!(svg_items(item("right", json!("R")), json!({})).contains(r#"x="110" y="35""#));
+        assert!(svg_items(item("center", json!("C")), json!({})).contains(r#"x="60" y="35""#));
+        let s = svg_items(item("right", json!(3.5)), json!({}));
+        assert!(s.contains(r#"text-anchor="end""#) && s.contains(">3.5</text>"));
+        assert!(svg_items(item("left", json!(true)), json!({})).contains(">true</text>"));
+        assert!(!svg_items(item("left", json!("")), json!({})).contains("<text"));
+        assert!(!svg_items(item("left", json!(null)), json!({})).contains("<text"));
+        assert!(svg_items(item("left", json!("a\nb <&>")), json!({})).contains(">a b &lt;&amp;&gt;</text>"));
+        // Defaults: white, 16 px, weight 400.
+        assert!(svg_items(item("left", json!("x")), json!({}))
+            .contains(r#"font-family="sans-serif" font-size="16" font-weight="400" font-style="normal" fill="white""#));
+        let styled =
+            json!([{"key": "v", "type": "text", "rect": [0, 0, 100, 30], "font": {"size": 24, "weight": 700}, "color": "0:#f00,1:#00f", "value": "x"}]);
+        let s = svg_items(styled, json!({}));
+        assert!(s.contains(r#"font-size="24" font-weight="700""#) && s.contains(r#"fill="url(#tc0)""#) && s.contains(r#"<linearGradient id="tc0""#));
+    }
+
+    #[test]
+    fn text_overflow() {
+        let item =
+            |overflow: &str| json!([{"key": "v", "type": "text", "rect": [0, 0, 136, 24], "text-overflow": overflow, "value": "ABCDEFGHIJKLMNOPQRSTUVWXYZ"}]);
+        assert!(svg_items(item("ellipsis"), json!({})).contains(">ABCDEFGHIJKLMN…</text>"));
+        assert!(svg_items(item("clip"), json!({})).contains(">ABCDEFGHIJKLMNOPQRSTUVWXYZ</text>"));
+        let short = json!([{"key": "v", "type": "text", "rect": [0, 0, 136, 24], "text-overflow": "ellipsis", "value": "Vol"}]);
+        assert!(svg_items(short, json!({})).contains(">Vol</text>"));
+        // Even a single character doesn't fit: only the ellipsis remains.
+        let tiny = json!([{"key": "v", "type": "text", "rect": [0, 0, 4, 24], "text-overflow": "ellipsis", "value": "Volume"}]);
+        assert!(svg_items(tiny, json!({})).contains(">…</text>"));
+    }
+
+    #[test]
+    fn titles() {
+        let l = builtin_layout("$X1").unwrap();
+        let mut style = Title {
+            text: String::new(),
+            align: "top".into(),
+            size: 16,
+            color: "#00ff00".into(),
+            family: "My <Font>".into(),
+            bold: true,
+            italic: true,
+            underline: false,
+            outline: 0,
+        };
+        let s = svg_for(l.clone(), json!({"title": "Vol"}), json!({}), Some(&style), true);
+        assert!(s.contains(r#"font-family="'My &lt;Font&gt;', sans-serif" font-size="21.33"#), "{s}");
+        assert!(s.contains(r##"font-weight="700" font-style="italic" fill="#00ff00""##), "{s}");
+        style.size = 60;
+        style.bold = false;
+        style.family = String::new();
+        let s = svg_for(l.clone(), json!({"title": "Vol"}), json!({}), Some(&style), true);
+        assert!(s.contains(r#"font-family="sans-serif" font-size="40" font-weight="400""#), "{s}");
+        style.size = 1;
+        assert!(svg_for(l.clone(), json!({"title": "Vol"}), json!({}), Some(&style), true).contains(r#"font-size="8""#));
+        // Hidden titles, and defaults used when the plugin sent no title.
+        assert!(!svg_for(l.clone(), json!({"title": "Vol"}), json!({}), None, false).contains(">Vol<"));
+        assert!(svg_for(l.clone(), json!({}), json!({"title": "Default"}), None, true).contains(">Default</text>"));
+        assert!(svg_for(l.clone(), json!({"title": "Set"}), json!({"title": "Default"}), None, true).contains(">Set</text>"));
+        // The user's title style only applies to the title item.
+        let a1 = builtin_layout("$A1").unwrap();
+        let s = svg_for(a1, json!({"value": "42"}), json!({}), Some(&style), true);
+        assert!(s.contains(r#"font-size="24" font-weight="600" font-style="normal" fill="white""#), "{s}");
+    }
+
+    #[test]
+    fn pixmaps_backgrounds_and_opacity() {
+        let items = json!([
+            {"key": "icon", "type": "pixmap", "rect": [16, 40, 48, 48], "background": "#ff0000", "opacity": 3},
+            {"key": "none", "type": "pixmap", "rect": [0, 0, 10, 10], "opacity": -1}
+        ]);
+        let s = svg_items(items.clone(), json!({"icon": "data:image/svg+xml,<svg/>"}));
+        assert!(s.contains(r#"<image x="16" y="40" width="48" height="48" preserveAspectRatio="xMidYMid meet" xlink:href="data:image/svg+xml;base64,"#));
+        assert!(s.contains(r##"<rect x="16" y="40" width="48" height="48" fill="#ff0000"/>"##));
+        assert!(s.contains(r#"<g clip-path="url(#c0)" opacity="1">"#), "opacity clamped");
+        assert!(s.contains(r#"<clipPath id="c1">"#) && !s.contains("url(#c1)"), "empty items are not drawn");
+        let s = svg_items(json!([{"key": "x", "type": "pixmap", "rect": [0, 0, 10, 10], "background": "v$0:#000,1:#fff", "opacity": -2}]), json!({}));
+        assert!(s.contains(r#"fill="url(#bg0)""#) && s.contains(r#"opacity="0""#));
+        // Segment background image: covers the whole canvas.
+        let bg = ImageData::svg("<svg xmlns='http://www.w3.org/2000/svg'/>");
+        let l = json!({"items": []});
+        let seg =
+            Segment { layout: &l, values: &Map::new(), defaults: &Map::new(), title_style: None, show_title: true, background: Some(&bg), plugin_dir: None };
+        let s = feedback_svg(&seg, 248, 58);
+        assert!(s.contains(r#"width="248" height="58" viewBox="0 0 248 58""#));
+        assert!(s.contains(r#"<image width="248" height="58" preserveAspectRatio="xMidYMid slice""#));
+    }
+
+    #[test]
+    fn bars() {
+        let bar = |extra: Value| {
+            let mut it = json!({"key": "b", "type": "bar", "rect": [0, 0, 100, 20]});
+            it.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            svg_items(json!([it]), json!({}))
+        };
+        // Range and percent strings: 50 of 0..200 = 25 % of the inner width (100 - 2 * 2).
+        let s = bar(json!({"value": "50%", "range": {"min": 0, "max": 200}}));
+        assert!(s.contains(r#"<rect x="2" y="2" width="24" height="16" rx="8""#), "{s}");
+        assert!(s.contains(r#"fill="darkgray""#) && s.contains(r#"stroke="white" stroke-width="2""#));
+        // Clamped to the range; at the minimum there is no fill rect.
+        assert!(bar(json!({"value": 500})).contains(r#"width="96""#));
+        let empty = bar(json!({"value": -5}));
+        assert_eq!(empty.matches("<rect").count(), 4, "{empty}");
+        assert!(bar(json!({"value": 50, "range": {"min": 10, "max": 10}})).matches("<rect").count() == 4, "empty range");
+        // Square bars, no border, custom colours.
+        let s = bar(json!({"value": 50, "subtype": 0, "border_w": 0, "bar_bg_c": "#111111", "bar_fill_c": "#222222"}));
+        assert!(s.contains(r##"<rect x="0" y="0" width="100" height="20" rx="0" fill="#111111"/>"##), "{s}");
+        assert!(s.contains(r##"<rect x="0" y="0" width="50" height="20" rx="0" fill="#222222"/>"##), "{s}");
+        assert!(!s.contains("stroke="));
+
+        let g = svg_items(json!([{"key": "g", "type": "gbar", "rect": [0, 0, 100, 20], "bar_h": 12, "value": 50, "bar_fill_c": "0:#f00,1:#0f0"}]), json!({}));
+        assert!(g.contains(r#"<rect x="0" y="0" width="100" height="12" rx="6" fill="url(#bf0)"/>"#), "{g}");
+        assert!(g.contains(r#"<path d="M50 13 L"#), "{g}");
+        // bar_h can't exceed the item height.
+        let g = svg_items(json!([{"key": "g", "type": "gbar", "rect": [0, 0, 100, 20], "bar_h": 50}]), json!({}));
+        assert!(g.contains(r#"height="20" rx="10""#) && g.contains(r#"<path d="M0 21 L"#), "{g}");
+    }
+
+    #[test]
+    fn bar_rendering() {
+        let l = builtin_layout("$B1").unwrap();
+        let (Value::Object(values), defaults) = (json!({"indicator": {"value": 75, "bar_fill_c": "#0000ff"}}), Map::new()) else { panic!() };
+        let seg = Segment { layout: &l, values: &values, defaults: &defaults, title_style: None, show_title: true, background: None, plugin_dir: None };
+        let img = crate::render::rasterize(&segment_svg(&seg), SEG_W, SEG_H);
+        // Indicator rect [76, 74, 108, 20]: fill ends at 76 + 2 + 104 * 0.75 = 156.
+        assert_eq!(img.get_pixel(150, 84).0, [0, 0, 255, 255]);
+        let p = img.get_pixel(165, 84).0;
+        assert!(p[0] > 150 && p[2] < 200, "{p:?}");
+        // Nothing drawn outside the items: black canvas.
+        assert_eq!(img.get_pixel(5, 95).0, [0, 0, 0, 255]);
     }
 }
