@@ -420,16 +420,35 @@ pub fn hyprctl_command() -> Command {
 }
 
 fn hyprctl(expr: &str) -> Result<()> {
+    if let Some(r) = exec_fake("hyprctl", &["dispatch", expr], None) {
+        return r;
+    }
     if dry_run() {
         tracing::info!("DRYRUN hyprctl dispatch {expr}");
         return Ok(());
     }
     let out = hyprctl_command().arg("dispatch").arg(expr).stderr(Stdio::null()).output()?;
-    let text = String::from_utf8_lossy(&out.stdout);
-    if !out.status.success() || text.trim_start().starts_with("error") {
+    check_hyprctl(out.status.success(), &out.stdout)
+}
+
+/// `hyprctl dispatch` reports some failures with exit code 0 and an `error…` reply.
+fn check_hyprctl(success: bool, stdout: &[u8]) -> Result<()> {
+    let text = String::from_utf8_lossy(stdout);
+    if !success || text.trim_start().starts_with("error") {
         bail!("hyprctl: {}", text.trim());
     }
     Ok(())
+}
+
+/// Unit tests never start external tools: the command goes to the thread's fake instead.
+#[cfg(test)]
+fn exec_fake(cmd: &str, args: &[&str], input: Option<&str>) -> Option<Result<()>> {
+    Some(tests::fake_exec(cmd, args, input))
+}
+
+#[cfg(not(test))]
+fn exec_fake(_: &str, _: &[&str], _: Option<&str>) -> Option<Result<()>> {
+    None
 }
 
 fn lua_str(s: &str) -> String {
@@ -441,6 +460,9 @@ fn has_cmd(name: &str) -> bool {
 }
 
 fn run(cmd: &str, args: &[&str]) -> Result<()> {
+    if let Some(r) = exec_fake(cmd, args, None) {
+        return r;
+    }
     if dry_run() {
         tracing::info!("DRYRUN run {cmd} {}", args.join(" "));
         return Ok(());
@@ -450,6 +472,164 @@ fn run(cmd: &str, args: &[&str]) -> Result<()> {
         bail!("{cmd} failed ({st})");
     }
     Ok(())
+}
+
+/// What the session offers the command-line backends (display servers, tools on PATH).
+#[derive(Debug, Clone, Copy, Default)]
+struct Desktop {
+    wayland: bool,
+    x11: bool,
+    hyprland: bool,
+    hyprctl: bool,
+    wtype: bool,
+    xdotool: bool,
+    wl_copy: bool,
+    xclip: bool,
+}
+
+impl Desktop {
+    fn detect() -> Desktop {
+        Desktop {
+            wayland: std::env::var_os("WAYLAND_DISPLAY").is_some(),
+            x11: std::env::var_os("DISPLAY").is_some(),
+            hyprland: hypr_instance().is_some(),
+            hyprctl: has_cmd("hyprctl"),
+            wtype: has_cmd("wtype"),
+            xdotool: has_cmd("xdotool"),
+            // Dry run exercises the clipboard path without the tools.
+            wl_copy: dry_run() || has_cmd("wl-copy"),
+            xclip: dry_run() || has_cmd("xclip"),
+        }
+    }
+
+    /// Can the command-line backend `name` (see `Injector::CHOICES`) be used?
+    fn usable(&self, name: &str) -> bool {
+        match name {
+            "hyprctl" => self.hyprland && self.hyprctl,
+            "wtype" => self.wayland && self.wtype,
+            "xdotool" => self.xdotool,
+            _ => false,
+        }
+    }
+
+    /// Clipboard tool and its arguments.
+    fn clipboard(&self) -> Option<(&'static str, &'static [&'static str])> {
+        if self.wayland && self.wl_copy {
+            Some(("wl-copy", &[]))
+        } else if self.xclip {
+            Some(("xclip", &["-selection", "clipboard"]))
+        } else {
+            None
+        }
+    }
+}
+
+/// The command-line backend chosen in the settings, if it is usable.
+fn preferred_backend(pref: &str, d: &Desktop) -> Option<Backend> {
+    let backend = match pref {
+        "hyprctl" => Backend::Hyprland,
+        "wtype" => Backend::Wtype,
+        "xdotool" => Backend::Xdotool,
+        _ => return None,
+    };
+    d.usable(pref).then_some(backend)
+}
+
+/// Best command-line backend when uinput is unavailable.
+fn fallback_backend(d: &Desktop) -> Backend {
+    if d.usable("hyprctl") {
+        Backend::Hyprland
+    } else if d.usable("wtype") {
+        Backend::Wtype
+    } else if d.usable("xdotool") {
+        Backend::Xdotool
+    } else {
+        Backend::None
+    }
+}
+
+/// How text is typed when it is not pasted.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Typing {
+    Wtype,
+    Xdotool,
+    Hyprland,
+    Paste,
+}
+
+fn typing_method(paste: bool, backend: Backend, d: &Desktop) -> Typing {
+    if !paste {
+        if d.wtype && d.wayland {
+            return Typing::Wtype;
+        }
+        if d.xdotool && d.x11 && !d.wayland {
+            return Typing::Xdotool;
+        }
+        if backend == Backend::Hyprland || d.usable("hyprctl") {
+            return Typing::Hyprland;
+        }
+    }
+    Typing::Paste
+}
+
+const MOD_NAMES: [(u32, &str); 4] = [(MOD_CTRL, "ctrl"), (MOD_SHIFT, "shift"), (MOD_ALT, "alt"), (MOD_SUPER, "super")];
+
+fn mod_names(mods: u32) -> Vec<&'static str> {
+    MOD_NAMES.iter().filter(|(m, _)| mods & m != 0).map(|(_, n)| *n).collect()
+}
+
+/// Hyprland's key of a combo: the physical key if recorded on Linux (xkb code = evdev + 8),
+/// otherwise the keysym.
+fn hypr_key(c: &Combo) -> String {
+    c.code.map(|k| format!("code:{}", k + 8)).or_else(|| c.keysym.clone()).unwrap_or_default()
+}
+
+fn hypr_mods(c: &Combo) -> String {
+    mod_names(c.mods).iter().map(|n| n.to_uppercase()).collect::<Vec<_>>().join(" ")
+}
+
+/// Lua dispatcher expression (Hyprland >= 0.55); `state` is `down`/`up`, `None` taps.
+fn hypr_lua_expr(c: &Combo, state: Option<&str>) -> String {
+    let (mods, key) = (lua_str(&hypr_mods(c)), lua_str(&hypr_key(c)));
+    match state {
+        Some(st) => format!("hl.dsp.send_key_state({{ mods = {mods}, key = {key}, state = {} }})", lua_str(st)),
+        None => format!("hl.dsp.send_shortcut({{ mods = {mods}, key = {key} }})"),
+    }
+}
+
+/// Legacy `sendshortcut` dispatcher of older Hyprland versions.
+fn hypr_legacy_expr(c: &Combo) -> String {
+    format!("sendshortcut {}, {},", hypr_mods(c), hypr_key(c))
+}
+
+fn wtype_args(c: &Combo) -> Vec<String> {
+    let names: Vec<&str> = mod_names(c.mods).into_iter().map(|n| if n == "super" { "logo" } else { n }).collect();
+    let mut args: Vec<String> = Vec::new();
+    for n in &names {
+        args.extend(["-M".to_string(), n.to_string()]);
+    }
+    if let Some(sym) = c.keysym.as_deref().filter(|s| !s.is_empty()) {
+        args.extend(["-k".to_string(), sym.to_string()]);
+    }
+    for n in names.iter().rev() {
+        args.extend(["-m".to_string(), n.to_string()]);
+    }
+    args
+}
+
+fn xdotool_combo(c: &Combo) -> String {
+    let mut parts = mod_names(c.mods);
+    if let Some(sym) = c.keysym.as_deref().filter(|s| !s.is_empty()) {
+        parts.push(sym);
+    }
+    parts.join("+")
+}
+
+/// uinput press order: modifiers first, then the key (released in reverse).
+fn uinput_keys(c: &Combo) -> Vec<KeyCode> {
+    let mut keys = Injector::mod_keys(c.mods);
+    keys.extend(c.key);
+    keys
 }
 
 impl Injector {
@@ -467,24 +647,14 @@ impl Injector {
             // Exercise the command line path; every call is logged, nothing is sent.
             return Injector { dev: None, backend: Backend::Hyprland, hypr_lua: Some(true), focused_class: String::new() };
         }
-        let usable = |b: &str| match b {
-            "hyprctl" => hypr_instance().is_some() && has_cmd("hyprctl"),
-            "wtype" => std::env::var_os("WAYLAND_DISPLAY").is_some() && has_cmd("wtype"),
-            "xdotool" => has_cmd("xdotool"),
-            _ => false,
-        };
-        match pref {
-            "hyprctl" | "wtype" | "xdotool" if usable(pref) => {
-                let backend = match pref {
-                    "hyprctl" => Backend::Hyprland,
-                    "wtype" => Backend::Wtype,
-                    _ => Backend::Xdotool,
-                };
+        let desktop = Desktop::detect();
+        match preferred_backend(pref, &desktop) {
+            Some(backend) => {
                 tracing::info!("key injection backend: {backend:?} (setting)");
                 return Injector { dev: None, backend, hypr_lua: None, focused_class: String::new() };
             }
-            "hyprctl" | "wtype" | "xdotool" => tracing::warn!("input backend {pref} is not available, choosing automatically"),
-            _ => {}
+            None if matches!(pref, "hyprctl" | "wtype" | "xdotool") => tracing::warn!("input backend {pref} is not available, choosing automatically"),
+            None => {}
         }
         let dev = (|| -> Result<VirtualDevice> {
             let mut keys = AttributeSet::<KeyCode>::new();
@@ -497,15 +667,7 @@ impl Injector {
             Ok(_) => Backend::Uinput,
             Err(e) => {
                 tracing::info!("uinput unavailable ({e}); falling back to compositor tools");
-                if hypr_instance().is_some() && has_cmd("hyprctl") {
-                    Backend::Hyprland
-                } else if std::env::var_os("WAYLAND_DISPLAY").is_some() && has_cmd("wtype") {
-                    Backend::Wtype
-                } else if has_cmd("xdotool") {
-                    Backend::Xdotool
-                } else {
-                    Backend::None
-                }
+                fallback_backend(&desktop)
             }
         };
         tracing::info!("key injection backend: {backend:?}");
@@ -546,26 +708,10 @@ impl Injector {
         Ok(())
     }
 
-    fn hypr_mods(c: &Combo) -> String {
-        [(MOD_CTRL, "CTRL"), (MOD_SHIFT, "SHIFT"), (MOD_ALT, "ALT"), (MOD_SUPER, "SUPER")]
-            .iter()
-            .filter(|(m, _)| c.mods & m != 0)
-            .map(|(_, n)| *n)
-            .collect::<Vec<_>>()
-            .join(" ")
-    }
-
     /// Hyprland: Lua API first, legacy `sendshortcut` syntax as fallback.
     fn hypr_shortcut(&mut self, c: &Combo, state: Option<&str>) -> Result<()> {
-        let mods = Self::hypr_mods(c);
-        // Hyprland's keycodes are xkb codes (evdev + 8).
-        let key = c.code.map(|k| format!("code:{}", k + 8)).or_else(|| c.keysym.clone()).unwrap_or_default();
         if self.hypr_lua != Some(false) {
-            let expr = match state {
-                Some(st) => format!("hl.dsp.send_key_state({{ mods = {}, key = {}, state = {} }})", lua_str(&mods), lua_str(&key), lua_str(st)),
-                None => format!("hl.dsp.send_shortcut({{ mods = {}, key = {} }})", lua_str(&mods), lua_str(&key)),
-            };
-            match hyprctl(&expr) {
+            match hyprctl(&hypr_lua_expr(c, state)) {
                 Ok(()) => {
                     self.hypr_lua = Some(true);
                     return Ok(());
@@ -580,7 +726,7 @@ impl Injector {
         if state == Some("up") {
             return Ok(());
         }
-        hyprctl(&format!("sendshortcut {mods}, {key},"))
+        hyprctl(&hypr_legacy_expr(c))
     }
 
     /// Press a combo and keep it held (uinput / Hyprland); other backends tap on press.
@@ -589,9 +735,7 @@ impl Injector {
             return self.hypr_shortcut(c, Some("down"));
         }
         if self.backend == Backend::Uinput {
-            let mut keys = Self::mod_keys(c.mods);
-            keys.extend(c.key);
-            for k in keys {
+            for k in uinput_keys(c) {
                 self.emit(&[k], true)?;
             }
             Ok(())
@@ -605,9 +749,7 @@ impl Injector {
             return self.hypr_shortcut(c, Some("up"));
         }
         if self.backend == Backend::Uinput {
-            let mut keys = Self::mod_keys(c.mods);
-            keys.extend(c.key);
-            for k in keys.into_iter().rev() {
+            for k in uinput_keys(c).into_iter().rev() {
                 self.emit(&[k], false)?;
             }
         }
@@ -626,63 +768,31 @@ impl Injector {
     }
 
     fn tap_cli(&mut self, c: &Combo) -> Result<()> {
-        let names: Vec<&str> = [(MOD_CTRL, "ctrl"), (MOD_SHIFT, "shift"), (MOD_ALT, "alt"), (MOD_SUPER, "super")]
-            .iter()
-            .filter(|(m, _)| c.mods & m != 0)
-            .map(|(_, n)| *n)
-            .collect();
-        let sym = c.keysym.clone().unwrap_or_default();
         match self.backend {
             Backend::Hyprland => self.hypr_shortcut(c, None),
-            Backend::Wtype => {
-                let mut args: Vec<String> = Vec::new();
-                for n in &names {
-                    args.push("-M".into());
-                    args.push(if *n == "super" { "logo".into() } else { n.to_string() });
-                }
-                if !sym.is_empty() {
-                    args.push("-k".into());
-                    args.push(sym);
-                }
-                for n in names.iter().rev() {
-                    args.push("-m".into());
-                    args.push(if *n == "super" { "logo".into() } else { n.to_string() });
-                }
-                run("wtype", &args.iter().map(|s| s.as_str()).collect::<Vec<_>>())
-            }
-            Backend::Xdotool => {
-                let mut combo = names.join("+");
-                if !sym.is_empty() {
-                    if !combo.is_empty() {
-                        combo.push('+');
-                    }
-                    combo.push_str(&sym);
-                }
-                run("xdotool", &["key", &combo])
-            }
+            Backend::Wtype => run("wtype", &wtype_args(c).iter().map(|s| s.as_str()).collect::<Vec<_>>()),
+            Backend::Xdotool => run("xdotool", &["key", &xdotool_combo(c)]),
             _ => bail!("no key injection backend available (enable /dev/uinput or install wtype/xdotool)"),
         }
     }
 
     /// Insert text. `paste` uses the clipboard + Ctrl+V like the official app.
     pub fn text(&mut self, text: &str, paste: bool) -> Result<()> {
-        if !paste {
-            if has_cmd("wtype") && std::env::var_os("WAYLAND_DISPLAY").is_some() {
-                return run("wtype", &["--", text]);
-            }
-            if has_cmd("xdotool") && std::env::var_os("DISPLAY").is_some() && std::env::var_os("WAYLAND_DISPLAY").is_none() {
-                return run("xdotool", &["type", "--", text]);
-            }
-            if self.backend == Backend::Hyprland || (hypr_instance().is_some() && has_cmd("hyprctl")) {
-                return self.type_hyprland(text);
-            }
+        self.text_on(&Desktop::detect(), text, paste)
+    }
+
+    fn text_on(&mut self, d: &Desktop, text: &str, paste: bool) -> Result<()> {
+        match typing_method(paste, self.backend, d) {
+            Typing::Wtype => run("wtype", &["--", text]),
+            Typing::Xdotool => run("xdotool", &["type", "--", text]),
+            Typing::Hyprland => self.type_hyprland(d, text),
+            Typing::Paste => self.paste(d, text),
         }
-        self.paste(text)
     }
 
     /// Type text key by key through Hyprland (keysyms are resolved with the active
     /// keyboard layout). Characters without a plain keysym are pasted.
-    fn type_hyprland(&mut self, text: &str) -> Result<()> {
+    fn type_hyprland(&mut self, d: &Desktop, text: &str) -> Result<()> {
         let mut pending = String::new();
         for ch in text.chars() {
             let combo = match ch {
@@ -696,7 +806,7 @@ impl Injector {
             match combo {
                 Some((mods, sym)) => {
                     if !pending.is_empty() {
-                        self.paste(&std::mem::take(&mut pending))?;
+                        self.paste(d, &std::mem::take(&mut pending))?;
                     }
                     self.hypr_shortcut(&Combo { mods, key: None, keysym: Some(sym), code: None }, None)?;
                 }
@@ -704,22 +814,15 @@ impl Injector {
             }
         }
         if !pending.is_empty() {
-            self.paste(&pending)?;
+            self.paste(d, &pending)?;
         }
         Ok(())
     }
 
-    fn paste(&mut self, text: &str) -> Result<()> {
+    fn paste(&mut self, d: &Desktop, text: &str) -> Result<()> {
         // Clipboard + paste shortcut.
-        let have = |c: &str| dry_run() || has_cmd(c);
-        let copied = if std::env::var_os("WAYLAND_DISPLAY").is_some() && have("wl-copy") {
-            pipe("wl-copy", &[], text)
-        } else if have("xclip") {
-            pipe("xclip", &["-selection", "clipboard"], text)
-        } else {
-            bail!("no clipboard tool (wl-copy/xclip) found")
-        };
-        copied?;
+        let Some((tool, args)) = d.clipboard() else { bail!("no clipboard tool (wl-copy/xclip) found") };
+        pipe(tool, args, text)?;
         std::thread::sleep(Duration::from_millis(60));
         let mods = if is_terminal(&self.focused_class) { MOD_CTRL | MOD_SHIFT } else { MOD_CTRL };
         let v = Combo { mods, key: Some(KeyCode::KEY_V), keysym: Some("v".into()), code: None };
@@ -737,6 +840,9 @@ impl Injector {
 
 fn pipe(cmd: &str, args: &[&str], input: &str) -> Result<()> {
     use std::io::Write;
+    if let Some(r) = exec_fake(cmd, args, Some(input)) {
+        return r;
+    }
     if dry_run() {
         tracing::info!("DRYRUN pipe {cmd} {} <<< {input:?}", args.join(" "));
         return Ok(());
@@ -784,5 +890,351 @@ fn pactl_equiv<'a>(wp: &[&'a str]) -> Vec<&'a str> {
         Some(&"set-mute") => vec!["set-sink-mute", "@DEFAULT_SINK@", "toggle"],
         _ if wp.last() == Some(&"5%+") => vec!["set-sink-volume", "@DEFAULT_SINK@", "+5%"],
         _ => vec!["set-sink-volume", "@DEFAULT_SINK@", "-5%"],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use std::cell::RefCell;
+
+    type Responder = Box<dyn FnMut(&[String]) -> Result<()>>;
+
+    thread_local! {
+        /// Commands "run" on this test thread and the fake that answers them.
+        static FAKE: RefCell<(Vec<Vec<String>>, Option<Responder>)> = RefCell::new((Vec::new(), None));
+    }
+
+    pub(super) fn fake_exec(cmd: &str, args: &[&str], input: Option<&str>) -> Result<()> {
+        let mut argv: Vec<String> = std::iter::once(cmd).chain(args.iter().copied()).map(str::to_string).collect();
+        if let Some(i) = input {
+            argv.push(format!("<<< {i}"));
+        }
+        FAKE.with(|f| {
+            let mut f = f.borrow_mut();
+            f.0.push(argv.clone());
+            match f.1.as_mut() {
+                Some(answer) => answer(&argv),
+                None => Ok(()),
+            }
+        })
+    }
+
+    /// Run `f` and return the commands it executed (argv joined with spaces).
+    fn record(answer: impl FnMut(&[String]) -> Result<()> + 'static, f: impl FnOnce()) -> Vec<String> {
+        FAKE.with(|x| *x.borrow_mut() = (Vec::new(), Some(Box::new(answer))));
+        f();
+        let log = FAKE.with(|x| std::mem::take(&mut *x.borrow_mut()).0);
+        log.into_iter().map(|a| a.join(" ")).collect()
+    }
+
+    fn ok(_: &[String]) -> Result<()> {
+        Ok(())
+    }
+
+    fn inj(backend: Backend) -> Injector {
+        Injector { dev: None, backend, hypr_lua: None, focused_class: String::new() }
+    }
+
+    fn combo(mods: u32, key: Option<KeyCode>, keysym: &str, code: Option<u16>) -> Combo {
+        Combo { mods, key, keysym: (!keysym.is_empty()).then(|| keysym.to_string()), code }
+    }
+
+    const ALL: Desktop = Desktop { wayland: true, x11: true, hyprland: true, hyprctl: true, wtype: true, xdotool: true, wl_copy: true, xclip: true };
+    const NONE: Desktop = Desktop { wayland: false, x11: false, hyprland: false, hyprctl: false, wtype: false, xdotool: false, wl_copy: false, xclip: false };
+
+    #[test]
+    fn qt_keys() {
+        assert_eq!(qt_key('A' as i64), (Some(KeyCode::KEY_A), Some("a".into())));
+        assert_eq!(qt_key('a' as i64), (Some(KeyCode::KEY_A), Some("a".into())));
+        assert_eq!(qt_key('7' as i64), (Some(KeyCode::KEY_7), Some("7".into())));
+        assert_eq!(qt_key(' ' as i64), (Some(KeyCode::KEY_SPACE), Some("space".into())));
+        assert_eq!(qt_key('/' as i64), (Some(KeyCode::KEY_SLASH), Some("slash".into())));
+        assert_eq!(qt_key('.' as i64), (Some(KeyCode::KEY_DOT), Some("period".into())));
+        // Shifted symbols have no unshifted US key, only a keysym.
+        assert_eq!(qt_key('+' as i64), (None, Some("plus".into())));
+        assert_eq!(qt_key('~' as i64), (None, Some("asciitilde".into())));
+        assert_eq!(qt_key(0x0100_0030), (Some(KeyCode::KEY_F1), Some("F1".into())));
+        assert_eq!(qt_key(0x0100_0030 + 23), (Some(KeyCode::KEY_F24), Some("F24".into())));
+        assert_eq!(qt_key(0x0100_0000), (Some(KeyCode::KEY_ESC), Some("Escape".into())));
+        assert_eq!(qt_key(0x0100_0004), (Some(KeyCode::KEY_ENTER), Some("Return".into())));
+        assert_eq!(qt_key(0x0100_0016), (Some(KeyCode::KEY_PAGEUP), Some("Prior".into())));
+        assert_eq!(qt_key(0x0100_0072), (Some(KeyCode::KEY_VOLUMEUP), Some("XF86AudioRaiseVolume".into())));
+        assert_eq!(qt_key(0x0100_0086), (Some(KeyCode::KEY_PLAYPAUSE), Some("XF86AudioPlay".into())));
+        assert_eq!(qt_key(0x7f), (None, None));
+        assert_eq!(qt_key(QT_UNSET), (None, None));
+        assert_eq!(qt_key(0x0100_0020), (None, None)); // Qt::Key_Shift alone
+    }
+
+    #[test]
+    fn keypad_keys() {
+        assert_eq!(keypad_key('5' as i64), Some((KeyCode::KEY_KP5, "KP_5")));
+        assert_eq!(keypad_key(',' as i64), Some((KeyCode::KEY_KPDOT, "KP_Decimal")));
+        assert_eq!(keypad_key('A' as i64), None);
+        assert_eq!(keypad_key(0x0100_0004), None);
+    }
+
+    #[test]
+    fn elgato_hotkeys() {
+        // ⌘C from a macOS profile.
+        let cmd_c = json!({"KeyCmd": true, "QTKeyCode": 67, "NativeCode": 8});
+        assert_eq!(Combo::from_elgato(&cmd_c, true).unwrap(), combo(MOD_CTRL, Some(KeyCode::KEY_C), "c", None));
+        assert_eq!(Combo::from_elgato(&cmd_c, false).unwrap().mods, MOD_SUPER);
+        // The Windows key always stays Super.
+        let win_e = json!({"KeyWindows": true, "QTKeyCode": 69});
+        assert_eq!(Combo::from_elgato(&win_e, true).unwrap().mods, MOD_SUPER);
+        // Recorded on Linux: Meta is Super and the physical key wins over the Qt key.
+        let linux = json!({"KeyCmd": true, "KeyShift": true, "QTKeyCode": 90, "LinuxCode": 21});
+        let c = Combo::from_elgato(&linux, true).unwrap();
+        assert_eq!(c.mods, MOD_SUPER | MOD_SHIFT);
+        assert_eq!((c.key, c.code, c.keysym.as_deref()), (Some(KeyCode::KEY_Y), Some(21), Some("z")));
+        // Windows style modifier bit mask.
+        let mask = json!({"KeyModifiers": 1 | 2 | 4 | 8, "QTKeyCode": 0x0100_0007});
+        let c = Combo::from_elgato(&mask, false).unwrap();
+        assert_eq!(c.mods, MOD_SHIFT | MOD_CTRL | MOD_ALT | MOD_SUPER);
+        assert_eq!(c.key, Some(KeyCode::KEY_DELETE));
+        assert_eq!(Combo::from_elgato(&mask, true).unwrap().mods, MOD_SHIFT | MOD_CTRL | MOD_ALT);
+        // Keypad flag.
+        let kp = json!({"KeyModifiers": 0x4000, "QTKeyCode": 43});
+        assert_eq!(Combo::from_elgato(&kp, true).unwrap(), combo(0, Some(KeyCode::KEY_KPPLUS), "KP_Add", None));
+        let kp_letter = json!({"KeyModifiers": 0x4000, "QTKeyCode": 65});
+        assert_eq!(Combo::from_elgato(&kp_letter, true).unwrap().key, Some(KeyCode::KEY_A));
+        // Modifier only, and nothing at all.
+        assert_eq!(Combo::from_elgato(&json!({"KeyOption": true}), true).unwrap(), combo(MOD_ALT, None, "", None));
+        assert_eq!(Combo::from_elgato(&json!({}), true), None);
+        assert_eq!(Combo::from_elgato(&json!({"QTKeyCode": QT_UNSET, "LinuxCode": -1}), true), None);
+        assert_eq!(Combo::from_elgato(&json!({"LinuxCode": 30}), true).unwrap(), combo(0, Some(KeyCode::KEY_A), "", Some(30)));
+    }
+
+    #[test]
+    fn uinput_order() {
+        let c = combo(MOD_SUPER | MOD_ALT | MOD_SHIFT | MOD_CTRL, Some(KeyCode::KEY_T), "t", None);
+        assert_eq!(uinput_keys(&c), vec![KeyCode::KEY_LEFTCTRL, KeyCode::KEY_LEFTSHIFT, KeyCode::KEY_LEFTALT, KeyCode::KEY_LEFTMETA, KeyCode::KEY_T]);
+        assert_eq!(uinput_keys(&combo(0, None, "", None)), vec![]);
+    }
+
+    #[test]
+    fn hyprland_expressions() {
+        // Physical key: xkb code = evdev + 8.
+        let c = combo(MOD_CTRL | MOD_SHIFT, Some(KeyCode::KEY_C), "c", Some(46));
+        assert_eq!(hypr_key(&c), "code:54");
+        assert_eq!(hypr_lua_expr(&c, None), r#"hl.dsp.send_shortcut({ mods = "CTRL SHIFT", key = "code:54" })"#);
+        assert_eq!(hypr_lua_expr(&c, Some("down")), r#"hl.dsp.send_key_state({ mods = "CTRL SHIFT", key = "code:54", state = "down" })"#);
+        assert_eq!(hypr_legacy_expr(&c), "sendshortcut CTRL SHIFT, code:54,");
+        let c = combo(MOD_SUPER | MOD_ALT, None, "Return", None);
+        assert_eq!(hypr_lua_expr(&c, Some("up")), r#"hl.dsp.send_key_state({ mods = "ALT SUPER", key = "Return", state = "up" })"#);
+        assert_eq!(hypr_legacy_expr(&combo(0, None, "XF86AudioPlay", None)), "sendshortcut , XF86AudioPlay,");
+        assert_eq!(hypr_key(&combo(MOD_CTRL, None, "", None)), "");
+        assert_eq!(lua_str(r#"a"b\c"#), r#""a\"b\\c""#);
+    }
+
+    #[test]
+    fn cli_arguments() {
+        let c = combo(MOD_CTRL | MOD_SUPER, Some(KeyCode::KEY_L), "l", Some(38));
+        assert_eq!(wtype_args(&c), ["-M", "ctrl", "-M", "logo", "-k", "l", "-m", "logo", "-m", "ctrl"]);
+        assert_eq!(xdotool_combo(&c), "ctrl+super+l");
+        let c = combo(MOD_SHIFT | MOD_ALT, None, "", None);
+        assert_eq!(wtype_args(&c), ["-M", "shift", "-M", "alt", "-m", "alt", "-m", "shift"]);
+        assert_eq!(xdotool_combo(&c), "shift+alt");
+        let c = combo(0, None, "F5", None);
+        assert_eq!(wtype_args(&c), ["-k", "F5"]);
+        assert_eq!(xdotool_combo(&c), "F5");
+    }
+
+    #[test]
+    fn hyprctl_replies() {
+        assert!(check_hyprctl(true, b"ok\n").is_ok());
+        assert!(check_hyprctl(true, b"").is_ok());
+        let e = check_hyprctl(true, b"  error: invalid dispatcher\n").unwrap_err();
+        assert_eq!(e.to_string(), "hyprctl: error: invalid dispatcher");
+        assert!(check_hyprctl(false, b"ok").is_err());
+    }
+
+    #[test]
+    fn backend_selection() {
+        let hypr = Desktop { wayland: true, hyprland: true, hyprctl: true, ..NONE };
+        let wlroots = Desktop { wayland: true, wtype: true, xdotool: true, ..NONE };
+        let x11 = Desktop { x11: true, xdotool: true, ..NONE };
+        assert_eq!(preferred_backend("hyprctl", &hypr), Some(Backend::Hyprland));
+        assert_eq!(preferred_backend("hyprctl", &Desktop { hyprctl: false, ..hypr }), None);
+        assert_eq!(preferred_backend("hyprctl", &Desktop { hyprland: false, ..hypr }), None);
+        assert_eq!(preferred_backend("wtype", &wlroots), Some(Backend::Wtype));
+        assert_eq!(preferred_backend("wtype", &Desktop { wayland: false, ..wlroots }), None);
+        assert_eq!(preferred_backend("xdotool", &x11), Some(Backend::Xdotool));
+        assert_eq!(preferred_backend("xdotool", &hypr), None);
+        for pref in ["auto", "uinput", "", "bogus"] {
+            assert_eq!(preferred_backend(pref, &ALL), None, "{pref}");
+        }
+        assert_eq!(fallback_backend(&ALL), Backend::Hyprland);
+        assert_eq!(fallback_backend(&wlroots), Backend::Wtype);
+        // wtype needs a Wayland session; xdotool is tried anyway.
+        assert_eq!(fallback_backend(&Desktop { wayland: false, ..wlroots }), Backend::Xdotool);
+        assert_eq!(fallback_backend(&x11), Backend::Xdotool);
+        assert_eq!(fallback_backend(&NONE), Backend::None);
+        for (b, n) in
+            [(Backend::Uinput, "uinput"), (Backend::Hyprland, "hyprctl"), (Backend::Wtype, "wtype"), (Backend::Xdotool, "xdotool"), (Backend::None, "none")]
+        {
+            assert_eq!(inj(b).backend_name(), n);
+            assert!(n == "none" || Injector::CHOICES.contains(&n));
+        }
+    }
+
+    #[test]
+    fn typing_and_clipboard_choice() {
+        assert_eq!(typing_method(true, Backend::Hyprland, &ALL), Typing::Paste);
+        assert_eq!(typing_method(false, Backend::Uinput, &ALL), Typing::Wtype);
+        assert_eq!(typing_method(false, Backend::Uinput, &Desktop { wtype: false, ..ALL }), Typing::Hyprland);
+        let x11 = Desktop { x11: true, xdotool: true, ..NONE };
+        assert_eq!(typing_method(false, Backend::Uinput, &x11), Typing::Xdotool);
+        // XWayland: xdotool can't type into Wayland windows.
+        assert_eq!(typing_method(false, Backend::Uinput, &Desktop { wayland: true, ..x11 }), Typing::Paste);
+        assert_eq!(typing_method(false, Backend::Hyprland, &NONE), Typing::Hyprland);
+        assert_eq!(typing_method(false, Backend::Uinput, &NONE), Typing::Paste);
+
+        assert_eq!(ALL.clipboard(), Some(("wl-copy", &[][..])));
+        assert_eq!(Desktop { wl_copy: false, ..ALL }.clipboard(), Some(("xclip", &["-selection", "clipboard"][..])));
+        assert_eq!(Desktop { wayland: false, ..ALL }.clipboard().unwrap().0, "xclip");
+        assert_eq!(Desktop { wayland: true, wl_copy: false, ..NONE }.clipboard(), None);
+        assert_eq!(NONE.clipboard(), None);
+    }
+
+    #[test]
+    fn terminals() {
+        for t in ["kitty", "Alacritty", "org.wezfurlong.wezterm", "foot", "st-256color", "com.mitchellh.ghostty", "gnome-terminal-server", "org.gnome.Console"]
+        {
+            assert!(is_terminal(t), "{t}");
+        }
+        for t in ["firefox", "", "steam", "code"] {
+            assert!(!is_terminal(t), "{t}");
+        }
+    }
+
+    #[test]
+    fn cli_backends_tap() {
+        let c = combo(MOD_CTRL | MOD_SUPER, Some(KeyCode::KEY_L), "l", Some(38));
+        let log = record(ok, || inj(Backend::Wtype).tap(&c).unwrap());
+        assert_eq!(log, ["wtype -M ctrl -M logo -k l -m logo -m ctrl"]);
+        let log = record(ok, || inj(Backend::Xdotool).tap(&c).unwrap());
+        assert_eq!(log, ["xdotool key ctrl+super+l"]);
+        // Command-line tools can't hold a key: down taps, up does nothing.
+        let log = record(ok, || {
+            let mut i = inj(Backend::Xdotool);
+            i.combo_down(&c).unwrap();
+            i.combo_up(&c).unwrap();
+        });
+        assert_eq!(log, ["xdotool key ctrl+super+l"]);
+        let log = record(ok, || assert!(inj(Backend::None).tap(&c).is_err()));
+        assert!(log.is_empty());
+        let log = record(|_| anyhow::bail!("exit 1"), || assert!(inj(Backend::Wtype).tap(&c).is_err()));
+        assert_eq!(log.len(), 1);
+    }
+
+    #[test]
+    fn hyprland_lua_and_legacy() {
+        let c = combo(MOD_CTRL, Some(KeyCode::KEY_S), "s", Some(31));
+        let lua_tap = r#"hyprctl dispatch hl.dsp.send_shortcut({ mods = "CTRL", key = "code:39" })"#;
+        let legacy = "hyprctl dispatch sendshortcut CTRL, code:39,";
+
+        let mut i = inj(Backend::Hyprland);
+        assert_eq!(record(ok, || i.tap(&c).unwrap()), [lua_tap]);
+        assert_eq!(i.hypr_lua, Some(true));
+
+        // Old Hyprland: the Lua dispatcher is unknown -> legacy syntax, remembered.
+        let old = |a: &[String]| if a[2].starts_with("hl.dsp") { anyhow::bail!("hyprctl: Invalid dispatcher") } else { Ok(()) };
+        let mut i = inj(Backend::Hyprland);
+        assert_eq!(record(old, || i.tap(&c).unwrap()), [lua_tap, legacy]);
+        assert_eq!(i.hypr_lua, Some(false));
+        assert_eq!(record(old, || i.tap(&c).unwrap()), [legacy]);
+        // Legacy has no key state: down taps, up is a no-op.
+        assert_eq!(record(old, || i.combo_down(&c).unwrap()), [legacy]);
+        assert!(record(old, || i.combo_up(&c).unwrap()).is_empty());
+
+        // Other failures (e.g. no connection) don't switch the syntax.
+        let mut i = inj(Backend::Hyprland);
+        let log = record(|_| anyhow::bail!("hyprctl: Couldn't connect"), || assert!(i.tap(&c).is_err()));
+        assert_eq!(log, [lua_tap]);
+        assert_eq!(i.hypr_lua, None);
+        // Once Lua worked, a dispatcher error is a real error.
+        i.hypr_lua = Some(true);
+        let log = record(|_| anyhow::bail!("hyprctl: Invalid dispatcher"), || assert!(i.tap(&c).is_err()));
+        assert_eq!(log, [lua_tap]);
+
+        let mut i = inj(Backend::Hyprland);
+        let log = record(ok, || {
+            i.combo_down(&c).unwrap();
+            i.combo_up(&c).unwrap();
+        });
+        assert_eq!(
+            log,
+            [
+                r#"hyprctl dispatch hl.dsp.send_key_state({ mods = "CTRL", key = "code:39", state = "down" })"#,
+                r#"hyprctl dispatch hl.dsp.send_key_state({ mods = "CTRL", key = "code:39", state = "up" })"#
+            ]
+        );
+    }
+
+    #[test]
+    fn text_typing() {
+        let wl = Desktop { wayland: true, wtype: true, wl_copy: true, ..NONE };
+        assert_eq!(record(ok, || inj(Backend::Uinput).text_on(&wl, "-n hi", false).unwrap()), ["wtype -- -n hi"]);
+        let x11 = Desktop { x11: true, xdotool: true, xclip: true, ..NONE };
+        assert_eq!(record(ok, || inj(Backend::Uinput).text_on(&x11, "a b", false).unwrap()), ["xdotool type -- a b"]);
+
+        // Hyprland: plain keys as shortcuts, the rest pasted in runs.
+        let hypr = Desktop { wayland: true, hyprland: true, hyprctl: true, wl_copy: true, ..NONE };
+        let mut i = inj(Backend::Hyprland);
+        i.hypr_lua = Some(true);
+        let log = record(ok, || i.text_on(&hypr, "Hi 2ü€\t", false).unwrap());
+        let key = |m: &str, k: &str| format!(r#"hyprctl dispatch hl.dsp.send_shortcut({{ mods = "{m}", key = "{k}" }})"#);
+        assert_eq!(log, [key("SHIFT", "h"), key("", "i"), key("", "space"), key("", "2"), "wl-copy <<< ü€".into(), key("CTRL", "v"), key("", "Tab")]);
+        let log = record(ok, || i.text_on(&hypr, "a€", false).unwrap());
+        assert_eq!(log, [key("", "a"), "wl-copy <<< €".into(), key("CTRL", "v")]);
+    }
+
+    #[test]
+    fn text_paste() {
+        let wl = Desktop { wayland: true, wl_copy: true, wtype: true, ..NONE };
+        let mut i = inj(Backend::Wtype);
+        assert_eq!(record(ok, || i.text_on(&wl, "hello", true).unwrap()), ["wl-copy <<< hello", "wtype -M ctrl -k v -m ctrl"]);
+        // Terminals paste with Ctrl+Shift+V.
+        i.focused_class = "kitty".into();
+        assert_eq!(record(ok, || i.text_on(&wl, "ls", true).unwrap()), ["wl-copy <<< ls", "wtype -M ctrl -M shift -k v -m shift -m ctrl"]);
+        let x11 = Desktop { x11: true, xclip: true, xdotool: true, ..NONE };
+        let mut i = inj(Backend::Xdotool);
+        assert_eq!(record(ok, || i.text_on(&x11, "x", true).unwrap()), ["xclip -selection clipboard <<< x", "xdotool key ctrl+v"]);
+        // Nothing to type with -> paste; nothing to paste with -> error.
+        assert_eq!(
+            record(ok, || i.text_on(&Desktop { xdotool: false, ..x11 }, "y", false).unwrap()),
+            ["xclip -selection clipboard <<< y", "xdotool key ctrl+v"]
+        );
+        let log = record(ok, || assert!(inj(Backend::Uinput).text_on(&NONE, "z", false).is_err()));
+        assert!(log.is_empty());
+        // A failing clipboard tool stops before the shortcut.
+        assert_eq!(record(|_| anyhow::bail!("no"), || assert!(i.text_on(&x11, "x", true).is_err())), ["xclip -selection clipboard <<< x"]);
+        assert_eq!(record(ok, || i.enter().unwrap()), ["xdotool key Return"]);
+    }
+
+    #[test]
+    fn media_actions() {
+        let mut i = inj(Backend::Xdotool);
+        for (idx, cmd) in [(0, "playerctl previous"), (1, "playerctl play-pause"), (2, "playerctl next"), (3, "playerctl stop")] {
+            assert_eq!(record(ok, || media(&mut i, idx).unwrap()), [cmd]);
+        }
+        assert_eq!(record(ok, || media(&mut i, 4).unwrap()), ["wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"]);
+        assert_eq!(record(ok, || media(&mut i, 5).unwrap()), ["wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+"]);
+        assert_eq!(record(ok, || media(&mut i, 6).unwrap()), ["wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"]);
+        // No PipeWire: pactl.
+        let no_wpctl = |a: &[String]| if a[0] == "wpctl" { anyhow::bail!("not found") } else { Ok(()) };
+        assert_eq!(record(no_wpctl, || media(&mut i, 4).unwrap())[1], "pactl set-sink-mute @DEFAULT_SINK@ toggle");
+        assert_eq!(record(no_wpctl, || media(&mut i, 5).unwrap())[1], "pactl set-sink-volume @DEFAULT_SINK@ +5%");
+        assert_eq!(record(no_wpctl, || media(&mut i, 6).unwrap())[1], "pactl set-sink-volume @DEFAULT_SINK@ -5%");
+        // No player / sound tool: media keys.
+        let only_keys = |a: &[String]| if a[0] == "xdotool" { Ok(()) } else { anyhow::bail!("failed") };
+        assert_eq!(record(only_keys, || media(&mut i, 1).unwrap()), ["playerctl play-pause", "xdotool key XF86AudioPlay"]);
+        assert_eq!(record(only_keys, || media(&mut i, 6).unwrap()).last().unwrap(), "xdotool key XF86AudioLowerVolume");
+        assert_eq!(record(only_keys, || media(&mut i, 5).unwrap()).len(), 3);
+        assert!(record(ok, || assert!(media(&mut i, 7).is_err())).is_empty());
+        assert!(record(ok, || assert!(media(&mut i, -1).is_err())).is_empty());
     }
 }

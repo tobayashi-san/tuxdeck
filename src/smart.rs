@@ -18,9 +18,9 @@ use std::time::Duration;
 /// Normalized application name: lower case file name without `.app`/`.exe`/`.desktop`.
 pub fn normalize(id: &str) -> String {
     let id = id.trim().trim_end_matches('/');
-    let name = id.rsplit(['/', '\\']).next().unwrap_or(id);
-    let name = name.strip_suffix(".app").or_else(|| name.strip_suffix(".exe")).or_else(|| name.strip_suffix(".desktop")).unwrap_or(name);
-    name.to_lowercase()
+    let name = id.rsplit(['/', '\\']).next().unwrap_or(id).to_lowercase();
+    let stem = name.strip_suffix(".app").or_else(|| name.strip_suffix(".exe")).or_else(|| name.strip_suffix(".desktop")).unwrap_or(&name);
+    stem.to_string()
 }
 
 /// Does the window class `class` belong to the application `identifier`?
@@ -46,22 +46,38 @@ fn hypr_socket() -> Option<PathBuf> {
 
 fn hypr_active_class() -> Option<String> {
     let out = crate::input::hyprctl_command().args(["activewindow", "-j"]).output().ok()?;
-    let v: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
+    active_class_from_json(&out.stdout)
+}
+
+/// Window class in `hyprctl activewindow -j` output.
+fn active_class_from_json(json: &[u8]) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_slice(json).ok()?;
     v.get("class").and_then(|c| c.as_str()).map(str::to_string)
+}
+
+/// (class, title) of every window in `hyprctl clients -j` output, one per class.
+fn clients_from_json(json: &[u8]) -> Option<Vec<(String, String)>> {
+    let serde_json::Value::Array(a) = serde_json::from_slice::<serde_json::Value>(json).ok()? else { return None };
+    let mut v: Vec<(String, String)> = a
+        .iter()
+        .filter_map(|c| Some((c.get("class")?.as_str()?.to_string(), c.get("title").and_then(|t| t.as_str()).unwrap_or("").to_string())))
+        .filter(|(c, _)| !c.is_empty())
+        .collect();
+    v.sort();
+    v.dedup_by(|a, b| a.0 == b.0);
+    Some(v)
+}
+
+/// Window class of a Hyprland socket2 event line (`activewindow>>class,title`).
+fn focus_event_class(line: &str) -> Option<&str> {
+    line.strip_prefix("activewindow>>").map(|rest| rest.split(',').next().unwrap_or(""))
 }
 
 /// Window classes of all open windows (for the profile editor).
 pub fn open_windows() -> Vec<(String, String)> {
     if crate::input::hypr_instance().is_some() {
         if let Ok(out) = crate::input::hyprctl_command().args(["clients", "-j"]).output() {
-            if let Ok(serde_json::Value::Array(a)) = serde_json::from_slice::<serde_json::Value>(&out.stdout) {
-                let mut v: Vec<(String, String)> = a
-                    .iter()
-                    .filter_map(|c| Some((c.get("class")?.as_str()?.to_string(), c.get("title").and_then(|t| t.as_str()).unwrap_or("").to_string())))
-                    .filter(|(c, _)| !c.is_empty())
-                    .collect();
-                v.sort();
-                v.dedup_by(|a, b| a.0 == b.0);
+            if let Some(v) = clients_from_json(&out.stdout) {
                 return v;
             }
         }
@@ -71,14 +87,19 @@ pub fn open_windows() -> Vec<(String, String)> {
 
 fn x11_active_class() -> Option<String> {
     let out = Command::new("xprop").args(["-root", "_NET_ACTIVE_WINDOW"]).output().ok()?;
-    let s = String::from_utf8_lossy(&out.stdout);
-    let id = s.split_whitespace().last()?.trim().to_string();
-    if !id.starts_with("0x") || id == "0x0" {
-        return None;
-    }
+    let id = xprop_window_id(&String::from_utf8_lossy(&out.stdout))?;
     let out = Command::new("xprop").args(["-id", &id, "WM_CLASS"]).output().ok()?;
-    let s = String::from_utf8_lossy(&out.stdout);
-    // WM_CLASS(STRING) = "instance", "Class"
+    xprop_class(&String::from_utf8_lossy(&out.stdout))
+}
+
+/// `_NET_ACTIVE_WINDOW(WINDOW): window id # 0x3a00007` -> `0x3a00007` (none when unfocused).
+fn xprop_window_id(s: &str) -> Option<String> {
+    let id = s.split_whitespace().last()?.trim().to_string();
+    (id.starts_with("0x") && id != "0x0").then_some(id)
+}
+
+/// `WM_CLASS(STRING) = "instance", "Class"` -> `Class`.
+fn xprop_class(s: &str) -> Option<String> {
     s.split('"').nth(3).or_else(|| s.split('"').nth(1)).map(str::to_string)
 }
 
@@ -101,8 +122,8 @@ pub fn spawn_watcher(sh: Shared) {
                 if let Some(Ok(stream)) = hypr_socket().map(std::os::unix::net::UnixStream::connect) {
                     for line in BufReader::new(stream).lines() {
                         let Ok(line) = line else { break };
-                        if let Some(rest) = line.strip_prefix("activewindow>>") {
-                            notify(&sh, rest.split(',').next().unwrap_or("").to_string());
+                        if let Some(class) = focus_event_class(&line) {
+                            notify(&sh, class.to_string());
                         }
                     }
                 }
@@ -138,5 +159,73 @@ mod tests {
         assert!(!app_matches("firefox", ""));
         assert!(!app_matches("fire", "firefox"));
         assert!(app_matches("Google Chrome", "google-chrome"));
+    }
+
+    #[test]
+    fn identifiers() {
+        assert_eq!(normalize("/Applications/Firefox.app"), "firefox");
+        assert_eq!(normalize("/Applications/Visual Studio Code.app/"), "visual studio code");
+        assert_eq!(normalize(r"C:\Program Files\Mozilla Firefox\firefox.exe"), "firefox");
+        assert_eq!(normalize(r"C:\Program Files\Spotify\Spotify.EXE"), "spotify");
+        assert_eq!(normalize("org.gnome.Nautilus.desktop"), "org.gnome.nautilus");
+        assert_eq!(normalize("  kitty  "), "kitty");
+        assert_eq!(normalize("my.app.exe"), "my.app");
+        assert_eq!(normalize(""), "");
+        assert_eq!(normalize("/"), "");
+    }
+
+    #[test]
+    fn matching_more() {
+        assert!(app_matches("org.gnome.Nautilus.desktop", "org.gnome.Nautilus"));
+        assert!(app_matches("C:\\Apps\\Discord.exe", "discord"));
+        assert!(app_matches("steam, firefox", "Firefox"));
+        assert!(app_matches(";;kitty;", " kitty "));
+        assert!(app_matches("Visual Studio Code", "visual-studio-code"));
+        assert!(!app_matches("", "firefox"));
+        assert!(!app_matches(" ; , ", "firefox"));
+        assert!(!app_matches("firefox", "   "));
+        assert!(!app_matches("gnome", "org.gnome.Nautilus"));
+        assert!(!app_matches("firefox-esr", "firefox"));
+    }
+
+    #[test]
+    fn hyprland_events() {
+        assert_eq!(focus_event_class("activewindow>>firefox,Mozilla Firefox, a, b"), Some("firefox"));
+        assert_eq!(focus_event_class("activewindow>>kitty,"), Some("kitty"));
+        // Focus on an empty workspace.
+        assert_eq!(focus_event_class("activewindow>>,"), Some(""));
+        assert_eq!(focus_event_class("activewindow>>"), Some(""));
+        assert_eq!(focus_event_class("activewindowv2>>5612e0a9c7f0"), None);
+        assert_eq!(focus_event_class("workspace>>2"), None);
+        assert_eq!(focus_event_class(""), None);
+    }
+
+    #[test]
+    fn hyprland_json() {
+        assert_eq!(active_class_from_json(br#"{"address": "0x1", "class": "firefox", "title": "x"}"#).as_deref(), Some("firefox"));
+        assert_eq!(active_class_from_json(b"{}"), None);
+        assert_eq!(active_class_from_json(b"Invalid"), None);
+        let clients = br#"[
+            {"class": "kitty", "title": "zsh"}, {"class": "firefox", "title": "B"}, {"class": "firefox", "title": "A"},
+            {"class": "", "title": "ghost"}, {"title": "no class"}, {"class": "steam"}
+        ]"#;
+        assert_eq!(
+            clients_from_json(clients).unwrap(),
+            [("firefox".into(), "A".into()), ("kitty".into(), "zsh".into()), ("steam".into(), String::new())] as [(String, String); 3]
+        );
+        assert_eq!(clients_from_json(b"[]").unwrap(), vec![]);
+        assert_eq!(clients_from_json(b"{}"), None);
+        assert_eq!(clients_from_json(b""), None);
+    }
+
+    #[test]
+    fn xprop_output() {
+        assert_eq!(xprop_window_id("_NET_ACTIVE_WINDOW(WINDOW): window id # 0x3a00007\n").as_deref(), Some("0x3a00007"));
+        assert_eq!(xprop_window_id("_NET_ACTIVE_WINDOW(WINDOW): window id # 0x0"), None);
+        assert_eq!(xprop_window_id("_NET_ACTIVE_WINDOW:  not found."), None);
+        assert_eq!(xprop_window_id(""), None);
+        assert_eq!(xprop_class("WM_CLASS(STRING) = \"Navigator\", \"firefox\"\n").as_deref(), Some("firefox"));
+        assert_eq!(xprop_class("WM_CLASS(STRING) = \"xterm\"").as_deref(), Some("xterm"));
+        assert_eq!(xprop_class("WM_CLASS:  not found."), None);
     }
 }

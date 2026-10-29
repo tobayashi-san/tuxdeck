@@ -223,3 +223,190 @@ pub fn starter_icon_data_url(name: &str) -> Option<String> {
     let file = StarterIcons::get(&format!("{name}.svg"))?;
     Some(format!("data:image/svg+xml;base64,{}", base64::engine::general_purpose::STANDARD.encode(file.data.as_ref())))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use base64::Engine as _;
+
+    fn tmp(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("sd-resources-test-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    fn paths(d: &Path) -> Paths {
+        Paths { data: d.join("data"), config: d.join("config") }
+    }
+
+    #[test]
+    fn starter_icons() {
+        for name in ["play", "next", "previous", "mute", "volume-up", "volume-down", "brightness", "home", "lock", "sleep", "timer"] {
+            let url = starter_icon_data_url(name).unwrap_or_else(|| panic!("{name}"));
+            let b64 = url.strip_prefix("data:image/svg+xml;base64,").unwrap();
+            let svg = base64::engine::general_purpose::STANDARD.decode(b64).unwrap();
+            assert_eq!(svg, StarterIcons::get(&format!("{name}.svg")).unwrap().data.as_ref());
+            assert!(String::from_utf8(svg).unwrap().contains("<svg"), "{name}");
+        }
+        assert_eq!(starter_icon_data_url("nope"), None);
+        assert_eq!(starter_icon_data_url("play.svg"), None);
+    }
+
+    #[test]
+    fn default_iconpack_seeding() {
+        let d = tmp("iconpack");
+        let p = paths(&d);
+        let dir = p.icon_packs().join("tuxdeck-essentials.sdIconPack");
+        let marker = p.icon_packs().join(".tuxdeck-essentials.seeded");
+        write_default_iconpack(&p);
+        assert_eq!(fs::read_to_string(&marker).unwrap(), DEFAULT_ICONPACK_VERSION.to_string());
+        let manifest: Value = serde_json::from_slice(&fs::read(dir.join("manifest.json")).unwrap()).unwrap();
+        assert!(manifest.is_object());
+        assert!(dir.join("icons.json").is_file());
+        assert_eq!(DefaultIconPack::iter().filter(|f| !dir.join(f.as_ref()).is_file()).count(), 0);
+
+        // Removed by the user: stays removed for this version.
+        fs::remove_dir_all(&dir).unwrap();
+        write_default_iconpack(&p);
+        assert!(!dir.exists());
+
+        // Older (or unreadable) marker: seeded again, stale files of the old version go.
+        for old in ["3", "", "garbage"] {
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(dir.join("stale.svg"), "").unwrap();
+            fs::write(&marker, old).unwrap();
+            write_default_iconpack(&p);
+            assert!(dir.join("manifest.json").is_file() && !dir.join("stale.svg").exists(), "{old:?}");
+            assert_eq!(fs::read_to_string(&marker).unwrap(), DEFAULT_ICONPACK_VERSION.to_string());
+        }
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn default_profiles() {
+        let d = tmp("default-profiles");
+        let p = paths(&d);
+        let root = p.elgato().join("DefaultProfiles");
+        assert_eq!(default_profile_for(&p, "20GBA9901"), None);
+        fs::create_dir_all(&root).unwrap();
+        let expected = [
+            ("20GBJ9901", "StreamDeckNeo_macDefault"),
+            ("20GAA9902", "StreamDeck_macDefault"),
+            ("20GBA9901", "StreamDeck_macDefault"),
+            ("20GAT9901", "StreamDeckXL_macDefault"),
+            ("20GAT9902", "StreamDeckXL_macDefault"),
+            ("20GBD9901", "StreamDeckPlus_macDefault"),
+            ("20GAI9901", "StreamDeckMini_macDefault"),
+        ];
+        for (_, name) in expected {
+            fs::write(root.join(format!("{name}.streamDeckProfile")), "").unwrap();
+        }
+        for (model, name) in expected {
+            assert_eq!(default_profile_for(&p, model), Some(root.join(format!("{name}.streamDeckProfile"))), "{model}");
+        }
+        assert_eq!(default_profile_for(&p, "20GAV9901"), None);
+        assert_eq!(default_profile_for(&p, ""), None);
+        fs::remove_file(root.join("StreamDeckMini_macDefault.streamDeckProfile")).unwrap();
+        assert_eq!(default_profile_for(&p, "20GAI9901"), None);
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn layout_fonts() {
+        let d = tmp("fonts");
+        let p = paths(&d);
+        assert!(layout_font_dirs(&p).is_empty());
+        let layouts = p.elgato().join("InfobarLayouts");
+        for sub in ["a/fonts", "b/c/fonts", "b/fonts/fonts", "d/notfonts"] {
+            fs::create_dir_all(layouts.join(sub)).unwrap();
+        }
+        fs::write(layouts.join("e-fonts"), "").unwrap();
+        fs::write(layouts.join("a/fonts/x.ttf"), "").unwrap();
+        let mut found = layout_font_dirs(&p);
+        found.sort();
+        assert_eq!(found, ["a/fonts", "b/c/fonts", "b/fonts", "b/fonts/fonts"].map(|s| layouts.join(s)));
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn builtin_manifests() {
+        let d = tmp("builtin");
+        let p = paths(&d);
+        write_builtin_plugins(&p);
+        let mut uuids = Vec::new();
+        for e in fs::read_dir(p.builtin_plugins()).unwrap().flatten() {
+            let m: Value = serde_json::from_slice(&fs::read(e.path().join("manifest.json")).unwrap()).unwrap();
+            assert_eq!(m["Author"], "TuxDeck");
+            for a in m["Actions"].as_array().unwrap() {
+                let uuid = a["UUID"].as_str().unwrap();
+                let def = CATALOG.iter().find(|d| d.uuid == uuid).unwrap();
+                assert_eq!(e.file_name().to_string_lossy(), format!("{}.sdPlugin", def.plugin));
+                assert_eq!(m["Name"], CATALOG.iter().find(|x| x.plugin == def.plugin).unwrap().category);
+                assert_eq!(a["States"].as_array().unwrap().len(), def.states);
+                assert_eq!(a["SupportedInKeyLogicActions"], crate::builtin::in_key_logic(uuid));
+                let svg = fs::read_to_string(e.path().join(format!("{}.svg", a["Icon"].as_str().unwrap()))).unwrap();
+                assert!(svg.contains("<svg"), "{uuid}");
+                uuids.push(uuid.to_string());
+            }
+        }
+        uuids.sort();
+        let mut all: Vec<String> = CATALOG.iter().map(|d| d.uuid.to_string()).collect();
+        all.sort();
+        assert_eq!(uuids, all);
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    /// A fake `Stream Deck.app` with resources.
+    fn fake_app(root: &Path) -> PathBuf {
+        let res = root.join("Payload/Elgato Stream Deck.app/Contents/Resources");
+        fs::create_dir_all(res.join("Plugins/com.elgato.x.sdPlugin")).unwrap();
+        fs::write(res.join("Plugins/com.elgato.x.sdPlugin/manifest.json"), "{}").unwrap();
+        fs::create_dir_all(res.join("DefaultProfiles")).unwrap();
+        fs::write(res.join("DefaultProfiles/StreamDeck_macDefault.streamDeckProfile"), "zip").unwrap();
+        fs::create_dir_all(res.join("InfobarLayouts/L/fonts")).unwrap();
+        fs::create_dir_all(res.join("Unrelated")).unwrap();
+        fs::write(res.join("Unrelated/x"), "").unwrap();
+        std::os::unix::fs::symlink("/etc/passwd", res.join("Plugins/link")).unwrap();
+        res
+    }
+
+    #[test]
+    fn find_app_resources() {
+        let d = tmp("find");
+        assert_eq!(find_resources(&d), None);
+        // `Contents/Resources` without plugins is not it.
+        fs::create_dir_all(d.join("Other.app/Contents/Resources")).unwrap();
+        assert_eq!(find_resources(&d), None);
+        let res = fake_app(&d);
+        assert_eq!(find_resources(&d), Some(res.clone()));
+        assert_eq!(find_resources(&res), Some(res));
+        fs::create_dir_all(d.join("Payload/a/b")).unwrap();
+        fs::write(d.join("Payload/a/b/Payload"), "").unwrap();
+        assert_eq!(walk_find(&d, "Payload"), Some(d.join("Payload/a/b/Payload")));
+        assert_eq!(walk_find(&d, "nothing"), None);
+        assert_eq!(walk_find(&d.join("missing"), "Payload"), None);
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn import_from_folder() {
+        let d = tmp("import");
+        let p = paths(&d);
+        fake_app(&d.join("src"));
+        // Old imports are replaced completely.
+        fs::create_dir_all(p.elgato().join("Plugins/old")).unwrap();
+        let dst = import_elgato(&p, &d.join("src")).unwrap();
+        assert_eq!(dst, p.elgato());
+        assert!(dst.join("Plugins/com.elgato.x.sdPlugin/manifest.json").is_file());
+        assert!(!dst.join("Plugins/old").exists());
+        // Links are not followed out of the bundle.
+        assert!(!dst.join("Plugins/link").exists());
+        assert_eq!(fs::read_to_string(dst.join("DefaultProfiles/StreamDeck_macDefault.streamDeckProfile")).unwrap(), "zip");
+        assert!(!dst.join("Unrelated").exists());
+        assert_eq!(default_profile_for(&p, "20GBA9901"), Some(dst.join("DefaultProfiles/StreamDeck_macDefault.streamDeckProfile")));
+        assert_eq!(layout_font_dirs(&p), [dst.join("InfobarLayouts/L/fonts")]);
+        assert!(import_elgato(&p, &d.join("data")).is_err());
+        let _ = fs::remove_dir_all(&d);
+    }
+}
