@@ -20,9 +20,10 @@
   <a href="docs/README.md">Handbook</a>
 </p>
 
-> [!NOTE]
-> TuxDeck is in **beta**. It runs my own decks every day, but you'll find rough edges –
-> [tell me about them](https://github.com/tobayashi-san/tuxdeck/issues).
+<p align="center"><sub>
+  <b>Beta.</b> It runs my own decks every day, but you'll find rough edges –
+  <a href="https://github.com/tobayashi-san/tuxdeck/issues">tell me about them</a>.
+</sub></p>
 
 <br>
 
