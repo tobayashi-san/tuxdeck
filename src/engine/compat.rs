@@ -8,15 +8,19 @@ use super::*;
 use crate::apps::{self, Target};
 use crate::compat::{self, Status, To};
 
-/// Visit every action instance in `v`, including those inside multi actions.
+/// Visit every action instance in `v`, including those inside multi actions. The
+/// `Plugin` object of an instance (`{"Name", "UUID", "Version"}` of its plugin) also has
+/// a UUID but is no action.
 fn walk(v: &mut Value, f: &mut dyn FnMut(&mut Map<String, Value>)) {
     match v {
         Value::Object(o) => {
             if o.get("UUID").is_some_and(Value::is_string) {
                 f(o);
             }
-            for (_, x) in o.iter_mut() {
-                walk(x, f);
+            for (k, x) in o.iter_mut() {
+                if k != "Plugin" {
+                    walk(x, f);
+                }
             }
         }
         Value::Array(a) => a.iter_mut().for_each(|x| walk(x, f)),
@@ -225,5 +229,27 @@ impl Engine {
         }
         self.log("info", crate::tr!("Profile converted for Linux: {n} keys", n = changed));
         Ok(json!({"changed": changed, "manual": manual}))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn walk_visits_nested_actions_but_not_plugin_info() {
+        // A multi action made on Linux: the instance and its nested action carry the
+        // `Plugin` object of their (built-in) plugin, which has a UUID of its own.
+        let mut v = json!({
+            "UUID": "com.elgato.streamdeck.multiactions.routine", "Name": "Multi Action",
+            "Plugin": {"Name": "Multi Action", "UUID": "com.elgato.streamdeck.multiactions", "Version": "1"},
+            "Settings": {"Routine": [{
+                "UUID": "com.elgato.streamdeck.system.website", "Settings": {"path": "https://example.org"},
+                "Plugin": {"Name": "System", "UUID": "com.elgato.streamdeck.system", "Version": "1"}
+            }]}
+        });
+        let mut seen = vec![];
+        walk(&mut v, &mut |o| seen.push(o["UUID"].as_str().unwrap().to_string()));
+        assert_eq!(seen, ["com.elgato.streamdeck.multiactions.routine", "com.elgato.streamdeck.system.website"]);
     }
 }

@@ -139,6 +139,10 @@ async function writeSlot(target, body) {
 export function retryUnsaved() {
   if (!retrying) {
     retrying = (async () => {
+      // Continue only after `retrying` is assigned: with nothing kept the function would
+      // otherwise finish synchronously, clear `retrying` before the assignment and leave it
+      // set to a settled promise, so that later kept changes were never sent again.
+      await null;
       let saved = 0;
       const changed = [];
       while (unsaved.length) {

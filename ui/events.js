@@ -40,8 +40,11 @@ export function connectEvents() {
     wsEverConnected = true;
     wsRetry = 0;
     setConn(true);
-    // Changes made while the service was away first, then reload what it has now.
+    // Changes made while the service was away first, then reload what it has now. Edits
+    // can also be kept before the first connection (the service went away right after
+    // the page loaded): those are sent now as well.
     if (reconnect) retryUnsaved().finally(refreshAll);
+    else retryUnsaved();
   });
   ws.addEventListener('message', (m) => {
     let ev;
