@@ -1,4 +1,5 @@
-# Builds a portable Linux release when a version tag (v1.2.3) is pushed.
+# Builds a portable Linux release when a version tag (v1.2.3, v1.2.3-beta.1) is pushed.
+# Tags with a pre-release suffix are published as GitHub pre-releases.
 # Built on Ubuntu 22.04, so the binary runs on distributions with glibc >= 2.35.
 name: Release
 
@@ -76,18 +77,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           v=${TAG#v}
+          # nfpm writes pre-releases as 0.6.0~beta.1 (sorts before 0.6.0), so take the real names.
+          deb=$(cd dist && ls *.deb) rpm=$(cd dist && ls *.rpm)
+          pre=; case "$v" in *-*) pre=--prerelease ;; esac
           cat > notes.md <<EOF
           ## Installation
 
           **Debian, Ubuntu, Linux Mint, Pop!_OS** (Ubuntu 22.04 / Debian 12 or newer):
           \`\`\`sh
-          sudo apt install ./tuxdeck_${v}_amd64.deb
+          sudo apt install ./${deb}
           \`\`\`
 
           **Fedora, openSUSE** (Fedora 36 or newer):
           \`\`\`sh
-          sudo dnf install ./tuxdeck-${v}-1.x86_64.rpm
-          # openSUSE: sudo zypper install --allow-unsigned-rpm ./tuxdeck-${v}-1.x86_64.rpm
+          sudo dnf install ./${rpm}
+          # openSUSE: sudo zypper install --allow-unsigned-rpm ./${rpm}
           \`\`\`
 
           **Other distributions** (Arch, …): extract the archive and run \`./install.sh\`:
@@ -106,5 +110,5 @@ jobs:
             gh release upload "$TAG" dist/* --clobber
             gh release edit "$TAG" --notes-file notes.md
           else
-            gh release create "$TAG" dist/* --title "tuxdeck $TAG" --notes-file notes.md
+            gh release create "$TAG" dist/* $pre --title "TuxDeck $v" --notes-file notes.md
           fi

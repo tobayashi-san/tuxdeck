@@ -1,7 +1,7 @@
 { pkgs ? import <nixpkgs> { } }:
 pkgs.rustPlatform.buildRustPackage {
   pname = "tuxdeck";
-  version = "0.5.0";
+  version = "0.6.0-beta.1";
   src = pkgs.lib.cleanSourceWith {
     src = ./.;
     filter = path: type:
