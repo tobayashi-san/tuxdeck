@@ -32,12 +32,12 @@ impl Engine {
         self.emit(json!({"event": "state"}));
     }
 
-    /// Create a profile with Linux-friendly defaults for a model.
+    /// Create a profile with Linux-friendly defaults laid out for the model's keys.
     pub fn create_default_profile(&mut self, model: &Model) -> String {
         let mut p = Profile::new(&self.paths.profiles(), &crate::tr!("Default Profile"), model.model_id);
         let page_id = p.manifest.pages.pages[0].clone();
         let page = p.pages.get_mut(&page_id).unwrap();
-        // Icon-only keys using the bundled icon pack, so the starter profile looks tidy and
+        // Icon-only keys using the bundled starter icons, so the starter profile looks tidy and
         // every key is self-explanatory.
         let mk = |uuid: &str, settings: Value, icon: &str| {
             let d = builtin::def(uuid).unwrap();
@@ -50,30 +50,48 @@ impl Engine {
             }
             a
         };
-        if model.key_px > 0 {
-            // A media remote plus deck controls: works on a stock Linux desktop with no
-            // setup (media keys via playerctl/wpctl/pactl; brightness and sleep are the deck's).
-            let defaults = [
+        // Everything works on a stock Linux desktop with no setup: media keys via
+        // playerctl/wpctl/pactl, xdg-open, loginctl; brightness and sleep are the deck's.
+        let media = || {
+            [
                 mk(MULTIMEDIA, json!({"actionIdx": 0}), "previous"),
                 mk(MULTIMEDIA, json!({"actionIdx": 1}), "play"),
                 mk(MULTIMEDIA, json!({"actionIdx": 2}), "next"),
                 mk(MULTIMEDIA, json!({"actionIdx": 4}), "mute"),
                 mk(MULTIMEDIA, json!({"actionIdx": 6}), "volume-down"),
                 mk(MULTIMEDIA, json!({"actionIdx": 5}), "volume-up"),
-                mk(SLEEP, json!({}), "sleep"),
-                mk(BRIGHTNESS, json!({"actionIdx": 0}), "brightness"),
-            ];
-            // Fill row by row; small decks (Mini: 3x2) get the first actions.
-            let cols = (model.cols as usize).min(4);
-            for (i, a) in defaults.into_iter().enumerate() {
-                let (c, r) = (i % cols, i / cols);
-                if r < model.rows as usize {
-                    page.controller_mut("Keypad").actions.insert(format!("{c},{r}"), a);
-                }
+            ]
+        };
+        let sleep = || mk(SLEEP, json!({}), "sleep");
+        let brightness = || mk(BRIGHTNESS, json!({"actionIdx": BRIGHTNESS_CYCLE}), "brightness");
+        let (cols, rows) = (model.cols as usize, model.rows as usize);
+        let mut keys: Vec<((usize, usize), ActionInstance)> = Vec::new();
+        if rows == 1 {
+            // Pedal: previous, play/pause, next.
+            keys.extend(media().into_iter().take(cols).enumerate().map(|(i, a)| ((i, 0), a)));
+        } else if rows == 2 && cols >= 4 {
+            // Neo and +: the media remote plus the deck controls, row by row.
+            let all = media().into_iter().chain([sleep(), brightness()]);
+            keys.extend(all.enumerate().map(|(i, a)| ((i % cols, i / cols), a)));
+        } else {
+            // The media remote as a 3x2 block: all of a Mini; top left on the bigger decks,
+            // which also get desktop shortcuts bottom left and the deck controls bottom
+            // right. The remaining keys are left free for the user.
+            keys.extend(media().into_iter().enumerate().map(|(i, a)| ((i % 3, i / 3), a)));
+            if rows >= 3 && cols >= 5 {
+                let last = rows - 1;
+                keys.push(((0, last), mk(OPEN, json!({"path": "~"}), "home")));
+                keys.push(((1, last), mk(OPEN, json!({"path": "loginctl lock-session"}), "lock")));
+                keys.push(((2, last), mk(TIMER, json!({"seconds": 300}), "timer")));
+                keys.push(((cols - 2, last), sleep()));
+                keys.push(((cols - 1, last), brightness()));
             }
         }
+        for ((c, r), a) in keys {
+            page.controller_mut("Keypad").actions.insert(format!("{c},{r}"), a);
+        }
         if model.encoders > 0 {
-            page.controller_mut("Encoder").actions.insert("0,0".into(), mk(BRIGHTNESS, json!({"actionIdx": 0}), "brightness"));
+            page.controller_mut("Encoder").actions.insert("0,0".into(), brightness());
             page.controller_mut("Encoder").actions.insert("1,0".into(), mk(MULTIMEDIA, json!({"actionIdx": 4}), "volume-up"));
         }
         if model.kind == Kind::Neo {

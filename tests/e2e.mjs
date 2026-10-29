@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // End-to-end tests against a real daemon with a simulated deck and dry-run mode.
 //
-//   node tests/e2e.mjs [--bin target/release/tuxdeck] [--only neo,plus,mini,original,neo:plugins,...] [--keep] [-v]
+//   node tests/e2e.mjs [--bin target/release/tuxdeck] [--only neo,plus,mini,original,xl,pedal,neo:plugins,...] [--keep] [-v]
 //
 // Every suite starts its own daemon (TUXDECK_VIRTUAL_DEVICE=<model>,
 // TUXDECK_DRY_RUN=1, isolated data/config dirs, free ports) and drives it through
@@ -27,7 +27,7 @@ const opt = (name, def) => {
   return i >= 0 ? args[i + 1] : def;
 };
 const BIN = path.resolve(opt('--bin', path.join(ROOT, 'target/release/tuxdeck')));
-const ONLY = (opt('--only', 'neo,plus,mini,original')).split(',');
+const ONLY = (opt('--only', 'neo,plus,mini,original,xl,pedal')).split(',');
 const KEEP = args.includes('--keep');
 const VERBOSE = args.includes('-v');
 const ELGATO = path.join(os.homedir(), '.local/share/tuxdeck/elgato');
@@ -403,6 +403,29 @@ async function suiteCommon(d, { keys }) {
     assert(/^data:image\/svg/.test(kp['0,0']?.States?.[0]?.Image || ''), 'starter key has an icon');
   });
 
+  await test('starter: layout made for the deck', async () => {
+    const kp = (await d.page()).controllers.find((c) => c.Type === 'Keypad').Actions;
+    const media = 'com.elgato.streamdeck.system.multimedia';
+    const at = (c, r) => kp[`${c},${r}`]?.UUID?.replace('com.elgato.streamdeck.', '');
+    for (const coord of Object.keys(kp)) {
+      const [c, r] = coord.split(',').map(Number);
+      assert(c < cols && r < rows, `${coord} fits on a ${cols}x${rows} deck`);
+    }
+    // The media remote (previous, play, next / mute, volume down, up) sits top left.
+    const mediaCols = rows === 2 && cols >= 4 ? cols : 3;
+    for (let i = 0; i < 6; i++) eq(kp[`${i % mediaCols},${Math.floor(i / mediaCols)}`]?.UUID, media, `media key ${i}`);
+    if (rows >= 3) {
+      // Desktop shortcuts bottom left, deck controls bottom right, the rest is free.
+      const last = rows - 1;
+      eq([at(0, last), at(1, last), at(2, last), at(cols - 2, last), at(cols - 1, last)],
+        ['system.open', 'system.open', 'system.timer', 'system.sleep', 'system.keybrightness']);
+      eq(Object.keys(kp).length, 11);
+    } else if (cols >= 4) {
+      eq([at(2, 1), at(3, 1)], ['system.sleep', 'system.keybrightness']);
+    }
+    for (const a of Object.values(kp)) assert(/^data:image\/svg/.test(a.States?.[0]?.Image || ''), `${a.UUID} has a starter icon`);
+  });
+
   await test('render: every key preview is a PNG', async () => {
     for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) eq(pngSize(await d.render('Keypad', `${c},${r}`)), [96, 96]);
   });
@@ -592,6 +615,12 @@ async function suiteNeoActions(d) {
     await d.waitState((s) => s.devices[0].brightness === 60, 2000, 'brightness 60');
     await d.post(`/api/devices/${d.dev.id}`, { brightness: 33 });
     eq((await d.device()).brightness, 33);
+    // TuxDeck's cycle option steps up through 10/40/70/100 and wraps around.
+    await d.settings('Keypad', '0,0', { actionIdx: 7 });
+    for (const want of [40, 70, 100, 10]) {
+      await d.press('Keypad', '0,0');
+      await d.waitState((s) => s.devices[0].brightness === want, 2000, `brightness ${want}`);
+    }
   });
 
   await test('sleep: device sleeps, the next press only wakes it', async () => {
@@ -1349,6 +1378,19 @@ async function suiteSmall(d, model, keys) {
   });
 }
 
+/** Pedal: three keys without a display. */
+async function suitePedal(d) {
+  await test('pedal: starter profile is previous, play/pause, next', async () => {
+    const st = await d.state();
+    eq([st.devices[0].cols, st.devices[0].rows], [3, 1]);
+    const kp = (await d.page()).controllers.find((c) => c.Type === 'Keypad').Actions;
+    eq(['0,0', '1,0', '2,0'].map((c) => kp[c]?.Settings?.actionIdx), [0, 1, 2]);
+    const m = d.mark();
+    await d.press('Keypad', '1,0');
+    assert(d.logsSince(m, /DRYRUN/).length >= 1, 'play/pause side effect');
+  });
+}
+
 // ------------------------------------------------------------------------------- main
 
 /** Backups: download, restore (ours and Elgato's layout), automatic backups. */
@@ -1588,6 +1630,8 @@ const GROUPS = [
   { model: 'plus', name: 'plus', run: suitePlus },
   { model: 'mini', name: 'mini', run: (d) => suiteSmall(d, 'mini', [3, 2]) },
   { model: 'original', name: 'original', run: (d) => suiteSmall(d, 'original', [5, 3]) },
+  { model: 'xl', name: 'xl', run: (d) => suiteSmall(d, 'xl', [8, 4]) },
+  { model: 'pedal', name: 'pedal', run: suitePedal },
 ];
 
 if (!fs.existsSync(BIN)) {

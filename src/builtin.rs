@@ -259,7 +259,13 @@ pub const BRIGHTNESS_ACTIONS: &[(&str, i32)] = &[
     ("Medium (50 %)", 50),
     ("Low (25 %)", 25),
     ("Minimum (5 %)", 5),
+    ("Cycle (10 → 40 → 70 → 100 %)", 0),
 ];
+
+/// TuxDeck addition to the official list: a single key steps through `BRIGHTNESS_STEPS`
+/// and wraps around, so one key is enough to make the deck brighter and darker again.
+pub const BRIGHTNESS_CYCLE: usize = 7;
+pub const BRIGHTNESS_STEPS: [i32; 4] = [10, 40, 70, 100];
 
 /// Image names in the official plugin for the media/brightness variants.
 pub fn variant_image(uuid: &str, settings: &Value) -> Option<&'static str> {
@@ -284,6 +290,7 @@ pub fn variant_image(uuid: &str, settings: &Value) -> Option<&'static str> {
             "Images/btn_keybrightness_medium",
             "Images/btn_keybrightness_low",
             "Images/btn_keybrightness_min",
+            "Images/btn_keybrightness_increase",
         ]
         .get(idx as usize)
         .copied(),

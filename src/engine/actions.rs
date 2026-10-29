@@ -414,6 +414,7 @@ impl Engine {
                 let cur = self.devices.get(&dev).map(|d| d.brightness as i32).unwrap_or(70);
                 let b = match BRIGHTNESS_ACTIONS.get(idx) {
                     Some((_, d)) if idx < 2 => (cur + d).clamp(0, 100),
+                    Some(_) if idx == BRIGHTNESS_CYCLE => BRIGHTNESS_STEPS.into_iter().find(|&s| s > cur).unwrap_or(BRIGHTNESS_STEPS[0]),
                     Some((_, v)) => *v,
                     None => cur,
                 };
