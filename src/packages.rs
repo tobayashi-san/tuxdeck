@@ -34,6 +34,28 @@ pub fn classify(bytes: &[u8], filename: Option<&str>) -> Result<Package> {
     }
 }
 
+/// Unpack a `.streamDeckProfile` into the profiles folder and load it (also used by the
+/// `import-profile` command). Nothing is left behind if it can't be loaded.
+pub fn import_profile(bytes: &[u8], profiles: &std::path::Path) -> Result<crate::profile::Profile> {
+    let dir = crate::profile::import_archive(bytes, profiles)?;
+    let load = || -> Result<crate::profile::Profile> {
+        let mut p = crate::profile::Profile::load(&dir)?;
+        // A re-imported profile must not share plugin contexts with the original.
+        for page in p.pages.values_mut() {
+            for c in page.controllers.iter_mut() {
+                for a in c.actions.values_mut() {
+                    *a = crate::engine::with_new_ids(a);
+                }
+            }
+        }
+        p.save_all()?;
+        Ok(p)
+    };
+    load().inspect_err(|_| {
+        let _ = std::fs::remove_dir_all(&dir);
+    })
+}
+
 /// Install a package (blocking). Returns `{kind, id, name, runs_on_linux, reason}`.
 pub fn install(sh: &Shared, bytes: &[u8], filename: Option<&str>) -> Result<Value> {
     match classify(bytes, filename)? {
@@ -73,23 +95,7 @@ pub fn install(sh: &Shared, bytes: &[u8], filename: Option<&str>) -> Result<Valu
         Package::Profile => {
             // Unpacking can take a while: don't hold the engine lock meanwhile.
             let profiles = sh.lock().paths.profiles();
-            let dir = crate::profile::import_archive(bytes, &profiles)?;
-            let load = || -> Result<crate::profile::Profile> {
-                let mut p = crate::profile::Profile::load(&dir)?;
-                // A re-imported profile must not share plugin contexts with the original.
-                for page in p.pages.values_mut() {
-                    for c in page.controllers.iter_mut() {
-                        for a in c.actions.values_mut() {
-                            *a = crate::engine::with_new_ids(a);
-                        }
-                    }
-                }
-                p.save_all()?;
-                Ok(p)
-            };
-            let p = load().inspect_err(|_| {
-                let _ = std::fs::remove_dir_all(&dir);
-            })?;
+            let p = import_profile(bytes, &profiles)?;
             let mut e = sh.lock();
             let (id, name) = (p.id.clone(), p.manifest.name.clone());
             e.profiles.insert(id.clone(), p);

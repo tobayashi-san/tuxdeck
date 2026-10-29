@@ -99,9 +99,19 @@ pub fn file_name(kind: &str) -> String {
     format!("{kind}-{}.zip", chrono::Local::now().format("%Y-%m-%d-%H%M%S"))
 }
 
+/// Path for a new backup of this kind in the backup folder. Two backups within the same
+/// second get distinct names (`…-093012_2.zip`), so the second one can't replace the
+/// first – e.g. the state before converting a profile twice in a row.
+pub fn new_file(paths: &Paths, kind: &str) -> PathBuf {
+    let name = file_name(kind);
+    let first = dir(paths).join(&name);
+    let stem = name.trim_end_matches(".zip");
+    std::iter::once(first).chain((2..).map(|n| dir(paths).join(format!("{stem}_{n}.zip")))).find(|p| !p.exists()).expect("unbounded")
+}
+
 /// Automatic backup before a change to the profiles (`kind`: "before-convert").
 pub fn before_change(paths: &Paths, kind: &str) -> Result<PathBuf> {
-    let out = dir(paths).join(file_name(kind));
+    let out = new_file(paths, kind);
     create(paths, &out, Options { plugins: false, icon_packs: false })?;
     prune(paths);
     Ok(out)

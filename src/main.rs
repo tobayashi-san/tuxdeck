@@ -95,14 +95,14 @@ fn main() -> Result<()> {
             println!("Resources imported to {}", dst.display());
             for m in default_profile {
                 let f = resources::default_profile_for(&paths, &m).with_context(|| format!("no default profile for model {m}"))?;
-                let dir = profile::import_archive(&std::fs::read(&f)?, &paths.profiles())?;
-                println!("Default profile imported: {}", dir.display());
+                let p = packages::import_profile(&std::fs::read(&f)?, &paths.profiles())?;
+                println!("Default profile imported: {}", p.dir.display());
             }
             Ok(())
         }
         Cmd::ImportProfile { file } => {
-            let dir = profile::import_archive(&std::fs::read(&file)?, &paths.profiles())?;
-            let p = profile::Profile::load(&dir)?;
+            // Like importing in the UI: new action ids, nothing left behind on errors.
+            let p = packages::import_profile(&std::fs::read(&file)?, &paths.profiles())?;
             println!("Profile \"{}\" imported ({})", p.manifest.name, p.id);
             Ok(())
         }
@@ -117,6 +117,13 @@ fn main() -> Result<()> {
             Ok(())
         }
         Cmd::List => {
+            // A test instance with a simulated deck lists that one and leaves real
+            // hardware alone (like `run`).
+            if let Some(kind) = virtual_device() {
+                let model = virtual_model(&kind);
+                println!("{}  serial VIRTUAL-{}  firmware virtual  (simulated)", model.name, kind.to_uppercase());
+                return Ok(());
+            }
             let api = hidapi::HidApi::new()?;
             for info in device::enumerate(&api) {
                 match device::Deck::open(&api, info) {
@@ -222,6 +229,9 @@ fn open_url_cmd(paths: &paths::Paths, url: &str) -> Result<()> {
 }
 
 fn probe(seconds: u64) -> Result<()> {
+    if virtual_device().is_some() {
+        anyhow::bail!("probe tests real hardware: not with TUXDECK_VIRTUAL_DEVICE (TUXDECK_ALLOW_HARDWARE=1 allows it)");
+    }
     let api = hidapi::HidApi::new()?;
     let infos = device::enumerate(&api);
     let info = infos.first().context("no Stream Deck found")?;
@@ -330,10 +340,20 @@ fn run_deck(deck: device::Deck, events: UnboundedSender<DevEvent>, alive: Arc<At
     let _ = events.send(DevEvent::Disconnected { id });
 }
 
+/// The simulated device kind (`TUXDECK_VIRTUAL_DEVICE`) when real hardware must be left
+/// alone, i.e. unless `TUXDECK_ALLOW_HARDWARE` is set.
+fn virtual_device() -> Option<String> {
+    std::env::var("TUXDECK_VIRTUAL_DEVICE").ok().filter(|_| std::env::var_os("TUXDECK_ALLOW_HARDWARE").is_none())
+}
+
+fn virtual_model(kind: &str) -> &'static device::Model {
+    device::MODELS.iter().find(|m| format!("{:?}", m.kind).eq_ignore_ascii_case(kind)).unwrap_or(&device::MODELS[0])
+}
+
 /// Simulated deck for tests (`TUXDECK_VIRTUAL_DEVICE=neo|mk2|xl|plus|pedal|original|mini`):
 /// accepts all device commands, input comes from the API (`…/press`).
 fn spawn_virtual_device(kind: &str, events: UnboundedSender<DevEvent>) {
-    let model = device::MODELS.iter().find(|m| format!("{:?}", m.kind).eq_ignore_ascii_case(kind)).unwrap_or(&device::MODELS[0]);
+    let model = virtual_model(kind);
     let (tx, rx) = std::sync::mpsc::channel::<DevCmd>();
     let id = format!("VIRTUAL-{}", kind.to_uppercase());
     let _ = events.send(DevEvent::Connected { id, model, firmware: "virtual".into(), tx });

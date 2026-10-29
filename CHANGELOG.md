@@ -12,6 +12,13 @@
   Work and Play (Discord, music, game launchers), with our own icons; programs are taken
   from the computer, plugins installed from the catalogue.
 - Plugin archives packed on Windows (`\` in paths) install now.
+- Fixes: two backups within the same second (e.g. converting a profile twice) no longer
+  overwrite each other; `tuxdeck import-profile` gives the copy new action ids and leaves
+  nothing behind on errors, like importing in the UI; `tuxdeck list`/`probe` leave real
+  devices alone in test instances (`TUXDECK_VIRTUAL_DEVICE`); new profile names lose
+  control characters like renamed ones; the API answers 404 for unknown pages, plugins,
+  profiles to convert, sample profiles and API routes, validates key positions of
+  `…/press`, and no longer logs request errors as "Installation failed".
 
 ## 0.6.0-beta.1 – first public beta
 

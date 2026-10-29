@@ -32,6 +32,10 @@ impl From<anyhow::Error> for ApiError {
 
 pub(crate) type ApiResult<T> = Result<T, ApiError>;
 
+fn not_found(what: &str) -> ApiError {
+    ApiError(StatusCode::NOT_FOUND, crate::tr!("{what} not found", what = crate::i18n::tr(what)))
+}
+
 pub fn routes() -> Router<Shared> {
     Router::new()
         .route("/api/plugins", get(installed_plugins))
@@ -172,6 +176,9 @@ async fn catalogue_install(State(sh): State<Shared>, Json(req): Json<CatalogueRe
 
 /// What converting a profile from Windows/macOS for Linux would do (`Engine::conversion_plan`).
 async fn conversion_plan(State(sh): State<Shared>, Path(profile): Path<String>) -> ApiResult<Json<Value>> {
+    if !sh.lock().profiles.contains_key(&profile) {
+        return Err(not_found("Profile"));
+    }
     // Offline the catalogue is unknown; the rest of the plan still works.
     let list = catalogue::load().await.unwrap_or_default();
     let plan = tokio::task::spawn_blocking(move || sh.lock().conversion_plan(&profile, &list)).await.map_err(|e| anyhow!(e))??;
@@ -180,6 +187,10 @@ async fn conversion_plan(State(sh): State<Shared>, Path(profile): Path<String>) 
 
 /// Convert a profile for Linux: back up, install the plugins it needs, rewrite its keys.
 async fn convert_profile(State(sh): State<Shared>, Path(profile): Path<String>) -> ApiResult<Json<Value>> {
+    // Not an installation failure (nor worth an error in the log).
+    if !sh.lock().profiles.contains_key(&profile) {
+        return Err(not_found("Profile"));
+    }
     let r = async {
         let list = catalogue::load().await.unwrap_or_default();
         let plan = {
@@ -222,8 +233,13 @@ struct TemplateReq {
 
 /// Create a sample profile: install the catalogue plugins it uses, then the profile.
 async fn create_from_template(State(sh): State<Shared>, Path(id): Path<String>, Json(req): Json<TemplateReq>) -> ApiResult<Json<Value>> {
+    // Check the request before installing anything (and before "Installation failed").
+    let t =
+        crate::engine::templates::TEMPLATES.iter().find(|t| t.id == id).ok_or_else(|| ApiError(StatusCode::NOT_FOUND, crate::tr!("unknown sample profile")))?;
+    if !crate::device::MODELS.iter().any(|m| m.model_id == req.model) {
+        return Err(ApiError(StatusCode::BAD_REQUEST, crate::tr!("unknown device model")));
+    }
     let r = async {
-        let t = crate::engine::templates::TEMPLATES.iter().find(|t| t.id == id).with_context(|| crate::tr!("unknown sample profile"))?;
         let mut failed = Vec::new();
         for plugin in t.plugins {
             if sh.lock().registry.plugin(plugin).is_some() {
@@ -337,7 +353,13 @@ pub(crate) fn not_twice(key: &str) -> ApiResult<()> {
 
 async fn check_installed(State(sh): State<Shared>, Path(uuid): Path<String>) -> ApiResult<Json<Value>> {
     not_twice(&uuid)?;
-    let dir = sh.lock().registry.plugin(&uuid).filter(|p| !p.builtin).map(|p| p.dir.clone()).with_context(|| crate::tr!("plugin not found"))?;
+    let dir = sh
+        .lock()
+        .registry
+        .plugin(&uuid)
+        .filter(|p| !p.builtin)
+        .map(|p| p.dir.clone())
+        .ok_or_else(|| ApiError(StatusCode::NOT_FOUND, crate::tr!("plugin not found")))?;
     start_check(&sh, uuid.clone(), CheckSource::Dir(dir))?;
     Ok(Json(json!({"started": true, "key": uuid})))
 }
@@ -484,6 +506,9 @@ async fn plugin_diagnostics(State(sh): State<Shared>, Path(uuid): Path<String>) 
 }
 
 async fn uninstall(State(sh): State<Shared>, Path(uuid): Path<String>) -> ApiResult<Json<Value>> {
+    if sh.lock().registry.plugin(&uuid).is_none() {
+        return Err(ApiError(StatusCode::NOT_FOUND, crate::tr!("plugin not found")));
+    }
     let sh2 = sh.clone();
     tokio::task::spawn_blocking(move || -> Result<()> {
         let (p, old) = {

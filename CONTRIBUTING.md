@@ -40,7 +40,7 @@ next to a regular installation (47800/47801). Press keys with
 `POST /api/devices/{id}/input`, and change focus with `POST /api/active-app` (see
 [docs/API.md](docs/API.md)).
 
-`node tests/e2e.mjs [--bin PATH] [--only neo,plus,mini,original,neo:plugins,...] [-v] [--keep]`
+`node tests/e2e.mjs [--bin PATH] [--only neo,plus,mini,original,mk2,xl,pedal,neo:plugins,cli,...] [-v] [--keep]`
 does exactly that automatically: test groups with a fresh daemon each and a simulated device
 in dry-run mode, checked through the `DRYRUN` log lines and the API. Please cover new
 built-in actions there.

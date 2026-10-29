@@ -88,6 +88,13 @@ pub fn import_elgato(paths: &Paths, source: &Path) -> Result<PathBuf> {
     let tmp = std::env::temp_dir().join(format!("tuxdeck-import-{}", std::process::id()));
     let _ = fs::remove_dir_all(&tmp);
     fs::create_dir_all(&tmp)?;
+    // The extracted installer is removed on failure as well.
+    let r = import_elgato_via(paths, source, &tmp);
+    let _ = fs::remove_dir_all(&tmp);
+    r
+}
+
+fn import_elgato_via(paths: &Paths, source: &Path, tmp: &Path) -> Result<PathBuf> {
     let resources = if source.is_dir() {
         find_resources(source).context("no 'Contents/Resources' with plugins found in the folder")?
     } else {
@@ -95,11 +102,11 @@ pub fn import_elgato(paths: &Paths, source: &Path) -> Result<PathBuf> {
             bail!("bsdtar (libarchive) is needed to extract the .pkg");
         }
         // xar container -> Payload (gzip cpio) -> app bundle resources
-        let st = Command::new("bsdtar").arg("-xf").arg(source).arg("-C").arg(&tmp).status()?;
+        let st = Command::new("bsdtar").arg("-xf").arg(source).arg("-C").arg(tmp).status()?;
         if !st.success() {
             bail!("could not extract the pkg");
         }
-        let payload = walk_find(&tmp, "Payload").context("Payload not found in the pkg")?;
+        let payload = walk_find(tmp, "Payload").context("Payload not found in the pkg")?;
         let out = tmp.join("payload");
         fs::create_dir_all(&out)?;
         let st = Command::new("bsdtar").arg("-xf").arg(&payload).arg("-C").arg(&out).arg("--include").arg("*Contents/Resources/*").status()?;
@@ -117,7 +124,6 @@ pub fn import_elgato(paths: &Paths, source: &Path) -> Result<PathBuf> {
             copy_dir(&s, &dst.join(sub))?;
         }
     }
-    let _ = fs::remove_dir_all(&tmp);
     Ok(dst)
 }
 

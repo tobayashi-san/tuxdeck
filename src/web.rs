@@ -160,6 +160,10 @@ pub fn router(sh: Shared) -> Router {
 }
 
 async fn static_file(uri: axum::http::Uri) -> Response {
+    // Unknown API routes are errors, not the UI page.
+    if uri.path().starts_with("/api/") {
+        return not_found("Page").into_response();
+    }
     let path = uri.path().trim_start_matches('/');
     let path = if path.is_empty() { "index.html" } else { path };
     match Assets::get(path).or_else(|| if path.contains('.') { None } else { Assets::get("index.html") }) {
@@ -397,7 +401,7 @@ async fn create_slot(State(sh): State<Shared>, Path((profile, page)): Path<(Stri
     check_slot(&req.controller, &req.coord)?;
     let mut e = sh.lock();
     let uuid = req.uuid.clone().ok_or_else(|| ApiError(StatusCode::BAD_REQUEST, crate::tr!("uuid is missing")))?;
-    e.page_mut(&profile, &page)?;
+    e.page_mut(&profile, &page).map_err(|_| not_found("Page"))?;
     let inst = e.new_instance(&profile, &uuid)?;
     let old = e.page_mut(&profile, &page)?.controller_mut(&req.controller).actions.insert(req.coord.clone(), inst.clone());
     if let Some(old) = old {
@@ -416,7 +420,7 @@ async fn delete_slot(
     let mut e = sh.lock();
     let (c, k) = (q.get("controller").cloned().unwrap_or_default(), q.get("coord").cloned().unwrap_or_default());
     check_slot(&c, &k)?;
-    let removed = e.page_mut(&profile, &page)?.controller_mut(&c).actions.remove(&k);
+    let removed = e.page_mut(&profile, &page).map_err(|_| not_found("Page"))?.controller_mut(&c).actions.remove(&k);
     if let Some(old) = &removed {
         e.remove_instance(&profile, old);
     }
@@ -587,7 +591,7 @@ struct MoveReq {
 async fn move_slot(State(sh): State<Shared>, Path((profile, page)): Path<(String, String)>, Json(req): Json<MoveReq>) -> ApiResult<Json<Value>> {
     check_slot(&req.to.controller, &req.to.coord)?;
     let mut e = sh.lock();
-    let pm = e.page_mut(&profile, &page)?;
+    let pm = e.page_mut(&profile, &page).map_err(|_| not_found("Page"))?;
     let src = pm.action(&req.from.controller, &req.from.coord).cloned().ok_or_else(|| not_found("Source"))?;
     if req.copy {
         if src.uuid == builtin::OPEN_CHILD {
@@ -636,7 +640,7 @@ async fn paste_slot(State(sh): State<Shared>, Path((profile, page)): Path<(Strin
     let mut inst = crate::engine::with_new_ids(&inst);
     let mut e = sh.lock();
     let dst_dir = e.profiles.get(&profile).ok_or_else(|| not_found("Profile"))?.page_dir(&page);
-    e.page_mut(&profile, &page)?;
+    e.page_mut(&profile, &page).map_err(|_| not_found("Page"))?;
     // Custom images live next to the source page (or in its profile, like the renderer
     // resolves them); data URLs are self-contained.
     let src_dirs: Vec<std::path::PathBuf> = e.profiles.get(&req.from_profile).map(|p| vec![p.page_dir(&req.from_page), p.dir.clone()]).unwrap_or_default();
@@ -672,6 +676,7 @@ async fn paste_slot(State(sh): State<Shared>, Path((profile, page)): Path<(Strin
 }
 
 async fn press_slot(State(sh): State<Shared>, Path((profile, page)): Path<(String, String)>, Json(req): Json<SlotReq>) -> ApiResult<Json<Value>> {
+    check_slot(&req.controller, &req.coord)?;
     let slot = Slot::new(&req.controller, &req.coord);
     let sh2 = sh.clone();
     tokio::task::spawn_blocking(move || {
@@ -792,7 +797,8 @@ async fn create_profile(State(sh): State<Shared>, Json(req): Json<NewProfile>) -
         return Err(ApiError(StatusCode::BAD_REQUEST, crate::tr!("unknown device model")));
     }
     let mut e = sh.lock();
-    let p = Profile::new(&e.paths.profiles(), &req.name, &req.model);
+    // Like renaming: no line breaks or other control characters in names.
+    let p = Profile::new(&e.paths.profiles(), &req.name.replace(char::is_control, " "), &req.model);
     p.save_all()?;
     let v = json!({"id": p.id, "name": p.manifest.name, "model": p.manifest.device.model, "pages": p.manifest.pages.pages});
     e.profiles.insert(p.id.clone(), p);
@@ -1044,7 +1050,7 @@ async fn restore_backup(sh: Shared, data: Vec<u8>) -> ApiResult<Json<Value>> {
     let r = tokio::task::spawn_blocking(move || -> anyhow::Result<Value> {
         let paths = sh.lock().paths.clone();
         let staged = crate::backup::unpack(&paths, &data)?;
-        let safety = crate::backup::dir(&paths).join(crate::backup::file_name("before-restore"));
+        let safety = crate::backup::new_file(&paths, "before-restore");
         crate::backup::create(&paths, &safety, crate::backup::Options { plugins: true, icon_packs: false })
             .map_err(|e| e.context(crate::tr!("Could not back up the current state; nothing was restored.")))?;
         crate::sdk::stop_all_plugins(&sh);
