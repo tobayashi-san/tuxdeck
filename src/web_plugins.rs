@@ -44,6 +44,7 @@ pub fn routes() -> Router<Shared> {
         .route("/api/catalogue/linux-check-all", post(check_all).delete(cancel_check_all))
         .route("/api/catalogue/{id}", get(catalogue_item))
         .route("/api/linux-checks", get(linux_checks))
+        .route("/api/profiles/{profile}/compat", get(compat_report).post(compat_fix))
         .route("/api/deeplink", post(deeplink))
 }
 
@@ -162,6 +163,46 @@ async fn catalogue_install(State(sh): State<Shared>, Json(req): Json<CatalogueRe
     let r = async {
         let (release, bytes) = fetch_release(&req.id).await?;
         install_package(&sh, bytes, Some(release.file), Some(json!({"source": "openaction", "release": release.tag}))).await
+    }
+    .await;
+    Ok(Json(log_failure(&sh, r)?))
+}
+
+/// What an imported profile needs to work on Linux (see `Engine::compat_report`).
+async fn compat_report(State(sh): State<Shared>, Path(profile): Path<String>) -> ApiResult<Json<Value>> {
+    // Offline the catalogue is unknown; the rest of the report still works.
+    let list = catalogue::load().await.unwrap_or_default();
+    let report = tokio::task::spawn_blocking(move || sh.lock().compat_report(&profile, &list)).await.map_err(|e| anyhow!(e))??;
+    Ok(Json(report))
+}
+
+#[derive(Deserialize)]
+struct CompatReq {
+    group: String,
+}
+
+/// Fix one group of the report: install the plugin from the catalogue and, for
+/// replacements, rewrite the profile's keys.
+async fn compat_fix(State(sh): State<Shared>, Path(profile): Path<String>, Json(req): Json<CompatReq>) -> ApiResult<Json<Value>> {
+    let r = async {
+        let install = match req.group.strip_prefix("install:") {
+            Some(id) => Some(id.to_string()),
+            None => {
+                let rule = crate::compat::RULES.iter().find(|r| r.group == req.group).with_context(|| crate::tr!("nothing to replace"))?;
+                rule.plugin.map(|(id, _)| id.to_string()).filter(|id| sh.lock().registry.plugin(id).is_none())
+            }
+        };
+        if let Some(id) = &install {
+            let (release, bytes) = fetch_release(id).await?;
+            install_package(&sh, bytes, Some(release.file), Some(json!({"source": "openaction", "release": release.tag}))).await?;
+        }
+        let changed = if req.group.starts_with("install:") {
+            0
+        } else {
+            let sh2 = sh.clone();
+            tokio::task::spawn_blocking(move || sh2.lock().apply_compat(&profile, &req.group)).await??
+        };
+        Ok::<_, anyhow::Error>(json!({"installed": install, "changed": changed}))
     }
     .await;
     Ok(Json(log_failure(&sh, r)?))

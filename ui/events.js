@@ -1,5 +1,6 @@
 // Live events from the daemon (WebSocket) and reconnecting.
 
+import { markCompatDirty, updateCompatBanner } from './compat.js';
 import { S, slotKey } from './store.js';
 import { handleLinuxCheckEvent, handleMarketEvent } from './market.js';
 import { renderEditor, retryUnsaved } from './editor.js';
@@ -72,13 +73,16 @@ function handleEvent(ev) {
         const [p, pg] = k.split('/');
         if (sameId(p, ev.profile) && sameId(pg, ev.page)) S.pageCache.delete(k);
       }
+      if (sameId(ev.profile, S.view.profile)) markCompatDirty();
       if (sameId(ev.profile, S.view.profile) && sameId(ev.page, S.view.page)) schedulePageReload();
       break;
     case 'input':
       onInput(ev);
       break;
     case 'actions':
+      markCompatDirty();
       loadCatalogue();
+      updateCompatBanner();
       break;
     case 'market':
       handleMarketEvent(ev);

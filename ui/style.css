@@ -802,3 +802,35 @@ dialog.modal:has(.icon-picker), dialog.modal:has(.iconpack-list) { max-width: mi
 .no-access-box { max-width: 460px; padding: 24px 28px; border-radius: 10px; background: var(--panel, #232323); border: 1px solid var(--border); }
 .no-access-box h2 { margin: 0 0 10px; font-size: 17px; }
 .no-access-box p { margin: 0; color: #ccc; line-height: 1.5; }
+
+/* Imported profiles: banner above the deck, note in the editor, "Make it work on Linux" */
+.compat-banner { display: flex; align-items: center; gap: 10px; margin: 0 auto 10px; padding: 7px 8px 7px 14px; max-width: 720px;
+  background: #1d2a44; border: 1px solid #2f4a7a; border-radius: 999px; color: #cfe0ff; }
+.compat-banner[hidden] { display: none; }
+.compat-banner .compat-text { flex: 1; }
+.compat-close { background: none; border: 0; color: inherit; font-size: 17px; line-height: 1; padding: 2px 6px; cursor: pointer; opacity: .7; }
+.compat-close:hover { opacity: 1; }
+.linux-note { display: flex; align-items: center; gap: 10px; margin: 0 16px 10px; padding: 7px 12px; border-radius: var(--radius);
+  border-left: 3px solid var(--muted); background: var(--panel-2); color: var(--text); }
+.linux-note.ok { border-left-color: var(--ok); }
+.linux-note.fix { border-left-color: var(--accent); }
+.linux-note.missing { border-left-color: var(--warn); }
+dialog.modal:has(.compat-dialog) { max-width: min(720px, 94vw); }
+.compat-dialog { width: min(680px, calc(94vw - 42px)); max-height: 65vh; overflow-y: auto; padding-right: 4px; }
+.compat-intro { color: var(--muted); margin: 0 0 10px; }
+.compat-row { display: flex; align-items: center; gap: 12px; padding: 9px 12px; margin-bottom: 6px; border-radius: var(--radius);
+  background: var(--panel-2); border-left: 3px solid var(--muted); }
+.compat-row.ok { border-left-color: var(--ok); }
+.compat-row.fix { border-left-color: var(--accent); }
+.compat-row.missing { border-left-color: var(--warn); }
+.compat-main { flex: 1; min-width: 0; }
+.compat-name { font-weight: 600; }
+.compat-keys { font-weight: 400; color: var(--muted); margin-left: 8px; }
+.compat-status { margin-top: 2px; }
+.compat-hint { margin-top: 3px; color: var(--muted); font-size: 12px; }
+.compat-apps { display: grid; grid-template-columns: auto auto 1fr; gap: 3px 10px; }
+.compat-app { display: contents; }
+.compat-app-title { color: var(--text); }
+.compat-arrow { color: var(--muted); }
+.compat-app.ok .compat-app-target { color: #86efac; }
+.compat-app.missing .compat-app-target { color: #fbbf24; }

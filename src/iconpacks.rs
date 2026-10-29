@@ -133,7 +133,7 @@ pub fn install_archive(data: &[u8], root: &Path) -> Result<String> {
     let mut folder: Option<String> = None;
     for i in 0..zip.len() {
         let f = zip.by_index(i)?;
-        let Some(name) = f.enclosed_name() else { continue };
+        let Some(name) = crate::plugins::entry_path(f.name()) else { continue };
         if let Some(c) = name.components().map(|c| c.as_os_str().to_string_lossy().to_string()).find(|c| c.ends_with(".sdIconPack")) {
             folder = Some(c);
             break;
@@ -151,7 +151,7 @@ pub fn install_archive(data: &[u8], root: &Path) -> Result<String> {
     let mut unpack = || -> Result<()> {
         for i in 0..zip.len() {
             let mut f = zip.by_index(i)?;
-            let Some(name) = f.enclosed_name() else { continue };
+            let Some(name) = crate::plugins::entry_path(f.name()) else { continue };
             let comps: Vec<String> = name.components().map(|c| c.as_os_str().to_string_lossy().to_string()).collect();
             let Some(pos) = comps.iter().position(|c| *c == folder) else { continue };
             if comps.iter().any(|c| c == "__MACOSX" || c == ".DS_Store") {
@@ -162,7 +162,7 @@ pub fn install_archive(data: &[u8], root: &Path) -> Result<String> {
                 continue;
             }
             let out = tmp.join(rel);
-            if f.is_dir() {
+            if crate::plugins::entry_is_dir(f.name()) {
                 fs::create_dir_all(&out)?;
                 continue;
             }

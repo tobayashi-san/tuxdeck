@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Profiles from Windows and macOS work on Linux:** "Make it work on Linux…" above the
+  deck shows what an imported profile needs and fixes it. Open keys start the Linux
+  version of the program (desktop entries incl. Flatpak) or its web version; missing
+  plugins are installed from the catalogue or replaced (Elgato OBS → OBS Tools, Elgato
+  Discord → Discord, CPU → System Information, Teams buttons → Teams shortcuts);
+  BarRaider's Spotify keys run via playerctl. Keys without a Linux counterpart say so
+  in the editor.
+- Plugin archives packed on Windows (`\` in paths) install now.
+
 ## 0.6.0-beta.1 – first public beta
 
 The first release for everyone. TuxDeck configures Elgato Stream Deck devices on Linux,

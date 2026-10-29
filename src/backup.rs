@@ -193,10 +193,10 @@ pub fn unpack(paths: &Paths, data: &[u8]) -> Result<Staged> {
     let mut unpacked = 0;
     for i in 0..zip.len() {
         let mut f = zip.by_index(i)?;
-        let Some(name) = f.enclosed_name() else { continue };
+        let Some(name) = crate::plugins::entry_path(f.name()) else { continue };
         let comps: Vec<String> =
             name.components().filter(|c| matches!(c, Component::Normal(_))).map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
-        if comps.is_empty() || f.is_dir() || comps.iter().any(|c| c == "__MACOSX" || c == ".DS_Store") {
+        if comps.is_empty() || crate::plugins::entry_is_dir(f.name()) || comps.iter().any(|c| c == "__MACOSX" || c == ".DS_Store") {
             continue;
         }
         let joined = comps.join("/");

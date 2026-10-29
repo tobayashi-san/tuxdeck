@@ -8,8 +8,10 @@ import { loadPage, schedulePageReload } from './data.js';
 import { $, el } from './dom.js';
 import { folderTarget, goBack, goToPage } from './navigation.js';
 import { createProfile } from './topbar.js';
+import { updateCompatBanner } from './compat.js';
 
 export function renderCanvas() {
+  updateCompatBanner();
   const prof = profileById(S.view.profile);
   const dev = el.device;
   // Re-rendering replaces the slot elements: keep the keyboard focus on the same spot.

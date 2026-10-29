@@ -357,6 +357,30 @@ pub fn read_zip_entry(f: &mut impl std::io::Read, unpacked: &mut u64) -> Result<
 }
 
 /// Stream one zip entry to `out` (callers remove partial output on error).
+/// Path of a zip entry, also in archives packed on Windows with `\\` as separator (the
+/// official app accepts those). `None` for unsafe names: absolute, `..`, drive letters.
+pub fn entry_path(raw: &str) -> Option<PathBuf> {
+    let norm = raw.replace('\\', "/");
+    if norm.starts_with('/') {
+        return None;
+    }
+    let mut out = PathBuf::new();
+    for c in norm.split('/') {
+        match c {
+            "" | "." => {}
+            ".." => return None,
+            c if c.contains(':') => return None,
+            c => out.push(c),
+        }
+    }
+    (!out.as_os_str().is_empty()).then_some(out)
+}
+
+/// A directory entry, with either separator.
+pub fn entry_is_dir(raw: &str) -> bool {
+    raw.ends_with('/') || raw.ends_with('\\')
+}
+
 pub fn write_zip_entry(f: &mut impl std::io::Read, out: &Path, unpacked: &mut u64) -> Result<()> {
     use std::io::Read as _;
     let left = MAX_UNPACKED_BYTES.saturating_sub(*unpacked);
@@ -374,7 +398,7 @@ pub fn install_archive(data: &[u8], plugins_dir: &Path) -> Result<String> {
     let mut root: Option<String> = None;
     for i in 0..zip.len() {
         let f = zip.by_index(i)?;
-        if let Some(n) = f.enclosed_name() {
+        if let Some(n) = entry_path(f.name()) {
             if let Some(first) = n.components().next() {
                 let s = first.as_os_str().to_string_lossy().to_string();
                 if s.ends_with(".sdPlugin") {
@@ -411,10 +435,10 @@ fn unpack_plugin(zip: &mut zip::ZipArchive<std::io::Cursor<&[u8]>>, root: &str, 
     let mut unpacked = 0;
     for i in 0..zip.len() {
         let mut f = zip.by_index(i)?;
-        let Some(name) = f.enclosed_name() else { continue };
+        let Some(name) = entry_path(f.name()) else { continue };
         let Ok(rel) = name.strip_prefix(root) else { continue };
         let out = dest.join(rel);
-        if f.is_dir() {
+        if entry_is_dir(f.name()) {
             fs::create_dir_all(&out)?;
             continue;
         }
@@ -429,4 +453,20 @@ fn unpack_plugin(zip: &mut zip::ZipArchive<std::io::Cursor<&[u8]>>, root: &str, 
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zip_entry_paths() {
+        let p = |s: &str| entry_path(s).map(|p| p.to_string_lossy().into_owned());
+        assert_eq!(p("com.jk.weather.sdPlugin\\manifest.json").as_deref(), Some("com.jk.weather.sdPlugin/manifest.json"));
+        assert_eq!(p("a.sdPlugin/./b/c.js").as_deref(), Some("a.sdPlugin/b/c.js"));
+        for bad in ["../x", "/etc/passwd", "C:\\Windows\\x", "a\\..\\..\\b", "", "\\\\server\\share"] {
+            assert_eq!(p(bad), None, "{bad}");
+        }
+        assert!(entry_is_dir("com.jk.weather.sdPlugin\\"));
+    }
 }

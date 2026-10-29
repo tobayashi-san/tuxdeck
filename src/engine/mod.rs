@@ -27,6 +27,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, mpsc::UnboundedSender};
 
 mod actions;
+mod compat;
 mod devices;
 mod display;
 mod editing;
@@ -222,6 +223,8 @@ pub struct Engine {
     pub active_app: String,
     /// Press tracking of Key Logic keys, per (device, slot).
     key_logic: HashMap<(String, Slot), KeyLogicState>,
+    /// Spotify volume before a mute key of an imported profile (see `run_spotify`).
+    spotify_volume: Option<f64>,
 }
 
 impl PreviewJob {
@@ -283,6 +286,7 @@ impl Engine {
             pis: HashMap::new(),
             self_ref: None,
             active_app: String::new(),
+            spotify_volume: None,
             key_logic: HashMap::new(),
             clocks: (Instant::now(), std::time::SystemTime::now()),
         };

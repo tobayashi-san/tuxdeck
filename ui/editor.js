@@ -1,4 +1,5 @@
 // Bottom panel: property editor for the selected slot (title, image, settings / property inspector).
+import { openCompatDialog } from './compat.js';
 import {
   S, api, enc, h, debounce, instanceAt, actionInfo, renderUrl, pagePath, profileById,
   slotLabel, modelName, uuidv4, compatibleModel, slotAppearance, HOTKEY_SWITCH,
@@ -233,7 +234,7 @@ function buildEditor(sel, inst) {
       h('div.ed-sub', null,
         [action?.category, slotLabel(sel.controller, sel.coord)].filter(Boolean).join(' · '),
         action && action.supported === false ? h('span.badge.warn', null, t('Not supported on Linux')) : null,
-        !action ? h('span.badge.warn', null, t('Plugin not installed')) : null)),
+        !action && !inst._linux ? h('span.badge.warn', null, t('Plugin not installed')) : null)),
     states.length > 1 ? h('div.state-tabs', { role: 'tablist' }, states.map((_, i) =>
       h('button.state-tab', {
         role: 'tab', class: i === stateIdx ? 'active' : null,
@@ -244,6 +245,9 @@ function buildEditor(sel, inst) {
     h('span.badge.warn.ed-unsaved', { hidden: true, title: t('The service is not reachable. The change is saved as soon as the connection is back.') }, t('Not saved yet')),
     h('button.btn.ed-press', { onclick: () => hooks.press?.(sel) }, '▶ ' + t('Test press')),
     h('button.btn.danger-outline', { title: t('Remove the action (Del)'), onclick: () => hooks.remove?.(sel) }, t('Delete')));
+  // Keys of Windows/macOS profiles: what they do here (see Engine::linux_info).
+  const linuxNote = inst._linux ? h('div.linux-note', { class: inst._linux.status }, inst._linux.text,
+    inst._linux.status === 'fix' ? h('button.btn.small', { type: 'button', onclick: () => openCompatDialog() }, t('Make it work on Linux…')) : null) : null;
 
   // ---- image column --------------------------------------------------------------------
   const isBar = sel.controller === 'Neo' && sel.coord === '1,0';
@@ -352,7 +356,7 @@ function buildEditor(sel, inst) {
     settingsBox.append(h('div.muted.center', null, action ? t('This action has no settings.') : t('No settings available.')));
   }
 
-  root.append(header, h('div.ed-body', { class: titleCol ? null : 'no-title' }, imgCol, titleCol, settingsCol));
+  root.append(header, linuxNote || '', h('div.ed-body', { class: titleCol ? null : 'no-title' }, imgCol, titleCol, settingsCol));
   updateEditorChrome();
 }
 

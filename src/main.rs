@@ -1,6 +1,8 @@
+mod apps;
 mod backup;
 mod builtin;
 mod catalogue;
+mod compat;
 mod device;
 mod engine;
 mod i18n;

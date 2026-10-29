@@ -149,6 +149,9 @@ impl Engine {
                     }
                     v["Settings"][format!("_actions{i}")] = serde_json::to_value(list).ok()?;
                 }
+                if let Some(info) = self.linux_info(a) {
+                    v["_linux"] = info;
+                }
                 actions.insert(coord.clone(), v);
             }
             if let Some(existing) = controllers.iter_mut().find(|x: &&mut Value| x["Type"] == kind) {
