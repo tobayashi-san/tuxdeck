@@ -71,6 +71,9 @@ jobs:
           export VERSION=${TAG#v}
           nfpm package -f packaging/nfpm.yaml -p deb -t dist/
           nfpm package -f packaging/nfpm.yaml -p rpm -t dist/
+          # Pre-release packages are versioned 0.6.0~beta.1 (sorts before 0.6.0), but GitHub
+          # turns "~" in asset names into "."; name the files 0.6.0-beta.1 instead.
+          for f in dist/*~*; do [ -e "$f" ] && mv "$f" "${f//\~/-}"; done
           cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
 
       - name: Publish
@@ -78,7 +81,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           v=${TAG#v}
-          # nfpm writes pre-releases as 0.6.0~beta.1 (sorts before 0.6.0), so take the real names.
+          # File names differ from the version for pre-releases (see above), so take the real names.
           deb=$(cd dist && ls *.deb) rpm=$(cd dist && ls *.rpm)
           pre=; case "$v" in *-*) pre=--prerelease ;; esac
           cat > notes.md <<EOF
