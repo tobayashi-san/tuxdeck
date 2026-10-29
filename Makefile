@@ -60,6 +60,7 @@ define install_files
 	$(HELPER) service packaging/tuxdeck.service $(call q,$(1)) $(call q,$(5)/doc) > tuxdeck.service.tmp
 	install -Dm755 $(BIN) $(call q,$(2)/tuxdeck)
 	install -Dm644 README.md $(call q,$(4)/doc/tuxdeck/README.md)
+	install -Dm644 docs/README.md $(call q,$(4)/doc/tuxdeck/HANDBOOK.md)
 	install -Dm644 THIRD-PARTY-LICENSES.md $(call q,$(4)/doc/tuxdeck/THIRD-PARTY-LICENSES.md)
 	install -Dm644 tuxdeck.desktop.tmp $(call q,$(4)/applications/tuxdeck.desktop)
 	install -Dm644 tuxdeck.service.tmp $(call q,$(3)/tuxdeck.service)

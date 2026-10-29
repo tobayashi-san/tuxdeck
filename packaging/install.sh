@@ -120,6 +120,7 @@ sh "$helper" service "$here/packaging/tuxdeck.service" "$bindir/tuxdeck" "$datad
 
 install -Dm755 "$here/tuxdeck" "$bindir/tuxdeck"
 install -Dm644 "$here/README.md" "$datadir/doc/tuxdeck/README.md"
+[ -f "$here/HANDBOOK.md" ] && install -Dm644 "$here/HANDBOOK.md" "$datadir/doc/tuxdeck/HANDBOOK.md"
 [ -f "$here/THIRD-PARTY-LICENSES.md" ] && install -Dm644 "$here/THIRD-PARTY-LICENSES.md" "$datadir/doc/tuxdeck/THIRD-PARTY-LICENSES.md"
 install -Dm644 "$tmp/tuxdeck.desktop" "$datadir/applications/tuxdeck.desktop"
 install -Dm644 "$tmp/tuxdeck.service" "$unitdir/tuxdeck.service"

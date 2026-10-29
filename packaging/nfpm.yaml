@@ -50,6 +50,8 @@ contents:
     dst: /usr/lib/systemd/user/tuxdeck.service
   - src: README.md
     dst: /usr/share/doc/tuxdeck/README.md
+  - src: docs/README.md
+    dst: /usr/share/doc/tuxdeck/HANDBOOK.md
   - src: LICENSE
     dst: /usr/share/doc/tuxdeck/LICENSE
   - src: assets/fonts/LICENSE-DejaVu.txt

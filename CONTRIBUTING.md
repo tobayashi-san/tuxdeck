@@ -6,7 +6,7 @@ Pedal or an original first-generation device (issue template "Test a device").
 
 ## Building
 
-Prerequisites: see the README ("Build from source"). Then:
+Prerequisites: see the [handbook](docs/README.md#build-from-source). Then:
 
 ```sh
 make            # cargo build --release
