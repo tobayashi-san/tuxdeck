@@ -93,6 +93,7 @@ el.profileMenuBtn.addEventListener('click', () => {
     && S.state.devices.some((d) => d.profile === prof.id);
   contextMenu(r.left, r.bottom + 4, [
     { label: t('New profile…'), action: createProfile },
+    { label: t('Add a sample profile…'), action: addSampleProfile },
     { label: t('Rename…'), action: renameProfile, disabled: !prof },
     { label: prof?.app ? t('Smart Profile: {app}…', { app: prof.app }) : t('Smart Profile (per application)…'), action: smartProfile, disabled: !prof },
     {
@@ -105,6 +106,37 @@ el.profileMenuBtn.addEventListener('click', () => {
     { label: t('Manage icon packs…'), action: manageIconPacks },
   ]);
 });
+
+/** Sample profiles (Stream, Work, Play) made for Linux, with a preview of their keys. */
+async function addSampleProfile() {
+  const d = currentDevice();
+  const model = d?.model || profileById(S.view.profile)?.model || '20GBJ9901';
+  const list = await api('/api/templates');
+  let chosen = list[0]?.id;
+  const cards = list.map((tpl) => h('button.sample-card', {
+    type: 'button',
+    class: tpl.id === chosen ? 'selected' : null,
+    onclick: (e) => {
+      chosen = tpl.id;
+      for (const c of e.currentTarget.parentElement.children) c.classList.toggle('selected', c === e.currentTarget);
+    },
+  },
+  h('div.sample-keys', null, tpl.icons.slice(0, 8).map((src) => (src ? h('img', { src, alt: '' }) : h('span')))),
+  h('div.sample-name', null, tpl.name),
+  h('div.sample-desc', null, tpl.description)));
+  const body = h('div.samples', null,
+    h('p.modal-text', null, t('Ready-made profiles for Linux. Programs are taken from this computer; plugins come from the catalogue.')),
+    h('div.sample-cards', null, cards));
+  if (await modal(t('Add a sample profile'), body, [{ label: t('Cancel'), value: 'cancel' }, { label: t('Add'), value: 'add', primary: true }]) !== 'add') return;
+  toast(t('Setting up the profile…'), 'info', 2500);
+  try {
+    const r = await api(`/api/templates/${enc(chosen)}`, { method: 'POST', body: { model } });
+    if (r.failed?.length) toast(t('Could not install: {plugins}', { plugins: r.failed.join(', ') }), 'warn', 9000);
+    await activateProfile(r.id);
+  } catch (e) {
+    toast(e.message, 'error', 8000);
+  }
+}
 
 export async function createProfile() {
   const d = currentDevice();

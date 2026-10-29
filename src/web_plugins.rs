@@ -45,6 +45,8 @@ pub fn routes() -> Router<Shared> {
         .route("/api/catalogue/{id}", get(catalogue_item))
         .route("/api/linux-checks", get(linux_checks))
         .route("/api/profiles/{profile}/conversion", get(conversion_plan).post(convert_profile))
+        .route("/api/templates", get(templates))
+        .route("/api/templates/{id}", post(create_from_template))
         .route("/api/deeplink", post(deeplink))
 }
 
@@ -203,6 +205,43 @@ async fn convert_profile(State(sh): State<Shared>, Path(profile): Path<String>) 
         let mut out = tokio::task::spawn_blocking(move || sh2.lock().convert_profile(&profile, &list)).await??;
         out["failed"] = json!(failed);
         Ok::<_, anyhow::Error>(out)
+    }
+    .await;
+    Ok(Json(log_failure(&sh, r)?))
+}
+
+/// The sample profiles (Stream, Work, Play).
+async fn templates(State(sh): State<Shared>) -> Json<Value> {
+    Json(sh.lock().templates_json())
+}
+
+#[derive(Deserialize)]
+struct TemplateReq {
+    model: String,
+}
+
+/// Create a sample profile: install the catalogue plugins it uses, then the profile.
+async fn create_from_template(State(sh): State<Shared>, Path(id): Path<String>, Json(req): Json<TemplateReq>) -> ApiResult<Json<Value>> {
+    let r = async {
+        let t = crate::engine::templates::TEMPLATES.iter().find(|t| t.id == id).with_context(|| crate::tr!("unknown sample profile"))?;
+        let mut failed = Vec::new();
+        for plugin in t.plugins {
+            if sh.lock().registry.plugin(plugin).is_some() {
+                continue;
+            }
+            let res = async {
+                let (release, bytes) = fetch_release(plugin).await?;
+                install_package(&sh, bytes, Some(release.file), Some(json!({"source": "openaction", "release": release.tag}))).await
+            }
+            .await;
+            if let Err(e) = res {
+                tracing::warn!("installing {plugin} for a sample profile: {e:#}");
+                failed.push(plugin.to_string());
+            }
+        }
+        let sh2 = sh.clone();
+        let profile = tokio::task::spawn_blocking(move || sh2.lock().create_from_template(&id, &req.model)).await??;
+        Ok::<_, anyhow::Error>(json!({"id": profile, "failed": failed}))
     }
     .await;
     Ok(Json(log_failure(&sh, r)?))

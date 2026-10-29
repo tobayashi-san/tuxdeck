@@ -34,6 +34,7 @@ mod editing;
 mod keys;
 mod protocol;
 mod system;
+pub mod templates;
 
 pub use actions::{multi_lists, set_multi_lists, with_new_ids};
 use actions::{nested_entry_mut, KeyLogicState};

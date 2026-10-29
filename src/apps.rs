@@ -132,7 +132,11 @@ const fn m(names: &'static [&'static str], apps: &'static [&'static str], mime: 
 const ALIASES: &[Alias] = &[
     a(&["obs64", "obs32", "obs", "obsstudio"], &["com.obsproject.Studio", "obs"], None),
     m(&["chrome", "googlechrome"], &["google-chrome", "com.google.Chrome", "chromium", "org.chromium.Chromium", "chromium-browser"], "x-scheme-handler/https"),
-    m(&["msedge", "microsoftedge", "edge", "safari", "iexplore", "internetexplorer"], &["microsoft-edge", "com.microsoft.Edge"], "x-scheme-handler/https"),
+    m(
+        &["msedge", "microsoftedge", "edge", "safari", "iexplore", "internetexplorer", "browser", "webbrowser"],
+        &["microsoft-edge", "com.microsoft.Edge"],
+        "x-scheme-handler/https",
+    ),
     m(&["firefox", "mozillafirefox"], &["firefox", "org.mozilla.firefox"], "x-scheme-handler/https"),
     a(&["outlook", "microsoftoutlook"], &[], Some("https://outlook.office.com/mail/")),
     a(
@@ -159,12 +163,12 @@ const ALIASES: &[Alias] = &[
     a(&["photoshop", "adobephotoshop"], &["gimp", "org.gimp.GIMP", "krita", "org.kde.krita"], Some("https://www.photopea.com/")),
     a(&["chatgpt"], &[], Some("https://chatgpt.com/")),
     a(&["steam"], &["steam", "com.valvesoftware.Steam"], None),
-    a(&["epicgameslauncher", "epicgames", "epic"], &["heroic", "com.heroicgameslauncher.hgl"], None),
+    a(&["epicgameslauncher", "epicgames", "epic", "heroic"], &["heroic", "com.heroicgameslauncher.hgl"], None),
     a(&["battlenet", "blizzard", "battlenetlauncher"], &["lutris", "net.lutris.Lutris", "bottles", "com.usebottles.bottles"], None),
     a(&["xbox"], &[], Some("https://www.xbox.com/play")),
     a(&["code", "vscode", "visualstudiocode"], &["code", "com.visualstudio.code", "codium", "com.vscodium.codium"], None),
     m(
-        &["notepad", "textedit", "notepadplusplus"],
+        &["notepad", "textedit", "notepadplusplus", "editor", "texteditor"],
         &[
             "org.gnome.TextEditor",
             "gnome-text-editor",
@@ -184,7 +188,11 @@ const ALIASES: &[Alias] = &[
         &["org.gnome.Calculator", "gnome-calculator", "org.kde.kcalc", "kcalc", "qalculate-gtk", "io.github.Qalculate", "galculator", "mate-calc"],
         None,
     ),
-    m(&["explorer", "fileexplorer", "finder"], &["org.gnome.Nautilus", "org.kde.dolphin", "thunar", "nemo", "pcmanfm"], "inode/directory"),
+    m(
+        &["explorer", "fileexplorer", "finder", "files", "filemanager"],
+        &["org.gnome.Nautilus", "org.kde.dolphin", "thunar", "nemo", "pcmanfm"],
+        "inode/directory",
+    ),
     a(
         &["cmd", "powershell", "terminal", "windowsterminal", "wt"],
         &["org.gnome.Console", "org.gnome.Terminal", "org.kde.konsole", "kitty", "Alacritty", "foot", "com.mitchellh.ghostty", "xfce4-terminal"],

@@ -1416,6 +1416,22 @@ async function suiteCompat(d) {
     await sleep(300);
     assert(d.logsSince(m, /DRYRUN/).length >= 1, 'the converted media key works');
   });
+
+  await test('samples: the Work profile is created with its icons and working keys', async () => {
+    const list = await d.get('/api/templates');
+    eq(list.map((x) => x.id), ['stream', 'work', 'play']);
+    assert(list.every((x) => x.icons.length === 8 && x.icons.every((i) => /^data:image\/svg/.test(i))), 'icons');
+    const r = await d.post('/api/templates/work', { model: st.devices[0].model });
+    eq(r.failed, []);
+    const prof = (await d.state()).profiles.find((p) => p.id === r.id);
+    eq(prof.pages.length, 2);
+    const kp = (await d.page(r.id, prof.pages[0])).controllers.find((c) => c.Type === 'Keypad').Actions;
+    eq(Object.keys(kp).length, 8);
+    eq([kp['0,0'].UUID, kp['0,0'].Settings.path], ['com.elgato.streamdeck.system.open', '~']);
+    eq(kp['2,1'].Settings.Hotkeys[0].LinuxCode, 99, 'screenshot = Print');
+    assert(Object.values(kp).every((a) => /^data:image\/svg/.test(a.States[0].Image || '')), 'every key has its icon');
+    eq((await d.get(`/api/profiles/${r.id}/conversion`)).needed, false, 'a sample profile needs no conversion');
+  });
 }
 
 /** Pedal: three keys without a display. */

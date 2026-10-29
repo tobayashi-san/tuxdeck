@@ -8,6 +8,9 @@
   or the folder; actions of missing plugins become built-in actions, catalogue plugins
   (OBS Tools, Discord, Linux Media, System Information, …) or keyboard shortcuts (Teams).
   Keys without a counterpart keep title and icon and wait for a command of your own.
+- **Sample profiles** (profile menu → "Add a sample profile…"): Stream (OBS Tools),
+  Work and Play (Discord, music, game launchers), with our own icons; programs are taken
+  from the computer, plugins installed from the catalogue.
 - Plugin archives packed on Windows (`\` in paths) install now.
 
 ## 0.6.0-beta.1 – first public beta
