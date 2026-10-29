@@ -200,13 +200,15 @@ const ALIASES: &[Alias] = &[
 fn special_dir(name: &str) -> Option<PathBuf> {
     let n = norm(name);
     let n = n.strip_suffix("folder").unwrap_or(&n);
+    // Without ~/.config/user-dirs.dirs the XDG folders are unknown: try the usual names.
+    let or_home = |xdg: Option<PathBuf>, name: &str| xdg.or_else(|| dirs::home_dir().map(|h| h.join(name))).filter(|d| d.is_dir());
     match n {
-        "docs" | "documents" | "mydocuments" | "dokumente" => dirs::document_dir(),
-        "downloads" => dirs::download_dir(),
-        "desktop" => dirs::desktop_dir(),
-        "pictures" | "photos" => dirs::picture_dir(),
-        "music" => dirs::audio_dir(),
-        "videos" | "movies" => dirs::video_dir(),
+        "docs" | "documents" | "mydocuments" | "dokumente" => or_home(dirs::document_dir(), "Documents"),
+        "downloads" => or_home(dirs::download_dir(), "Downloads"),
+        "desktop" => or_home(dirs::desktop_dir(), "Desktop"),
+        "pictures" | "photos" => or_home(dirs::picture_dir(), "Pictures"),
+        "music" => or_home(dirs::audio_dir(), "Music"),
+        "videos" | "movies" => or_home(dirs::video_dir(), "Videos"),
         "home" | "userfolder" => dirs::home_dir(),
         _ => None,
     }
