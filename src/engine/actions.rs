@@ -30,11 +30,6 @@ pub(super) enum KeyLogicTimer {
 /// Nested action lists. Multi actions are stored as `"Actions": [{"Actions": [...]}, ...]`;
 /// Key Logic as three slots `"Actions": [action | {"Actions": []}, ...]` (click, double
 /// click, long press). Both are exposed as lists; Key Logic lists hold at most one action.
-/// Title of an action's current state (names the application of imported Open keys).
-pub fn inst_title(inst: &ActionInstance) -> String {
-    inst.states.get(inst.state).or(inst.states.first()).and_then(|s| s.title.clone()).filter(|t| !t.trim().is_empty()).unwrap_or_default()
-}
-
 pub fn multi_lists(inst: &ActionInstance) -> Vec<Vec<ActionInstance>> {
     let key_logic = inst.uuid == KEY_LOGIC;
     if !key_logic && ![MULTI, MULTI_SWITCH, MULTI_RANDOM].contains(&inst.uuid.as_str()) {
@@ -302,9 +297,11 @@ impl Engine {
                 self.refresh_context(ctx);
             }
             (OPEN, true) => {
-                let title = inst_title(inst);
-                if compat::needs_counterpart(&sv("path"), &title) {
-                    return self.open_counterpart(&sv("path"), &title);
+                if crate::apps::is_foreign(&sv("path")) {
+                    bail!(crate::tr!(
+                        "{path} is a Windows or macOS path: convert the profile for Linux or set a Linux command",
+                        path = sv("path").trim_matches('"')
+                    ));
                 }
                 let path = expand_home(sv("path").trim().trim_matches('"'));
                 if path.is_empty() {
@@ -332,7 +329,7 @@ impl Engine {
                     bail!(crate::tr!("no application set"));
                 }
                 if crate::apps::is_foreign(&exec) {
-                    return self.open_counterpart(&exec, &inst_title(inst));
+                    bail!(crate::tr!("{path} is a Windows or macOS path: convert the profile for Linux or set a Linux command", path = exec.trim_matches('"')));
                 }
                 // A path to a program (may contain spaces) or a command line.
                 let is_path = exec.contains('/') && std::path::Path::new(&expand_home(&exec)).exists();
@@ -558,9 +555,6 @@ impl Engine {
             (DIGITAL_TIME | PAGINATION | PAGE_INDICATOR | MULTI_DELAY, _) => {}
             (u, true) if builtin::def(u).is_none() && self.registry.plugin_for_action(u).map(|p| p.runtime == PluginRuntime::Native).unwrap_or(false) => {
                 bail!(crate::tr!("this action of the official app is not available on Linux"));
-            }
-            (u, true) if self.registry.plugin_for_action(u).is_none() && crate::compat::spotify_command(u).is_some() => {
-                self.run_spotify(crate::compat::spotify_command(u).unwrap())?;
             }
             (u, true) if self.registry.plugin_for_action(u).is_none() => bail!(crate::tr!("the plugin for {action} is not installed", action = u)),
             (u, true) if matches!(self.registry.plugin_for_action(u).map(|p| &p.runtime), Some(PluginRuntime::Unsupported(_))) => {

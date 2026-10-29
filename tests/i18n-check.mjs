@@ -63,9 +63,6 @@ for (const f of fs.readdirSync(path.join(ROOT, 'src'), { recursive: true }).filt
   // not_found("Page") translates the noun at runtime
   for (const m of src.matchAll(new RegExp(String.raw`not_found\(\s*(${RS_STR})`, 'g'))) add(unq(m[1]), `src/${f}`);
 }
-// Hints of the compatibility rules (shown when a plugin of an imported profile is missing).
-const compat = read('src/compat.rs').replace(/#\[cfg\(test\)\][\s\S]*$/, '');
-for (const m of compat.matchAll(new RegExp(String.raw`\bhint: Some\((${RS_STR})\)`, 'g'))) add(unq(m[1]), 'src/compat.rs (hint)');
 const builtin = read('src/builtin.rs');
 // Formatting-independent: rustfmt may put the def! arguments on separate lines.
 for (const m of builtin.matchAll(/def!\(\s*\w+,\s*"[^"]+",\s*"([^"]+)",\s*"([^"]+)"/g)) {

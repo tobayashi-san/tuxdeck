@@ -99,6 +99,14 @@ pub fn file_name(kind: &str) -> String {
     format!("{kind}-{}.zip", chrono::Local::now().format("%Y-%m-%d-%H%M%S"))
 }
 
+/// Automatic backup before a change to the profiles (`kind`: "before-convert").
+pub fn before_change(paths: &Paths, kind: &str) -> Result<PathBuf> {
+    let out = dir(paths).join(file_name(kind));
+    create(paths, &out, Options { plugins: false, icon_packs: false })?;
+    prune(paths);
+    Ok(out)
+}
+
 /// Daily automatic backup (profiles, settings, plugin data; not plugins and icon packs,
 /// which can be installed again), once per day.
 pub fn daily(paths: &Paths) -> Result<Option<PathBuf>> {
@@ -115,7 +123,7 @@ pub fn daily(paths: &Paths) -> Result<Option<PathBuf>> {
 
 /// Keep the newest automatic backups of each kind.
 fn prune(paths: &Paths) {
-    for kind in ["daily-", "before-restore-"] {
+    for kind in ["daily-", "before-restore-", "before-convert-"] {
         let mut files: Vec<PathBuf> =
             fs::read_dir(dir(paths)).into_iter().flatten().flatten().map(|e| e.path()).filter(|p| file_str(p).starts_with(kind)).collect();
         files.sort();
@@ -141,7 +149,7 @@ pub fn list(paths: &Paths) -> Vec<Value> {
             let m = e.metadata().ok()?;
             let name = e.file_name().to_string_lossy().into_owned();
             let modified: chrono::DateTime<chrono::Local> = m.modified().ok()?.into();
-            let kind = name.split('-').next().unwrap_or("").to_string();
+            let kind = if name.starts_with("before-convert-") { "convert".to_string() } else { name.split('-').next().unwrap_or("").to_string() };
             Some((name.clone(), json!({"name": name, "kind": kind, "size": m.len(), "created": modified.to_rfc3339()})))
         })
         .collect();

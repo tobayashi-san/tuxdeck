@@ -1378,7 +1378,7 @@ async function suiteSmall(d, model, keys) {
   });
 }
 
-/** Imported Windows/macOS keys: report, Linux counterparts, replacements (no network). */
+/** Converting keys from a Windows/macOS profile into Linux actions (no network needed). */
 async function suiteCompat(d) {
   const st = await d.state();
   const P = st.devices[0].profile;
@@ -1386,45 +1386,35 @@ async function suiteCompat(d) {
   const key = (uuid, title, settings = {}) => ({ UUID: uuid, Name: title || uuid, Settings: settings, State: 0, States: [{ Title: title }] });
   const paste = (coord, inst) => d.post(`/api/pages/${P}/${pg}/paste`, { controller: 'Keypad', coord, instance: inst, from_profile: P, from_page: pg });
   await paste('0,0', key('com.elgato.streamdeck.system.open', 'Microsoft\nOutlook', { path: '"C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE"' }));
-  await paste('1,0', key('com.elgato.streamdeck.system.open', 'Nintendo', { path: '' }));
+  await paste('1,0', key('com.elgato.streamdeck.system.open', 'Riot Games', { path: '"C:\\\\ProgramData\\\\Riot Games\\\\RiotClientServices.exe"' }));
   await paste('2,0', key('com.barraider.spotifyplaypause', ''));
   await paste('3,0', key('com.microsoft.teams.button.togglemute', ''));
   await paste('0,1', key('com.elgato.twitch.marker', ''));
 
-  await test('compat: report groups missing plugins and resolves applications', async () => {
-    const r = await d.get(`/api/profiles/${P}/compat`);
-    const g = (id) => r.groups.find((x) => x.group === id);
-    eq([g('spotify')?.builtin, g('teams')?.replace, g('twitch')?.unavailable], [1, 1, 1]);
-    const app = (t) => r.apps.find((a) => a.title === t);
-    eq([app('Microsoft Outlook')?.kind, app('Microsoft Outlook')?.target], ['web', 'outlook.office.com/mail']);
-    eq(app('Nintendo')?.kind, 'none');
-    const kp = (await d.page()).controllers.find((c) => c.Type === 'Keypad').Actions;
-    eq([kp['0,0']._linux?.status, kp['2,0']._linux?.status, kp['3,0']._linux?.status, kp['0,1']._linux?.status], ['ok', 'ok', 'fix', 'missing']);
+  await test('convert: the plan lists what happens to the imported keys', async () => {
+    const plan = await d.get(`/api/profiles/${P}/conversion`);
+    eq(plan.needed, true);
+    eq(plan.web.map((w) => [w.title, w.target]), [['Microsoft Outlook', 'outlook.office.com/mail']]);
+    eq(plan.replaced.map((r) => r.keys).reduce((a, b) => a + b, 0), 2, 'Spotify → Multimedia, Teams → shortcut');
+    eq([...plan.manual].sort(), ['Riot Games', 'com.elgato.twitch.marker'].sort());
+    eq(plan.installs, []);
   });
 
-  await test('compat: keys open the Linux counterpart, Spotify runs via playerctl', async () => {
+  await test('convert: keys become regular Linux actions, titles and icons stay', async () => {
     const m = d.mark();
-    await d.press('Keypad', '0,0');
+    const r = await d.post(`/api/profiles/${P}/conversion`, {});
+    eq([r.changed, r.manual], [5, 2]);
+    const kp = (await d.page()).controllers.find((c) => c.Type === 'Keypad').Actions;
+    eq([kp['0,0'].UUID, kp['0,0'].Settings.path, kp['0,0'].States[0].Title], ['com.elgato.streamdeck.system.website', 'https://outlook.office.com/mail/', 'Microsoft\nOutlook']);
+    eq([kp['1,0'].UUID, kp['1,0'].Settings.path, kp['1,0'].States[0].Title], ['com.elgato.streamdeck.system.open', '', 'Riot Games']);
+    eq([kp['2,0'].UUID, kp['2,0'].Settings.actionIdx], ['com.elgato.streamdeck.system.multimedia', 1]);
+    eq([kp['3,0'].UUID, kp['3,0'].Settings.Hotkeys[0].LinuxCode], ['com.elgato.streamdeck.system.hotkey', 50]);
+    eq(kp['0,1'].UUID, 'com.elgato.streamdeck.system.open');
+    eq((await d.get(`/api/profiles/${P}/conversion`)).needed, false, 'nothing left to convert');
+    assert((await d.get('/api/backups')).some((b) => b.kind === 'convert'), 'backup before converting');
     await d.press('Keypad', '2,0');
     await sleep(300);
-    assert(d.logsSince(m, /DRYRUN exec "xdg-open" "https:\/\/outlook\.office\.com/).length === 1, 'Outlook opens the web version');
-    assert(d.logsSince(m, /DRYRUN playerctl -p spotify play-pause/).length === 1, 'playerctl');
-    const m2 = d.mark();
-    await d.press('Keypad', '1,0');
-    await sleep(300);
-    assert(d.logsSince(m2, /Nintendo/).length >= 1, 'a missing application is reported');
-  });
-
-  await test('compat: Teams buttons become keyboard shortcuts', async () => {
-    const out = await d.post(`/api/profiles/${P}/compat`, { group: 'teams' });
-    eq(out.changed, 1);
-    const kp = (await d.page()).controllers.find((c) => c.Type === 'Keypad').Actions;
-    eq(kp['3,0'].UUID, 'com.elgato.streamdeck.system.hotkey');
-    eq([kp['3,0'].Settings.Hotkeys[0].KeyCtrl, kp['3,0'].Settings.Hotkeys[0].KeyShift, kp['3,0'].Settings.Hotkeys[0].LinuxCode], [true, true, 50]);
-    const m = d.mark();
-    await d.press('Keypad', '3,0');
-    await sleep(300);
-    assert(d.logsSince(m, /DRYRUN/).length >= 1, 'the shortcut is sent');
+    assert(d.logsSince(m, /DRYRUN/).length >= 1, 'the converted media key works');
   });
 }
 
@@ -1673,8 +1663,7 @@ const GROUPS = [
   { model: 'neo', name: 'neo: plugins', run: suiteNeoPlugins },
   { model: 'neo', name: 'neo: system', run: suiteNeoSystem },
   { model: 'neo', name: 'neo: backup', run: suiteBackup },
-  // Unknown and missing applications are reported as warnings.
-  { model: 'neo', name: 'neo: compat', run: suiteCompat, allow: /Nintendo|not installed|nicht installiert/ },
+  { model: 'neo', name: 'neo: convert', run: suiteCompat },
   // The deliberately crashing test plugin also runs (and is given up) in the outer instance.
   { model: 'neo', name: 'neo: linux-check', run: suiteLinuxCheck, allow: /Plugin com\.e2e\.crash exited/ },
   // Refused packages and links are logged as errors.

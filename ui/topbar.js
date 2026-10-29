@@ -1,5 +1,6 @@
 // Top bar: device and profile selection, brightness, profile menu, import, settings.
 
+import { afterProfileImport } from './compat.js';
 import { MODELS, S, api, compatibleModel, currentDevice, debounce, enc, h, liveDevice, modelName, profileById } from './store.js';
 import { askText, confirmDialog, contextMenu, modal, restoreFocus, toast } from './dialogs.js';
 import { flushEditor } from './editor.js';
@@ -252,6 +253,7 @@ export async function importFile(f) {
     } else {
       toast(t('Profile imported'), 'info', 3000);
       await activateProfile(r?.id);
+      if (r?.id) await afterProfileImport(r.id);
     }
   } catch (e) {
     toast(t('Import failed: {msg}', { msg: e.message }), 'error');

@@ -633,8 +633,6 @@ async fn paste_slot(State(sh): State<Shared>, Path((profile, page)): Path<(Strin
     if let Some(o) = inst.settings.as_object_mut() {
         o.retain(|k, _| !k.starts_with("_actions"));
     }
-    // ... and the Linux note of imported keys (`Engine::linux_info`).
-    inst.extra.remove("_linux");
     let mut inst = crate::engine::with_new_ids(&inst);
     let mut e = sh.lock();
     let dst_dir = e.profiles.get(&profile).ok_or_else(|| not_found("Profile"))?.page_dir(&page);

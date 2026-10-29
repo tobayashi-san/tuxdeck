@@ -1,6 +1,6 @@
-// Imported profiles: the banner above the deck and the "Make it work on Linux" dialog.
-// The daemon reports what a profile needs (/api/profiles/{id}/compat): missing plugins
-// grouped by what can be done about them, and the applications its Open keys start here.
+// Profiles from the official app on Windows/macOS: right after importing one, TuxDeck
+// offers to convert it into a regular Linux profile; profiles imported earlier get a
+// small banner with the same offer. Nobody else ever sees any of this.
 
 import { S, api, enc, h } from './store.js';
 import { t, tn } from './i18n.js';
@@ -8,19 +8,13 @@ import { modal, toast } from './dialogs.js';
 
 let shownFor = null;
 
-/** Fetch the report again on the next render (plugins or the profile changed). */
+/** Check again on the next render (plugins or the profile changed). */
 export function markCompatDirty() {
   shownFor = null;
 }
 
-const fetchReport = (profile) => api(`/api/profiles/${enc(profile)}/compat`);
-
-/** Keys that don't work yet: replaceable, installable or unavailable plugin actions and
- * applications without a Linux counterpart. */
-function openIssues(r) {
-  const plugins = r.groups.reduce((n, g) => n + g.replace + g.install + g.unavailable + g.unknown, 0);
-  return plugins + r.apps.filter((a) => a.kind === 'none').length;
-}
+const fetchPlan = (profile) => api(`/api/profiles/${enc(profile)}/conversion`);
+const dismissKey = (profile) => `tuxdeck.convert-dismissed.${profile}`;
 
 export async function updateCompatBanner() {
   const box = document.getElementById('compat-banner');
@@ -28,99 +22,74 @@ export async function updateCompatBanner() {
   if (!box || shownFor === profile) return;
   shownFor = profile;
   box.hidden = true;
-  if (!profile) return;
-  let r;
+  if (!profile || localStorage.getItem(dismissKey(profile))) return;
+  let plan;
   try {
-    r = await fetchReport(profile);
+    plan = await fetchPlan(profile);
   } catch {
     return;
   }
-  if (S.view.profile !== profile) return;
-  const n = openIssues(r);
-  const dismissKey = `tuxdeck.compat-dismissed.${profile}`;
-  if (!n || localStorage.getItem(dismissKey) === String(n)) return;
+  if (S.view.profile !== profile || !plan.needed) return;
   box.replaceChildren(
-    h('span.compat-text', null, tn(n, '{n} key in this profile needs a Linux counterpart.', '{n} keys in this profile need a Linux counterpart.')),
-    h('button.btn.small.primary', { onclick: () => openCompatDialog(profile) }, t('Make it work on Linux…')),
+    h('span.compat-text', null, t('This profile comes from Windows or macOS.')),
+    h('button.btn.small.primary', { onclick: () => offerConversion(profile) }, t('Convert for Linux…')),
     h('button.compat-close', {
       title: t('Hide'),
       'aria-label': t('Hide'),
-      onclick: () => { localStorage.setItem(dismissKey, String(n)); box.hidden = true; },
+      onclick: () => { localStorage.setItem(dismissKey(profile), '1'); box.hidden = true; },
     }, '×'));
   box.hidden = false;
 }
 
-function groupRow(g, profile, refresh) {
-  const plugin = g.plugin?.name;
-  const keys = tn(g.keys, '{n} key', '{n} keys');
-  let status;
-  let button = null;
-  const fix = async (label) => {
-    button.disabled = true;
-    button.textContent = t('Working…');
-    try {
-      const r = await api(`/api/profiles/${enc(profile)}/compat`, { method: 'POST', body: { group: g.group } });
-      toast(r.changed ? tn(r.changed, '{n} key replaced.', '{n} keys replaced.') : t('{name} installed.', { name: plugin || g.name }), 'info');
-      markCompatDirty();
-      await refresh();
-    } catch (e) {
-      toast(e.message, 'error', 8000);
-      button.disabled = false;
-      button.textContent = label;
-    }
-  };
-  if (g.replace) {
-    const label = plugin ? t('Replace with {plugin}', { plugin }) : t('Use keyboard shortcuts');
-    status = tn(g.replace, '{n} key can be replaced.', '{n} keys can be replaced.');
-    button = h('button.btn.small.primary', { type: 'button', onclick: () => fix(label) }, label);
-  } else if (g.install) {
-    const label = t('Install {plugin}', { plugin });
-    status = t('The same plugin is in the catalogue.');
-    button = h('button.btn.small.primary', { type: 'button', onclick: () => fix(label) }, label);
-  } else if (g.builtin) {
-    status = t('Works: TuxDeck does this itself.');
-  } else if (g.unknown) {
-    status = t('Not in the catalogue. If you have the plugin file, install it under Plugins → Install from file.');
-  } else {
-    status = t('Not available on Linux.');
+/** After importing a profile: offer the conversion if it needs one. */
+export async function afterProfileImport(profile) {
+  try {
+    const plan = await fetchPlan(profile);
+    if (plan.needed) await offerConversion(profile, plan);
+  } catch { /* offline or gone: the banner offers it later */ }
+}
+
+function section(count, label, items) {
+  if (!count) return null;
+  const list = items?.length ? h('ul.convert-list', null, items.map((x) => h('li', null, x))) : null;
+  return h('div.convert-item', null, h('div.convert-head', null, label), list);
+}
+
+/** One chip per distinct program (two Outlook keys show once). */
+const uniqueApps = (list) => [...new Map(list.map((a) => [`${a.title}\n${a.target}`, a])).values()];
+const appItem = (a) => h('span', null, a.title || a.target, a.title && a.title !== a.target ? h('span.convert-to', null, ` → ${a.target}`) : null);
+
+async function offerConversion(profile, plan = null) {
+  plan ??= await fetchPlan(profile);
+  if (!plan.needed) return;
+  const keys = (list) => list.reduce((n, x) => n + x.keys, 0);
+  const body = h('div.convert', null,
+    h('p.convert-intro', null, t('It was made with the Stream Deck app on Windows or macOS. TuxDeck can turn it into a regular Linux profile; titles and icons stay as they are.')),
+    section(plan.programs.length, tn(plan.programs.length, '{n} key opens its Linux program', '{n} keys open their Linux programs'), uniqueApps(plan.programs).map(appItem)),
+    section(plan.web.length, tn(plan.web.length, '{n} key opens the web version', '{n} keys open the web version'), uniqueApps(plan.web).map(appItem)),
+    section(plan.folders.length, tn(plan.folders.length, '{n} key opens a folder', '{n} keys open a folder'), uniqueApps(plan.folders).map(appItem)),
+    section(keys(plan.replaced), tn(keys(plan.replaced), '{n} key switches to a Linux action', '{n} keys switch to Linux actions'),
+      plan.replaced.map((r) => `${r.name} · ${tn(r.keys, '{n} key', '{n} keys')}`)),
+    section(plan.manual.length, tn(plan.manual.length,
+      '{n} key has no Linux counterpart: it keeps its title and icon and waits for a command of your own',
+      '{n} keys have no Linux counterpart: they keep their title and icon and wait for a command of your own'), [...new Set(plan.manual)]),
+    plan.installs.length ? h('p.convert-note', null, t('Installs from the catalogue: {plugins}', { plugins: plan.installs.map((p) => p.name).join(', ') })) : null,
+    h('p.convert-note', null, t('A backup is made first (Settings → Backups).')));
+  const choice = await modal(t('Convert for Linux?'), body, [
+    { label: t('Not now'), value: 'later' },
+    { label: t('Convert'), value: 'convert', primary: true },
+  ]);
+  if (choice !== 'convert') return;
+  toast(t('Converting…'), 'info', 2500);
+  try {
+    const r = await api(`/api/profiles/${enc(profile)}/conversion`, { method: 'POST' });
+    toast(r.manual
+      ? tn(r.manual, 'Profile converted. {n} key still needs a command.', 'Profile converted. {n} keys still need a command.')
+      : t('Profile converted.'), 'info', 6000);
+    if (r.failed?.length) toast(t('Could not install: {plugins}', { plugins: r.failed.join(', ') }), 'warn', 9000);
+  } catch (e) {
+    toast(e.message, 'error', 8000);
   }
-  const rest = (g.replace || g.builtin) && g.unavailable ? tn(g.unavailable, '{n} key has no counterpart.', '{n} keys have no counterpart.') : null;
-  const ok = !g.replace && !g.install && !g.unavailable && !g.unknown;
-  return h('div.compat-row', { class: ok ? 'ok' : g.replace || g.install ? 'fix' : 'missing' },
-    h('div.compat-main', null,
-      h('div.compat-name', null, g.name, h('span.compat-keys', null, keys)),
-      h('div.compat-status', null, [status, rest].filter(Boolean).join(' ')),
-      g.hint && (g.unavailable || !g.replace) ? h('div.compat-hint', null, g.hint) : null),
-    button);
-}
-
-function appRow(a) {
-  const target = a.kind === 'none' ? t('not installed') : a.kind === 'web' ? t('{target} (web)', { target: a.target }) : a.target;
-  return h('div.compat-app', { class: a.kind === 'none' ? 'missing' : 'ok' },
-    h('span.compat-app-title', null, (a.title || a.path).replace(/\s+/g, ' ')),
-    h('span.compat-arrow', null, '→'),
-    h('span.compat-app-target', null, target));
-}
-
-export async function openCompatDialog(profile = S.view.profile) {
-  const body = h('div.compat-dialog');
-  const render = (r) => {
-    const parts = [h('p.compat-intro', null, t('Profiles from Windows and macOS use plugins and programs that work differently here. This is what TuxDeck can do about them.'))];
-    if (r.groups.length) {
-      parts.push(h('h3', null, t('Plugins')));
-      for (const g of r.groups) parts.push(groupRow(g, profile, refresh));
-    }
-    if (r.apps.length) {
-      parts.push(h('h3', null, t('Applications')));
-      parts.push(h('p.compat-intro', null, t('Keys that open Windows or macOS programs start the Linux version, or the web version where there is none.')));
-      parts.push(h('div.compat-apps', null, r.apps.map(appRow)));
-    }
-    if (!r.groups.length && !r.apps.length) parts.push(h('p', null, t('Everything in this profile works on Linux.')));
-    body.replaceChildren(...parts);
-  };
-  const refresh = async () => render(await fetchReport(profile));
-  await refresh();
-  await modal(t('Make it work on Linux'), body, [{ label: t('Close'), value: 'close', primary: true }]);
   markCompatDirty();
   updateCompatBanner();
 }

@@ -5,7 +5,7 @@ import { confirmDialog, toast } from './dialogs.js';
 import { t } from './i18n.js';
 import { $ } from './dom.js';
 
-const kindLabel = (k) => (k === 'daily' ? t('Daily backup') : k === 'before' ? t('Before restoring') : t('Backup'));
+const kindLabel = (k) => (k === 'daily' ? t('Daily backup') : k === 'before' ? t('Before restoring') : k === 'convert' ? t('Before converting a profile') : t('Backup'));
 
 function sizeLabel(bytes) {
   return bytes >= 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1e3))} kB`;
