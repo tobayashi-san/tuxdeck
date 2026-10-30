@@ -7,7 +7,8 @@
 //! and an imported `/Applications/Firefox.app` match a Firefox window.
 //!
 //! Focus sources: Hyprland's event socket (`activewindow>>class,title`), otherwise
-//! polling `xprop` on X11. Disabled with `TUXDECK_NO_WINDOW_WATCH=1` (tests).
+//! polling `xprop` in an X11 session (not XWayland). Disabled with
+//! `TUXDECK_NO_WINDOW_WATCH=1` (tests).
 
 use crate::engine::Shared;
 use std::io::{BufRead, BufReader};
@@ -129,7 +130,7 @@ pub fn spawn_watcher(sh: Shared) {
                 }
                 std::thread::sleep(Duration::from_secs(3));
             }
-        } else if std::env::var_os("DISPLAY").is_some() && Command::new("xprop").arg("-version").output().is_ok() {
+        } else if x11_session() && Command::new("xprop").arg("-version").output().is_ok() {
             tracing::info!("Smart Profiles: active window via xprop (X11)");
             let mut last = String::new();
             loop {
@@ -141,14 +142,34 @@ pub fn spawn_watcher(sh: Shared) {
                 std::thread::sleep(Duration::from_millis(800));
             }
         } else {
-            tracing::info!("Smart Profiles: no supported desktop (Hyprland or X11) found");
+            tracing::info!("Smart Profiles: off (the active window is only known on Hyprland and X11)");
         }
     });
+}
+
+/// A plain X11 session. On GNOME and KDE under Wayland `DISPLAY` is set as well, but
+/// xprop only sees XWayland windows there and would switch profiles at random.
+fn x11_session() -> bool {
+    let var = |k: &str| std::env::var(k).unwrap_or_default();
+    is_x11(&var("DISPLAY"), &var("WAYLAND_DISPLAY"), &var("XDG_SESSION_TYPE"))
+}
+
+fn is_x11(display: &str, wayland_display: &str, session_type: &str) -> bool {
+    !display.is_empty() && wayland_display.is_empty() && !session_type.eq_ignore_ascii_case("wayland")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn x11_only_without_wayland() {
+        assert!(is_x11(":0", "", "x11"));
+        assert!(is_x11(":0", "", ""));
+        assert!(!is_x11(":0", "wayland-0", "wayland"));
+        assert!(!is_x11(":0", "", "wayland"));
+        assert!(!is_x11("", "", "x11"));
+    }
 
     #[test]
     fn matching() {

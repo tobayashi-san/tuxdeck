@@ -299,6 +299,24 @@ pub fn exec_command(exec: &str) -> String {
     out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// The command a key stores for a desktop entry: its `Exec` without field codes, with a
+/// program given by absolute path (as in the Nix store) shortened to its name when that
+/// name on `PATH` is the same file, so the key survives the next system update.
+pub fn launch_command(exec: &str) -> String {
+    short_program(&exec_command(exec), &std::env::var("PATH").unwrap_or_default())
+}
+
+fn short_program(cmd: &str, path: &str) -> String {
+    let (program, args) = cmd.split_once(' ').unwrap_or((cmd, ""));
+    let p = Path::new(program);
+    let (Some(name), Ok(real)) = (p.file_name().filter(|_| p.is_absolute()), p.canonicalize()) else { return cmd.to_string() };
+    // The first one on PATH is what a shell runs.
+    match std::env::split_paths(path).map(|d| d.join(name)).find(|c| c.exists()) {
+        Some(c) if c.canonicalize().is_ok_and(|c| c == real) => format!("{} {args}", name.to_string_lossy()).trim_end().to_string(),
+        _ => cmd.to_string(),
+    }
+}
+
 /// Installed desktop applications (rescanned at most every 30 seconds).
 pub fn installed() -> Arc<Vec<DesktopApp>> {
     type Cached = Option<(Instant, Arc<Vec<DesktopApp>>)>;
@@ -453,5 +471,26 @@ mod tests {
     fn exec_field_codes() {
         assert_eq!(exec_command("steam %U"), "steam");
         assert_eq!(exec_command("foo --name=%c 100%%"), "foo --name= 100%");
+    }
+
+    #[test]
+    fn store_paths_become_names() {
+        let d = std::env::temp_dir().join(format!("tuxdeck-apps-test-{}", std::process::id()));
+        let (store, bin, other) = (d.join("store/brave-1/bin"), d.join("profile/bin"), d.join("other/bin"));
+        for x in [&store, &bin, &other] {
+            std::fs::create_dir_all(x).unwrap();
+        }
+        std::fs::write(store.join("brave"), "").unwrap();
+        std::fs::write(other.join("brave"), "").unwrap();
+        std::os::unix::fs::symlink(store.join("brave"), bin.join("brave")).unwrap();
+        let exe = store.join("brave").display().to_string();
+        let path = |dirs: &[&PathBuf]| std::env::join_paths(dirs).unwrap().into_string().unwrap();
+        assert_eq!(short_program(&format!("{exe} --incognito"), &path(&[&bin])), "brave --incognito");
+        assert_eq!(short_program(&exe, &path(&[&bin])), "brave");
+        // Another brave comes first on PATH, or none is there: keep the full path.
+        assert_eq!(short_program(&exe, &path(&[&other, &bin])), exe);
+        assert_eq!(short_program(&exe, ""), exe);
+        assert_eq!(short_program("alacritty -e top", &path(&[&bin])), "alacritty -e top");
+        std::fs::remove_dir_all(&d).unwrap();
     }
 }

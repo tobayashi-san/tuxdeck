@@ -138,13 +138,13 @@ impl Engine {
             let page = p.pages.get_mut(&page_id).unwrap();
             for (n, key) in keys.iter().enumerate().take(cols * rows) {
                 let (uuid, settings) = match key.action {
+                    // Not installed: no command, the key waits for one of the user's own.
                     Do::App(name) => (
                         OPEN,
-                        json!({"path": crate::apps::resolve("", name).map(|t| match t {
-                        crate::apps::Target::App { exec, .. } => crate::apps::exec_command(&exec),
-                        crate::apps::Target::Url(u) => format!("xdg-open {u}"),
-                        dir @ crate::apps::Target::Dir(_) => dir.label(),
-                    }).unwrap_or_default()}),
+                        json!({"path": match crate::apps::resolve("", name) {
+                            Some(crate::apps::Target::App { exec, .. }) => crate::apps::launch_command(&exec),
+                            _ => String::new(),
+                        }}),
                     ),
                     Do::Open(path) => (OPEN, json!({"path": path})),
                     Do::Website(url) => (WEBSITE, json!({"openInBrowser": true, "path": url})),

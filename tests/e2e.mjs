@@ -3255,6 +3255,7 @@ async function suiteConvertEdge(d) {
     eq(play.failed, ['me.amankhanna.oadiscord']);
     const pk = (await d.page(play.id, (await d.state()).profiles.find((p) => p.id === play.id).pages[0])).controllers.find((c) => c.Type === 'Keypad').Actions;
     eq([pk['0,0'].States[0].Title, pk['0,0'].Settings.path], ['Steam', 'e2e-steam-launcher'], 'installed program found');
+    eq([pk['1,0'].States[0].Title, pk['1,0'].Settings.path], ['Heroic', ''], 'a program that is not installed gets no command');
     await d.del(`/api/profiles/${r.id}`);
     await d.del(`/api/profiles/${play.id}`);
   });

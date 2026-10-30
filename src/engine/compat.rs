@@ -181,7 +181,7 @@ impl Engine {
                     walk(&mut v, &mut |o| {
                         let (uuid, settings) = match self.plan_key(o, catalogue) {
                             None => return,
-                            Some(Plan::Open(Target::App { exec, .. })) => (OPEN.to_string(), json!({"path": apps::exec_command(&exec)})),
+                            Some(Plan::Open(Target::App { exec, .. })) => (OPEN.to_string(), json!({"path": apps::launch_command(&exec)})),
                             Some(Plan::Open(Target::Url(url))) => (WEBSITE.to_string(), json!({"openInBrowser": true, "path": url})),
                             Some(Plan::Open(t @ Target::Dir(_))) => (OPEN.to_string(), json!({"path": t.label()})),
                             Some(Plan::Replace { group, to }) => match compat::replacement_uuid(group, to) {
