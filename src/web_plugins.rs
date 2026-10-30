@@ -197,6 +197,9 @@ async fn convert_profile(State(sh): State<Shared>, Path(profile): Path<String>) 
             let (sh2, p, l) = (sh.clone(), profile.clone(), list.clone());
             tokio::task::spawn_blocking(move || sh2.lock().conversion_plan(&p, &l)).await??
         };
+        if plan["needed"] != true {
+            return Ok(json!({"changed": 0, "manual": 0, "failed": []}));
+        }
         let paths = sh.lock().paths.clone();
         tokio::task::spawn_blocking(move || crate::backup::before_change(&paths, "before-convert")).await??;
         let mut failed = Vec::new();

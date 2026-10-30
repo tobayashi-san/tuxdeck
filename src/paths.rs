@@ -236,8 +236,20 @@ fn sdk_port() -> u16 {
 
 impl Settings {
     pub fn load(p: &Paths) -> Settings {
-        let mut s: Settings =
-            std::fs::read(p.settings_file()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_else(|| serde_json::from_str("{}").unwrap());
+        let file = p.settings_file();
+        let parsed = std::fs::read(&file).ok().map(|b| serde_json::from_slice::<Settings>(&b));
+        let mut s = match parsed {
+            Some(Ok(s)) => s,
+            Some(Err(e)) => {
+                // Keep the broken file: the next save would otherwise replace the user's
+                // device, plugin and profile settings with the defaults.
+                let keep = file.with_file_name(format!("settings.json.broken-{}", chrono::Local::now().format("%Y%m%d-%H%M%S")));
+                let _ = std::fs::rename(&file, &keep);
+                tracing::warn!("{} is not valid ({e}); kept as {} and started with default settings", file.display(), keep.display());
+                serde_json::from_str("{}").unwrap()
+            }
+            None => serde_json::from_str("{}").unwrap(),
+        };
         if s.checks_repo == OLD_CHECKS_REPO {
             s.checks_repo = checks_repo();
         }
@@ -448,5 +460,20 @@ mod tests {
         assert_eq!(std::fs::read_to_string(d.join("z/b/c/deep")).unwrap(), "2");
         assert!(copy_dir(&d.join("missing"), &d.join("y")).is_err());
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn broken_settings_are_kept() {
+        let d = tmp("broken");
+        let paths = Paths { data: d.join("data"), config: d.join("config") };
+        std::fs::create_dir_all(&paths.config).unwrap();
+        std::fs::write(paths.settings_file(), br#"{"ui_port": "high", "devices": {"X": {"profile": "P", "brightness": 40}}}"#).unwrap();
+        let s = Settings::load(&paths);
+        assert_eq!(s.ui_port, 47800);
+        assert!(!paths.settings_file().exists(), "broken file moved away before anything overwrites it");
+        let kept: Vec<_> =
+            std::fs::read_dir(&paths.config).unwrap().flatten().filter(|e| e.file_name().to_string_lossy().starts_with("settings.json.broken-")).collect();
+        assert_eq!(kept.len(), 1);
+        assert!(std::fs::read_to_string(kept[0].path()).unwrap().contains("\"brightness\": 40"));
     }
 }

@@ -66,7 +66,8 @@ struct Access {
 
 const TOKEN_COOKIE: &str = "tuxdeck_token";
 
-/// The API token of a request: cookie (browser UI), `X-Tuxdeck-Token` or bearer header.
+/// The API token of a request: `X-Tuxdeck-Token` or bearer header, else the cookie of
+/// the browser UI (an explicit header wins over a stale cookie).
 fn request_token(headers: &HeaderMap) -> Option<&str> {
     let cookie = headers
         .get_all(header::COOKIE)
@@ -74,9 +75,11 @@ fn request_token(headers: &HeaderMap) -> Option<&str> {
         .filter_map(|v| v.to_str().ok())
         .flat_map(|v| v.split(';'))
         .find_map(|c| c.trim().strip_prefix(TOKEN_COOKIE)?.strip_prefix('='));
-    cookie
-        .or_else(|| headers.get("x-tuxdeck-token").and_then(|v| v.to_str().ok()))
+    headers
+        .get("x-tuxdeck-token")
+        .and_then(|v| v.to_str().ok())
         .or_else(|| headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("Bearer ")))
+        .or(cookie)
 }
 
 async fn guard(State(access): State<Access>, req: axum::extract::Request, next: axum::middleware::Next) -> Response {

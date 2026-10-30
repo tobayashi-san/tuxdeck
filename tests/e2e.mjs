@@ -1624,6 +1624,27 @@ async function suiteCompat(d) {
     assert(d.logsSince(m, /DRYRUN/).length >= 1, 'the converted media key works');
   });
 
+  await test('convert: nothing to convert makes no backup', async () => {
+    const before = (await d.get('/api/backups')).length;
+    const r = await d.post(`/api/profiles/${P}/conversion`, {});
+    eq([r.changed, r.manual], [0, 0]);
+    eq((await d.get('/api/backups')).length, before);
+  });
+
+  await test('website: tel: links stay tel:, host:port gets https://', async () => {
+    await paste('0,1', key('com.elgato.streamdeck.system.website', 'Call', { path: 'tel:0791234567', openInBrowser: true }));
+    await paste('1,1', key('com.elgato.streamdeck.system.website', 'NAS', { path: 'nas.local:5000', openInBrowser: true }));
+    const m = d.mark();
+    await d.press('Keypad', '0,1');
+    await d.press('Keypad', '1,1');
+    await sleep(300);
+    eq(d.logsSince(m, /DRYRUN exec "xdg-open"/).map((l) => l.split('"xdg-open" ')[1]), ['"tel:0791234567"', '"https://nas.local:5000"']);
+  });
+
+  await test('api: an explicit token header wins over a stale cookie', async () => {
+    eq(await d.status('GET', '/api/state', undefined, { cookie: 'tuxdeck_token=stale' }), 200);
+  });
+
   await test('samples: the Work profile is created with its icons and working keys', async () => {
     const list = await d.get('/api/templates');
     eq(list.map((x) => x.id), ['stream', 'work', 'play']);
@@ -3208,17 +3229,15 @@ async function suiteConvertEdge(d) {
     await linuxChecksDone(d);
   });
 
-  await test('converting twice changes nothing more; each run keeps its own backup of the state before', async () => {
+  await test('converting twice changes nothing more; only real conversions make a backup', async () => {
     eq((await d.get(`/api/profiles/${id}/conversion`)).needed, false);
     eqc(await d.post(`/api/profiles/${id}/conversion`, {}), { changed: 0, manual: 0, failed: [] });
     const backups = (await d.get('/api/backups')).filter((b) => b.kind === 'convert').map((b) => b.name).sort();
-    eq(backups.length, 3, `one backup per conversion: ${backups}`);
+    eq(backups.length, 1, `one backup for the one real conversion (none when there was nothing to convert): ${backups}`);
     const pageOf = async (name) => Object.entries(unzipAll(await d.get(`/api/backups/${encodeURIComponent(name)}`)))
       .filter(([n]) => n.startsWith(`ProfilesV2/${id}.sdProfile/Profiles/${pages[0].toUpperCase()}/`) && n.endsWith('manifest.json'))
       .map(([, v]) => v.toString()).join('');
-    const firstOfImported = backups[1];
-    assert((await pageOf(firstOfImported)).includes('/Applications/Steam.app'), 'the backup before the first conversion has the original keys');
-    assert((await pageOf(backups[2])).includes('e2e-steam-launcher'), 'the second one the converted keys');
+    assert((await pageOf(backups[0])).includes('/Applications/Steam.app'), 'the backup before the conversion has the original keys');
     await d.post(`/api/devices/${dev}`, { profile: P });
   });
 

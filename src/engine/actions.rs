@@ -371,10 +371,13 @@ impl Engine {
                     bail!(crate::tr!("no URL set"));
                 }
                 // Add https:// only to bare host names, not to mailto:, tel:, steam: etc.
+                // A digit after the colon is a port ("nas.local:5000"), except for schemes
+                // whose content starts with digits ("tel:0791234567").
                 let has_scheme = url.split_once(':').is_some_and(|(scheme, rest)| {
                     scheme.len() > 1
                         && scheme.chars().all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c))
-                        && !rest.chars().next().is_some_and(|c| c.is_ascii_digit())
+                        && (!rest.chars().next().is_some_and(|c| c.is_ascii_digit())
+                            || ["tel", "sms", "callto", "fax", "geo"].contains(&scheme.to_ascii_lowercase().as_str()))
                 });
                 if !has_scheme {
                     url = format!("https://{url}");
