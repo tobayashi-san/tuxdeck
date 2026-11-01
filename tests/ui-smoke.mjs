@@ -1095,6 +1095,48 @@ async function suiteNeo(d, b) {
     await until(async () => !(await st0()).Background, 'background removed');
   });
 
+  await test('colour pickers stay open while a colour is picked (their field is not replaced)', async () => {
+    // An open picker sends "input" events; it closes when its <input> leaves the page.
+    const picking = async (sel, what, saved) => {
+      await b.waitFor(`!!document.querySelector(${J(sel)})`, what);
+      await b.eval(`(() => { const e = document.querySelector(${J(sel)}); window.__picker = e;
+        for (const c of ['#123456', '#345678', '#56789a']) { e.value = c; e.dispatchEvent(new Event('input', { bubbles: true })); } })()`);
+      if (saved) await until(saved, `${what}: saved`);
+      await sleep(700); // page events and reloads after the save
+      assert(await b.eval('window.__picker.isConnected'), `${what}: the field was replaced (the picker would close)`);
+      await b.eval(`window.__picker.dispatchEvent(new Event('change', { bubbles: true }))`);
+    };
+    await selectSlot(b, 'Keypad', '0,0');
+    const st0 = async () => (await d.action('Keypad', '0,0')).States[0];
+    await picking('#editor .ed-titlecol input.color, #editor input.color[title="Title color"]', 'title colour', async () => (await st0()).TitleColor === '#56789a');
+    await picking('#editor .bg-custom', 'key background', async () => (await st0()).Background === '#56789a');
+    // The gradient dialog: colour and position of a colour stop.
+    await b.click('#editor .bg-gradient');
+    await b.waitDialog('Background gradient');
+    await picking('.grad-stop input.color', 'gradient colour');
+    await b.eval(`(() => { const r = document.querySelector('.grad-stop input[type=range]'); window.__picker = r; r.value = 40; r.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    assert(await b.eval('window.__picker.isConnected'), 'gradient position slider kept while dragging');
+    eq(await b.text('.grad-stop .tb-value'), '40%');
+    assert((await b.eval(`document.querySelector('.grad-css').value`)).includes('#56789a 40%'), 'CSS follows');
+    await b.dialogButton('Cancel');
+    await b.waitNoDialog();
+    // Settings forms: the info bar text action's colours.
+    const dev = await d.dev();
+    const clock = await d.action('Neo', '1,0');
+    await d.clear('Neo', '1,0');
+    await d.api(`/api/pages/${dev.profile}/${dev.page}/slot`, 'POST', { controller: 'Neo', coord: '1,0', uuid: 'dev.tuxdeck.infobar.text' });
+    await selectSlot(b, 'Neo', '1,0');
+    await picking('#editor .ed-settings input.color:not(.bg-custom)', 'text colour', async () => (await d.action('Neo', '1,0')).Settings.color === '#56789a');
+    await picking('#editor .ed-settings .bg-custom', 'info bar background', async () => (await d.action('Neo', '1,0')).Settings.background === '#56789a');
+    // A change still waiting to be saved is saved when another key is selected right away.
+    await b.set('#editor .ed-settings textarea', 'typed and gone');
+    await selectSlot(b, 'Keypad', '0,0');
+    await until(async () => (await d.action('Neo', '1,0')).Settings.text === 'typed and gone', 'pending text saved on leaving');
+    await d.clear('Neo', '1,0');
+    await d.api(`/api/pages/${dev.profile}/${dev.page}/slot`, 'POST', { controller: 'Neo', coord: '1,0', uuid: clock.UUID });
+    await d.api(`/api/pages/${dev.profile}/${dev.page}/slot`, 'PATCH', { controller: 'Neo', coord: '1,0', settings: clock.Settings });
+  });
+
   await test('canvas: a running timer redraws only its own key; nothing flickers', async () => {
     const dev = await d.dev();
     await d.api(`/api/pages/${dev.profile}/${dev.page}/slot`, 'POST', { controller: 'Keypad', coord: '2,0', uuid: 'com.elgato.streamdeck.system.timer' });

@@ -91,7 +91,9 @@ export async function editGradient(current) {
   const angleVal = h('span.tb-value');
   const angleRow = h('label.modal-field', null, h('span', null, t('Angle')), h('div.grad-angle', null, angle, angleVal));
 
-  const update = (fromCss = false) => {
+  // Preview, CSS text and angle; the colour rows are only rebuilt when colours are added or
+  // removed (rebuilding them while a colour picker is open would close the picker).
+  const refresh = (fromCss = false) => {
     const text = gradientCss(g);
     preview.style.background = text;
     if (!fromCss) css.value = text;
@@ -99,18 +101,24 @@ export async function editGradient(current) {
     angle.value = g.angle;
     angleVal.textContent = `${Math.round(g.angle)}°`;
     angleRow.hidden = g.type !== 'linear';
-    stopsBox.replaceChildren(...g.stops.map((s, i) => h('div.grad-stop', null,
-      h('input.color', { type: 'color', value: hex(s.color), 'aria-label': t('Colour {n}', { n: i + 1 }),
-        oninput: (e) => { s.color = e.target.value; update(); } }),
-      h('input', { type: 'range', min: 0, max: 100, step: 1, value: s.pos, 'aria-label': t('Position {n}', { n: i + 1 }),
-        oninput: (e) => { s.pos = Number(e.target.value); update(); } }),
-      h('span.tb-value', null, `${Math.round(s.pos)}%`),
-      h('button.icon-btn', { type: 'button', title: t('Remove colour'), disabled: g.stops.length <= 2,
-        onclick: () => { g.stops.splice(i, 1); update(); } }, icon('close')))),
+  };
+  const update = (fromCss = false) => {
+    refresh(fromCss);
+    stopsBox.replaceChildren(...g.stops.map((s, i) => {
+      const pos = h('span.tb-value', null, `${Math.round(s.pos)}%`);
+      return h('div.grad-stop', null,
+        h('input.color', { type: 'color', value: hex(s.color), 'aria-label': t('Colour {n}', { n: i + 1 }),
+          oninput: (e) => { s.color = e.target.value; refresh(); } }),
+        h('input', { type: 'range', min: 0, max: 100, step: 1, value: s.pos, 'aria-label': t('Position {n}', { n: i + 1 }),
+          oninput: (e) => { s.pos = Number(e.target.value); pos.textContent = `${Math.round(s.pos)}%`; refresh(); } }),
+        pos,
+        h('button.icon-btn', { type: 'button', title: t('Remove colour'), disabled: g.stops.length <= 2,
+          onclick: () => { g.stops.splice(i, 1); update(); } }, icon('close')));
+    }),
     g.stops.length < 6 ? h('button.btn.small', { type: 'button', onclick: () => { g.stops.push({ color: g.stops.at(-1).color, pos: 100 }); update(); } }, '+ ' + t('Colour')) : null);
   };
-  typeSel.addEventListener('change', () => { g.type = typeSel.value; update(); });
-  angle.addEventListener('input', () => { g.angle = Number(angle.value); update(); });
+  typeSel.addEventListener('change', () => { g.type = typeSel.value; refresh(); });
+  angle.addEventListener('input', () => { g.angle = Number(angle.value); refresh(); });
   css.addEventListener('input', () => {
     const p = parseGradient(css.value);
     note.textContent = p ? '' : t('Not a gradient TuxDeck understands (linear-gradient or radial-gradient).');

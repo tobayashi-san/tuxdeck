@@ -329,6 +329,8 @@ function buildEditor(sel, inst) {
         t('Show title')),
       h('input.color', {
         type: 'color', title: t('Title color'), value: normColor(st.TitleColor, '#ffffff'),
+        // While picking: debounced; the final colour right away.
+        oninput: (e) => setStyle({ TitleColor: e.target.value }, false),
         onchange: (e) => setStyle({ TitleColor: e.target.value }, true),
       })),
     h('div.title-tools', null,

@@ -100,6 +100,9 @@
 - **Gradient key backgrounds:** besides colours, keys can have a linear or radial gradient:
   ready-made ones, an editor (type, angle, up to six colours) and CSS pasted from
   cssgradient.io (`linear-gradient(…)`, `radial-gradient(…)`).
+- **Colour pickers:** the colour and position controls of the gradient editor no longer
+  close while picking; the title colour follows the picker live. A setting still waiting
+  to be saved (e.g. text typed just before selecting another key) is no longer lost.
 - **Move pages:** drag a page tab to a new place, or use "Move left/right" in its menu or
   Alt+←/→. "Go to Page" keys keep going to the same page (their numbers follow), the deck
   stays on the page it shows; the move can be undone from the message.

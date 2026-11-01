@@ -235,12 +235,15 @@ export function slotKey(controller, coord) {
 
 export function debounce(fn, ms) {
   let t = null;
+  let pending = [];
   const d = (...args) => {
     clearTimeout(t);
+    pending = args;
     t = setTimeout(() => { t = null; fn(...args); }, ms);
   };
+  // Run a pending call now (with its own arguments unless others are given).
   d.flush = (...args) => {
-    if (t) { clearTimeout(t); t = null; fn(...args); }
+    if (t) { clearTimeout(t); t = null; fn(...(args.length ? args : pending)); }
   };
   d.cancel = () => { clearTimeout(t); t = null; };
   return d;
