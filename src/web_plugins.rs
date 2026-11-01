@@ -179,9 +179,10 @@ async fn conversion_plan(State(sh): State<Shared>, Path(profile): Path<String>) 
     if !sh.lock().profiles.contains_key(&profile) {
         return Err(not_found("Profile"));
     }
-    // Offline the catalogue is unknown; the rest of the plan still works.
-    let list = catalogue::load().await.unwrap_or_default();
-    let plan = tokio::task::spawn_blocking(move || sh.lock().conversion_plan(&profile, &list)).await.map_err(|e| anyhow!(e))??;
+    // Offline the catalogue is unknown: keys of missing plugins wait, the rest of the plan works.
+    let list = catalogue::load().await.ok();
+    let plan =
+        tokio::task::spawn_blocking(move || sh.lock().conversion_plan(&profile, list.as_deref().map(|l| l.as_slice()))).await.map_err(|e| anyhow!(e))??;
     Ok(Json(plan))
 }
 
@@ -192,10 +193,10 @@ async fn convert_profile(State(sh): State<Shared>, Path(profile): Path<String>) 
         return Err(not_found("Profile"));
     }
     let r = async {
-        let list = catalogue::load().await.unwrap_or_default();
+        let list = catalogue::load().await.ok();
         let plan = {
             let (sh2, p, l) = (sh.clone(), profile.clone(), list.clone());
-            tokio::task::spawn_blocking(move || sh2.lock().conversion_plan(&p, &l)).await??
+            tokio::task::spawn_blocking(move || sh2.lock().conversion_plan(&p, l.as_deref().map(|l| l.as_slice()))).await??
         };
         if plan["needed"] != true {
             return Ok(json!({"changed": 0, "manual": 0, "failed": []}));
@@ -216,7 +217,7 @@ async fn convert_profile(State(sh): State<Shared>, Path(profile): Path<String>) 
             }
         }
         let sh2 = sh.clone();
-        let mut out = tokio::task::spawn_blocking(move || sh2.lock().convert_profile(&profile, &list)).await??;
+        let mut out = tokio::task::spawn_blocking(move || sh2.lock().convert_profile(&profile, list.as_deref().map(|l| l.as_slice()))).await??;
         out["failed"] = json!(failed);
         Ok::<_, anyhow::Error>(out)
     }
@@ -531,6 +532,12 @@ async fn uninstall(State(sh): State<Shared>, Path(uuid): Path<String>) -> ApiRes
         }
         std::fs::remove_dir_all(&p.dir)?;
         let mut e = sh2.lock();
+        // Installing the plugin again brings back the profiles it ships, unless they
+        // are still there.
+        let e2 = &mut *e;
+        let prefix = format!("{}/", p.uuid);
+        e2.settings.plugin_profiles.retain(|k, ids| !k.starts_with(&prefix) || ids.iter().any(|id| e2.profiles.contains_key(id)));
+        e2.settings.save(&e2.paths);
         e.rescan_plugins();
         e.log("info", crate::tr!("Plugin \"{name}\" removed", name = p.name()));
         Ok(())

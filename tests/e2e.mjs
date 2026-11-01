@@ -28,7 +28,7 @@ const opt = (name, def) => {
   return i >= 0 ? args[i + 1] : def;
 };
 const BIN = path.resolve(opt('--bin', path.join(ROOT, 'target/release/tuxdeck')));
-const ONLY = (opt('--only', 'neo,plus,mini,original,mk2,xl,pedal')).split(',');
+const ONLY = (opt('--only', 'neo,plus,mini,original,mk2,xl,pedal,twodecks')).split(',');
 const KEEP = args.includes('--keep');
 const VERBOSE = args.includes('-v');
 const ELGATO = path.join(os.homedir(), '.local/share/tuxdeck/elgato');
@@ -127,7 +127,8 @@ ws.onmessage = (ev) => {
   const m = JSON.parse(ev.data);
   const c = m.context;
   // Every event, so that tests can check what the plugin received.
-  send({ event: 'logMessage', payload: { message: 'ev ' + m.event + ' ' + (c || '-') + ' ' + JSON.stringify(m.payload ?? m.deviceInfo ?? null).slice(0, 600) } });
+  // The request id of an answer (SDK 7.1) comes before the payload.
+  send({ event: 'logMessage', payload: { message: 'ev ' + m.event + ' ' + (c || '-') + ' ' + (m.id !== undefined ? 'id=' + m.id + ' ' : '') + JSON.stringify(m.payload ?? m.deviceInfo ?? null).slice(0, 600) } });
   // A test can make the plugin crash (exit code).
   if (m.event === 'sendToPlugin' && m.payload?.exit !== undefined) setTimeout(() => process.exit(m.payload.exit), 50);
   if (m.event === 'willAppear') {
@@ -915,6 +916,22 @@ async function suiteNeoEditing(d) {
     assert(!s1.equals(await d.render('Keypad', '3,0', '&state=0')), 'state previews differ');
     await patch({ state: 1, image: '' });
     eq((await d.page()).controllers.find((x) => x.Type === 'Keypad').Actions['3,0'].States[1].Image, undefined, 'image reset');
+    // A BMP (like WebP: usvg can't show it) is stored as PNG and shows.
+    const bmp = Buffer.alloc(70);
+    bmp.write('BM', 0);
+    bmp.writeUInt32LE(70, 2);
+    bmp.writeUInt32LE(54, 10);
+    bmp.writeUInt32LE(40, 14);
+    bmp.writeInt32LE(2, 18);
+    bmp.writeInt32LE(2, 22);
+    bmp.writeUInt16LE(1, 26);
+    bmp.writeUInt16LE(24, 28);
+    for (const row of [54, 62]) for (const px of [0, 3]) bmp.set([0, 0, 255], row + px); // BGR red
+    const blank = await d.render('Keypad', '3,0', '&state=1');
+    await patch({ state: 1, image: 'data:image/bmp;base64,' + bmp.toString('base64') });
+    assert(/^Images\/.+\.png$/.test((await d.page()).controllers.find((x) => x.Type === 'Keypad').Actions['3,0'].States[1].Image), 'stored as PNG');
+    assert(!blank.equals(await d.render('Keypad', '3,0', '&state=1')), 'the BMP shows');
+    await patch({ state: 1, image: '' });
     // Per-key background colour: shows through a transparent icon.
     const transparentIcon = 'data:image/svg+xml;base64,' + Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144"><circle cx="72" cy="72" r="22" fill="#fff"/></svg>').toString('base64');
     await patch({ state: 0, image: transparentIcon });
@@ -1356,8 +1373,17 @@ async function suiteNeoPlugins(d) {
     await d.waitState((s) => s.devices[0].profile === P, 2000, 'back to the previous profile');
     drv.close();
     await d.del(`/api/pages/${P}/${page0}/slot?controller=Keypad&coord=2,1`);
-    await d.del('/api/plugins/com.e2e.prof');
+    // Deleted by the user: an update of the plugin doesn't bring it back.
+    const bundledNow = async () => (await d.state()).profiles.filter((p) => p.name === 'Bundled');
     await d.del(`/api/profiles/${bundled.id}`);
+    await d.req('POST', '/api/import', zip(files), { 'x-filename': 'prof.streamDeckPlugin' });
+    eq(await bundledNow(), [], 'stays deleted');
+    // Removing the plugin and installing it again does.
+    await d.del('/api/plugins/com.e2e.prof');
+    await d.req('POST', '/api/import', zip(files), { 'x-filename': 'prof.streamDeckPlugin' });
+    eq((await bundledNow()).length, 1, 'installed again');
+    await d.del('/api/plugins/com.e2e.prof');
+    await d.del(`/api/profiles/${(await bundledNow())[0].id}`);
   });
 }
 
@@ -1599,7 +1625,7 @@ async function suiteSmall(d, model, keys) {
 /** Converting keys from a Windows/macOS profile into Linux actions (no network needed). */
 async function suiteCompat(d) {
   const st = await d.state();
-  const P = st.devices[0].profile;
+  let P = st.devices[0].profile;
   const pg = st.devices[0].page;
   const key = (uuid, title, settings = {}) => ({ UUID: uuid, Name: title || uuid, Settings: settings, State: 0, States: [{ Title: title }] });
   const paste = (coord, inst) => d.post(`/api/pages/${P}/${pg}/paste`, { controller: 'Keypad', coord, instance: inst, from_profile: P, from_page: pg });
@@ -1608,6 +1634,19 @@ async function suiteCompat(d) {
   await paste('2,0', key('com.barraider.spotifyplaypause', ''));
   await paste('3,0', key('com.microsoft.teams.button.togglemute', ''));
   await paste('0,1', key('com.elgato.twitch.marker', ''));
+
+  await test('convert: in a profile made here only Windows/macOS paths and Elgato plugins count', async () => {
+    const plan = await d.get(`/api/profiles/${P}/conversion`);
+    eq(plan.needed, true);
+    // The Twitch key is just a plugin missing here, not something from Windows.
+    eq(plan.manual, ['Riot Games']);
+  });
+
+  // The same keys in a profile imported from the official app: everything counts.
+  const imported = await d.req('POST', '/api/import', await d.get(`/api/profiles/${P}/export`), { 'x-filename': 'Windows.streamDeckProfile' });
+  await d.post(`/api/devices/${st.devices[0].id}`, { profile: imported.id });
+  await d.waitState((s) => s.devices[0].profile === imported.id, 2000, 'imported profile shown');
+  P = imported.id;
 
   await test('convert: the plan lists what happens to the imported keys', async () => {
     const plan = await d.get(`/api/profiles/${P}/conversion`);
@@ -1628,6 +1667,8 @@ async function suiteCompat(d) {
     eq([kp['2,0'].UUID, kp['2,0'].Settings.actionIdx], ['com.elgato.streamdeck.system.multimedia', 1]);
     eq([kp['3,0'].UUID, kp['3,0'].Settings.Hotkeys[0].LinuxCode], ['com.elgato.streamdeck.system.hotkey', 50]);
     eq(kp['0,1'].UUID, 'com.elgato.streamdeck.system.open');
+    // Keys without a counterpart can be told apart: the action's name as title and a note.
+    eq([kp['0,1'].States[0].Title, kp['0,1'].Settings._from], ['com.elgato.twitch.marker', 'com.elgato.twitch.marker']);
     eq((await d.get(`/api/profiles/${P}/conversion`)).needed, false, 'nothing left to convert');
     assert((await d.get('/api/backups')).some((b) => b.kind === 'convert'), 'backup before converting');
     await d.press('Keypad', '2,0');
@@ -1900,6 +1941,12 @@ async function suiteCatalogue(d) {
     eq((await d.post('/api/catalogue/install', { id: 'com.e2e.direct' })).id, 'com.e2e.direct');
     const e = await d.post('/api/catalogue/install', { id: 'com.e2e.norel' }).catch((x) => x);
     assert(e.status === 400 && /no release/.test(e.message), e.message);
+    // A repository that is gone (GitHub answers 404) says so.
+    const releases = CATALOGUE.files.get('/repos/e2e/norel/releases');
+    CATALOGUE.files.delete('/repos/e2e/norel/releases');
+    const gone = await d.post('/api/catalogue/install', { id: 'com.e2e.norel' }).catch((x) => x);
+    CATALOGUE.files.set('/repos/e2e/norel/releases', releases);
+    assert(gone.status === 400 && /GitHub repository no longer exists/.test(gone.message), gone.message);
     // Let the Linux check that started with the installation finish.
     const end = Date.now() + 180000;
     while (Date.now() < end && (await d.get('/api/linux-checks')).running.length) await sleep(1000);
@@ -2612,6 +2659,98 @@ async function suiteProfiles(d) {
   });
 }
 
+/** Two decks of the same model: own profiles, unplugging, one deck switching the other. */
+async function suiteMultiDeck(d) {
+  const C = 'com.e2e.counter.count';
+  const ev = (event, ctx = '\\S+') => new RegExp(`\\[com\\.e2e\\.counter\\] ev ${event} ${ctx} `);
+  const deck = async (id) => (await d.state()).devices.find((x) => x.id === id);
+  const [A, B] = ['VIRTUAL-NEO', 'VIRTUAL-NEO-2'];
+  const put = async (id, coord, uuid, settings) => {
+    const x = await deck(id);
+    await d.post(`/api/pages/${x.profile}/${x.page}/slot`, { controller: 'Keypad', coord, uuid });
+    if (settings) await d.patch(`/api/pages/${x.profile}/${x.page}/slot`, { controller: 'Keypad', coord, settings });
+  };
+  const key = async (id, index, down) => d.post(`/api/devices/${id}/input`, { type: 'key', index, down });
+  const plug = (id, connected) => d.post(`/api/devices/${id}/virtual`, { connected });
+
+  await test('two decks of the same model have their own default profile', async () => {
+    const st = await d.state();
+    eq(st.devices.map((x) => x.id).sort(), [A, B]);
+    const [a, b] = [await deck(A), await deck(B)];
+    assert(a.profile && b.profile && a.profile !== b.profile, 'own profiles');
+  });
+
+  let m = d.mark();
+  await d.req('POST', '/api/import', PLUGIN, { 'x-filename': 'e2e.streamDeckPlugin' });
+  await d.waitLog(ev('deviceDidConnect', '-'), m, 8000);
+
+  await test('unplugging releases held keys; plugins see the deck again when it is back', async () => {
+    await put(A, '0,0', C);
+    await put(A, '1,0', 'com.elgato.streamdeck.system.hotkey', { Hotkeys: [HK_Z] });
+    // An action that acts on release must not run because the deck went away.
+    await put(A, '3,0', 'com.elgato.streamdeck.system.openapp', { exec: 'e2eunplugged', long_press: 'quit' });
+    await d.waitLog(/\[com\.e2e\.counter\] appear Keypad 0,0/, m, 4000);
+    m = d.mark();
+    await key(A, 0, true);
+    await key(A, 1, true);
+    await key(A, 3, true);
+    await d.waitLog(ev('keyDown'), m);
+    await d.waitLog(/send_key_state.*key = "code:52".*"down"/i, m);
+    m = d.mark();
+    await plug(A, false);
+    await d.waitLog(ev('keyUp'), m);
+    await d.waitLog(/send_key_state.*key = "code:52".*"up"/i, m);
+    await d.waitLog(ev('willDisappear'), m);
+    await d.waitLog(ev('deviceDidDisconnect', '-'), m);
+    eq((await deck(A)).connected, false);
+    eq(d.logsSince(m, /e2eunplugged/), [], 'Open Application neither started nor quit');
+    // Changes while it is away reach no plugin.
+    m = d.mark();
+    await put(A, '2,0', C);
+    await sleep(300);
+    eq(d.logsSince(m, ev('willAppear')), [], 'no willAppear for an unplugged deck');
+    m = d.mark();
+    await plug(A, true);
+    await d.waitLog(ev('deviceDidConnect', '-'), m);
+    await d.waitLog(/\[com\.e2e\.counter\] appear Keypad 0,0/, m);
+    await d.waitLog(/\[com\.e2e\.counter\] appear Keypad 2,0/, m);
+    // The released key works normally afterwards.
+    m = d.mark();
+    await key(A, 0, true);
+    await key(A, 0, false);
+    await d.waitLog(ev('keyUp'), m);
+  });
+
+  await test('switch profile: a key on one deck switches the other deck', async () => {
+    const target = await d.post('/api/profiles', { name: 'For B', model: (await deck(B)).model });
+    const [aBase, bBase] = [(await deck(A)).profile, (await deck(B)).profile];
+    // Its own id, or the id of the official app, which contains the serial number.
+    for (const device of [B, `@(1)[4057/154/${B}]`]) {
+      await d.post(`/api/devices/${B}`, { profile: bBase });
+      await put(A, '3,0', 'com.elgato.streamdeck.profile.rotate', { ProfileUUID: target.id, DeviceUUID: device });
+      const a = await deck(A);
+      await d.post(`/api/pages/${a.profile}/${a.page}/press`, { controller: 'Keypad', coord: '3,0' });
+      await d.waitState((st) => st.devices.find((x) => x.id === B).profile === target.id, 2000, `deck B switched (${device})`);
+      eq((await deck(A)).profile, aBase, 'deck A stays');
+    }
+    await d.post(`/api/devices/${B}`, { profile: bBase });
+  });
+
+  await test('smart profiles meant for one deck switch only that deck', async () => {
+    const model = (await deck(A)).model;
+    const [baseA, baseB] = [(await deck(A)).profile, (await deck(B)).profile];
+    const sa = await d.post('/api/profiles', { name: 'Smart A', model });
+    const sb = await d.post('/api/profiles', { name: 'Smart B', model });
+    await d.patch(`/api/profiles/${sa.id}`, { app: 'e2esmart', device: A });
+    await d.patch(`/api/profiles/${sb.id}`, { app: 'e2esmart', device: B });
+    eq((await d.state()).profiles.find((p) => p.id === sa.id).device, A);
+    await d.post('/api/active-app', { app: 'e2esmart' });
+    await d.waitState((st) => st.devices.find((x) => x.id === A).profile === sa.id && st.devices.find((x) => x.id === B).profile === sb.id, 2000, 'each deck its own');
+    await d.post('/api/active-app', { app: 'other' });
+    await d.waitState((st) => st.devices.find((x) => x.id === A).profile === baseA && st.devices.find((x) => x.id === B).profile === baseB, 2000, 'back');
+  });
+}
+
 /** Every built-in action: behaviour and failure messages (dry run). */
 async function suiteBuiltins(d) {
   const st0 = await d.state();
@@ -2700,12 +2839,29 @@ async function suiteBuiltins(d) {
     await open('C:\\Program Files\\App\\app.exe', /is a Windows or macOS path/);
     await open('/Applications/Nope.app', /is a Windows or macOS path/);
     await open('\\\\server\\share\\tool.exe', /is a Windows or macOS path/);
-    await open('/no/such/program --flag', /\/no\/such\/program --flag does not exist/);
+    await open('/no/such/program --flag', /\/no\/such\/program does not exist/);
+    // A quoted program path with arguments is a command line, not a missing file.
+    const spaced = path.join(home, 'My Apps', 'app');
+    fs.mkdirSync(path.dirname(spaced), { recursive: true });
+    fs.writeFileSync(spaced, '#!/bin/sh\n', { mode: 0o755 });
+    await open(`"${spaced}" --new`, new RegExp(`DRYRUN exec "sh" "-c" "\\\\"${esc(spaced)}\\\\" --new"`));
+    await open(`"${spaced}"`, new RegExp(`DRYRUN exec "${esc(spaced)}"`));
     // A failure shows the alert on the key.
     const plain = await d.render('Keypad', '2,0');
     await d.settings('Keypad', '2,0', { path: '' });
     await d.press('Keypad', '2,0');
     await d.waitRender('Keypad', '2,0', (png) => !png.equals(plain), 2000, 'alert overlay');
+  });
+
+  await test('multi action and key logic: a failing entry shows the alert on the key', async () => {
+    for (const [coord, uuid] of [['0,0', 'com.elgato.streamdeck.multiactions.routine'], ['1,0', 'com.elgato.streamdeck.keys.logic']]) {
+      await put(coord, uuid, { _actions0: [{ UUID: `${B}system.open`, Settings: { path: '' } }] });
+      const plain = await d.render('Keypad', coord);
+      const m = d.mark();
+      await d.press('Keypad', coord);
+      await d.waitLog(/Open: no path set/, m);
+      await d.waitRender('Keypad', coord, (png) => !png.equals(plain), 2000, `alert on ${uuid}`);
+    }
   });
 
   await test('open app: commands, programs with arguments, .desktop files, long press variants, failures', async () => {
@@ -2718,6 +2874,15 @@ async function suiteBuiltins(d) {
     await app({ exec: 'firefox.desktop' }, /DRYRUN exec "gtk-launch" "firefox\.desktop"/);
     await app({ exec: '~/e2e.sh', args: '--a "b c"' }, new RegExp(`DRYRUN exec "sh" "-c" "exec \\\\"\\$0\\\\" --a \\\\"b c\\\\"" "${esc(path.join(home, 'e2e.sh'))}"`));
     await app({ exec: '~/e2e.sh', long_press: 'quit' }, /DRYRUN kill -15 e2e\.sh/, 800);
+    // Interpreters and launchers are not quit by name; Flatpaks through flatpak.
+    await app({ exec: 'python3 ~/tool.py', long_press: 'quit' }, /can't tell which program python3 ~\/tool\.py is/, 800);
+    await app({ exec: 'flatpak run --branch=stable org.e2e.App', long_press: 'quit' }, /DRYRUN flatpak kill org\.e2e\.App/, 800);
+    // A desktop entry: started with gtk-launch / gio, quit by the program of its Exec line.
+    const entry = path.join(home, '.local/share/applications/e2e-app.desktop');
+    fs.mkdirSync(path.dirname(entry), { recursive: true });
+    fs.writeFileSync(entry, '[Desktop Entry]\nType=Application\nName=E2E App\nExec=/opt/e2e/e2e-desktop-app --x %U\n');
+    await app({ exec: entry, long_press: 'quit' }, new RegExp(`DRYRUN exec ("gio" "launch" "${esc(entry)}"|"gtk-launch" "e2e-app\\.desktop"|"sh" "-c" "/opt/e2e/e2e-desktop-app --x")`));
+    await app({ exec: entry, long_press: 'quit' }, /DRYRUN kill -15 e2e-desktop-app/, 800);
     await app({ exec: 'e2eapp --x', long_press: 'kill' }, /DRYRUN kill -9 e2eapp/, 800);
     await app({ exec: 'e2eapp', long_press: 'quit', force_kill: true }, /DRYRUN kill -9 e2eapp/, 800);
     await app({ exec: 'e2eapp', long_press: 'none' }, /DRYRUN exec "sh" "-c" "e2eapp ?"/, 800);
@@ -2741,6 +2906,16 @@ async function suiteBuiltins(d) {
     }
     await d.settings('Keypad', '1,1', { path: '' });
     await pressLog('1,1', /Website: no URL set/);
+  });
+
+  await test('web links of the UI open in the default browser, nothing else does', async () => {
+    const m = d.mark();
+    eq(await d.status('POST', '/api/open-url', { url: 'https://marketplace.elgato.com/' }), 200);
+    await d.waitLog(/DRYRUN exec "xdg-open" "https:\/\/marketplace\.elgato\.com\/"/, m);
+    for (const url of [`http://127.0.0.1:${d.port}/api/state`, 'http://localhost/', 'http://[::1]:80/', 'file:///etc/passwd', 'javascript:alert(1)', 'sh -c x', '']) {
+      eq(await d.status('POST', '/api/open-url', { url }), 400, url);
+    }
+    eq(d.logsSince(m, /xdg-open/).length, 1, 'only the web link');
   });
 
   await test('multimedia and text: defaults, unknown entries, empty text, terminals paste with Ctrl+Shift+V', async () => {
@@ -3028,7 +3203,7 @@ async function suiteSdk(d) {
     await d.slot('Keypad', '0,0', C);
     const a = await d.waitLog(ev('willAppear'), m, 4000);
     const ctxA = ctxOf(a);
-    eqc(payload(a), { settings: {}, coordinates: { column: 0, row: 0 }, controller: 'Keypad', isInMultiAction: false }, 'willAppear payload');
+    eqc(payload(a), { settings: {}, coordinates: { column: 0, row: 0 }, controller: 'Keypad', isInMultiAction: false, resources: {} }, 'willAppear payload');
     const pB = (await d.post(`/api/profiles/${P}/pages`)).id;
     await d.post(`/api/pages/${P}/${pB}/slot`, { controller: 'Keypad', coord: '1,1', uuid: C });
     m = d.mark();
@@ -3059,7 +3234,7 @@ async function suiteSdk(d) {
     m = d.mark();
     await d.press('Keypad', '0,0');
     const down = payload(await d.waitLog(ev('keyDown', ctx), m));
-    eqc(down, { settings: {}, coordinates: { column: 0, row: 0 }, controller: 'Keypad', isInMultiAction: false });
+    eqc(down, { settings: {}, coordinates: { column: 0, row: 0 }, controller: 'Keypad', isInMultiAction: false, resources: {} });
     await d.waitLog(ev('keyUp', ctx), m);
     // In a multi action: its own context, no coordinates.
     m = d.mark();
@@ -3145,6 +3320,47 @@ async function suiteSdk(d) {
     await pi.waitFor((x) => x.event === 'didReceiveGlobalSettings' && x.payload.settings.g === 2, 3000, 'PI getGlobalSettings');
   });
 
+  await test('SDK 7.1: answers carry the request id; secrets and resources are answered', async () => {
+    m = d.mark();
+    pi.plugin([
+      { event: 'getSettings', context: ctx, id: 'q1' },
+      { event: 'getGlobalSettings', context: 'com.e2e.counter', id: 'q2' },
+      { event: 'getSecrets', id: 'q3' },
+      { event: 'setResources', context: ctx, payload: { resources: { sound: 'beep.mp3' } } },
+      { event: 'getResources', context: ctx, id: 'q4' },
+    ]);
+    await d.waitLog(new RegExp(`ev didReceiveSettings ${ctx} id=q1 `), m);
+    await d.waitLog(/ev didReceiveGlobalSettings - id=q2 /, m);
+    await d.waitLog(/ev didReceiveSecrets - id=q3 \{"secrets":\{\}\}/, m);
+    await d.waitLog(new RegExp(`ev didReceiveResources ${ctx} id=q4 .*"resources":\\{"sound":"beep\\.mp3"\\}`), m);
+    const res = await pi.waitFor((x) => x.event === 'didReceiveResources', 3000, 'the PI hears about setResources');
+    eqc(res.payload.resources, { sound: 'beep.mp3' });
+    eqc((await d.action('0,0')).Resources, { sound: 'beep.mp3' }, 'stored with the action');
+    // A change made in the PI has no id.
+    m = d.mark();
+    pi.send({ event: 'setSettings', payload: { b: 3 } });
+    const line = await d.waitLog(ev('didReceiveSettings', ctx), m);
+    assert(!/ id=/.test(line), line);
+  });
+
+  await test('a property inspector opened while the deck is unplugged still reaches the plugin', async () => {
+    m = d.mark();
+    pi.close();
+    await d.waitLog(ev('propertyInspectorDidDisappear', ctx), m);
+    await d.post(`/api/devices/${dev}/virtual`, { connected: false });
+    m = d.mark();
+    pi = await inspector(d, ctx, C, 'Keypad', '0,0');
+    await d.waitLog(ev('willAppear', ctx), m);
+    await d.waitLog(ev('propertyInspectorDidAppear', ctx), m);
+    m = d.mark();
+    pi.close();
+    await d.waitLog(ev('willDisappear', ctx), m);
+    m = d.mark();
+    await d.post(`/api/devices/${dev}/virtual`, { connected: true });
+    await d.waitLog(ev('willAppear', ctx), m);
+    pi = await inspector(d, ctx, C, 'Keypad', '0,0');
+  });
+
   await test('openUrl, logMessage (also into the plugin log), sendToPropertyInspector, PI appear/disappear', async () => {
     m = d.mark();
     pi.plugin([{ event: 'openUrl', payload: { url: 'https://example.org/from-plugin' } }, { event: 'logMessage', payload: { message: 'into-the-log-file' } }]);
@@ -3158,6 +3374,23 @@ async function suiteSdk(d) {
     pi.close();
     await d.waitLog(ev('propertyInspectorDidDisappear', ctx), m);
     pi = await inspector(d, ctx, C, 'Keypad', '0,0');
+  });
+
+  await test('applications to monitor: launch and end of a program reach the plugin', async () => {
+    const name = `e2emon${process.pid}`;
+    m = d.mark();
+    await d.req('POST', '/api/import', pluginVariant('com.e2e.monitor', {}, { ApplicationsToMonitor: { windows: [`${name}.exe`], mac: ['com.example.nothing'] } }), { 'x-filename': 'mon.streamDeckPlugin' });
+    await d.waitLog(ev('deviceDidConnect', '-', 'com\\.e2e\\.monitor'), m, 8000);
+    m = d.mark();
+    // A process whose argv[0] is the program name (like `exec -a`; coreutils would not
+    // run under another name).
+    const proc = track(spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { argv0: name, stdio: 'ignore' }));
+    await d.waitLog(new RegExp(`\\[com\\.e2e\\.monitor\\] ev applicationDidLaunch - \\{"application":"${name}\\.exe"\\}`), m, 12000);
+    m = d.mark();
+    proc.kill();
+    await d.waitLog(new RegExp(`\\[com\\.e2e\\.monitor\\] ev applicationDidTerminate - \\{"application":"${name}\\.exe"\\}`), m, 12000);
+    eq(d.logsSince(0, /com\.example\.nothing/), [], 'apps that do not run are not reported');
+    await d.del('/api/plugins/com.e2e.monitor');
   });
 
   await test('isolation: other plugins cannot touch the actions; switchToProfile needs the plugin\'s own profiles', async () => {
@@ -3278,6 +3511,31 @@ async function linuxChecksDone(d) {
   await waitFor(async () => !(await d.get('/api/linux-checks')).running.length, 120000, 'Linux checks to finish');
 }
 
+/** Converting while the plugin catalogue can't be reached: plugin keys wait. */
+async function suiteConvertOffline(d) {
+  const st0 = await d.state();
+  const dev = st0.devices[0].id;
+  const O = `${B}system.open`;
+  const imported = profileZip({
+    name: 'From Windows (offline)',
+    pages: [{ keys: { Keypad: {
+      '0,0': inst(O, { path: '/Applications/Microsoft Outlook.app' }, 'Outlook'),
+      '1,0': inst('com.e2e.cat.count', {}, '', { Name: 'Cat' }),
+      '2,0': inst('com.example.gizmo.action', {}, 'Giz', { Name: 'Gizmo' }),
+    } } }],
+  });
+  await test('without the catalogue, keys of missing plugins stay and are offered again', async () => {
+    const id = (await d.req('POST', '/api/import', imported, { 'x-filename': 'win.streamDeckProfile' })).id;
+    await d.post(`/api/devices/${dev}`, { profile: id });
+    const plan = await d.get(`/api/profiles/${id}/conversion`);
+    eqc([plan.needed, plan.waiting, plan.manual, plan.installs], [true, 2, [], []]);
+    eqc(await d.post(`/api/profiles/${id}/conversion`, {}), { changed: 1, manual: 0, left: 2, failed: [] });
+    const kp = (await d.page()).controllers.find((c) => c.Type === 'Keypad').Actions;
+    eq([kp['0,0'].UUID, kp['1,0'].UUID, kp['2,0'].UUID], [WEBSITE, 'com.e2e.cat.count', 'com.example.gizmo.action']);
+    eq((await d.get(`/api/profiles/${id}/conversion`)).waiting, 2, 'offered again');
+  });
+}
+
 /** Converting profiles from Windows/macOS: edge cases, nested actions, idempotence, backups. */
 async function suiteConvertEdge(d) {
   const st0 = await d.state();
@@ -3291,6 +3549,17 @@ async function suiteConvertEdge(d) {
     const before = await d.page();
     eqc(await d.post(`/api/profiles/${P}/conversion`, {}), { changed: 0, manual: 0, failed: [] });
     eqc(await d.page(), before, 'page unchanged');
+  });
+
+  await test('a profile made here is not offered a conversion for keys waiting for a command or a plugin', async () => {
+    const pg = st0.devices[0].page;
+    const paste = (coord, inst) => d.post(`/api/pages/${P}/${pg}/paste`, { controller: 'Keypad', coord, instance: inst, from_profile: P, from_page: pg });
+    // "Steam" is installed here (prepareDesktop), the plugin is in the catalogue.
+    await paste('0,0', { UUID: O, Name: 'Open', Settings: { path: '' }, State: 0, States: [{ Title: 'Steam' }] });
+    await paste('1,0', { UUID: 'com.e2e.cat.count', Name: 'Cat', Settings: {}, State: 0, States: [{}] });
+    eq((await d.get(`/api/profiles/${P}/conversion`)).needed, false);
+    await d.del(`/api/pages/${P}/${pg}/slot?controller=Keypad&coord=0,0`);
+    await d.del(`/api/pages/${P}/${pg}/slot?controller=Keypad&coord=1,0`);
   });
 
   // A profile as the official app on Windows/macOS writes it.
@@ -3342,7 +3611,8 @@ async function suiteConvertEdge(d) {
 
   await test('convert: nested and folder keys too; installs what it can; titles stay; the converted keys work', async () => {
     const r = await d.post(`/api/profiles/${id}/conversion`, {});
-    eqc(r, { changed: 13, manual: 6, failed: ['OBS Tools'] });
+    // The OBS key stays as it is: its plugin could not be installed (offered again later).
+    eqc(r, { changed: 12, manual: 5, left: 1, failed: ['OBS Tools'] });
     const k1 = (await d.page(id, pages[0])).controllers.find((c) => c.Type === 'Keypad').Actions;
     eq([k1['0,0'].UUID, k1['0,0'].Settings.path, k1['0,0'].States[0].Title], [O, 'e2e-steam-launcher', 'Steam']);
     eq([k1['1,0'].UUID, k1['1,0'].Settings.path], [O, 'e2e-steam-launcher'], 'Open Application → Open');
@@ -3355,9 +3625,9 @@ async function suiteConvertEdge(d) {
     eq(k1['3,1'].UUID, 'com.e2e.cat.count', 'the catalogue plugin was installed: key unchanged');
     assert((await d.get('/api/plugins')).some((p) => p.uuid === 'com.e2e.cat'), 'installed');
     const k2 = (await d.page(id, pages[1])).controllers.find((c) => c.Type === 'Keypad').Actions;
-    eq([k2['0,0'].UUID, k2['0,0'].Settings.path], [O, ''], 'OBS replacement plugin missing: manual');
+    eq(k2['0,0'].UUID, 'com.elgato.obsstudio.record', 'OBS replacement plugin missing: unchanged');
     eq([k2['1,0'].UUID, k2['1,0'].Settings.Hotkeys[0].LinuxCode, k2['1,0'].Settings.Hotkeys[0].KeyShift], [`${B}system.hotkey`, 24, true]);
-    eq(k2['2,0'].UUID, O);
+    eq([k2['2,0'].UUID, k2['2,0'].States[0].Title, k2['2,0'].Settings._from], [O, 'Twitch Marker', 'Twitch Marker'], 'named after the action');
     eq(k2['3,0'].Settings._actions0.map((a) => [a.UUID, a.Settings.path]), [[O, '']], 'Key Logic slot');
     const fk = (await d.page(id, folder)).controllers.find((c) => c.Type === 'Keypad').Actions['1,0'];
     eq([fk.UUID, fk.Settings.path, fk.States[0].Title], [O, '', 'Calc'], 'key in a folder');
@@ -3367,9 +3637,10 @@ async function suiteConvertEdge(d) {
     await linuxChecksDone(d);
   });
 
-  await test('converting twice changes nothing more; only real conversions make a backup', async () => {
-    eq((await d.get(`/api/profiles/${id}/conversion`)).needed, false);
-    eqc(await d.post(`/api/profiles/${id}/conversion`, {}), { changed: 0, manual: 0, failed: [] });
+  await test('only the key that had to stay is offered again; converted keys are not; one backup', async () => {
+    const plan = await d.get(`/api/profiles/${id}/conversion`);
+    eq(plan.needed, true);
+    eqc([plan.replaced.map((r) => [r.key, r.keys]), plan.manual, plan.programs, plan.web, plan.folders], [[['de.felitendo.obs-tools', 1]], [], [], [], []]);
     const backups = (await d.get('/api/backups')).filter((b) => b.kind === 'convert').map((b) => b.name).sort();
     eq(backups.length, 1, `one backup for the one real conversion (none when there was nothing to convert): ${backups}`);
     const pageOf = async (name) => Object.entries(unzipAll(await d.get(`/api/backups/${encodeURIComponent(name)}`)))
@@ -3403,6 +3674,23 @@ async function suiteConvertEdge(d) {
 async function suiteTemplates(d) {
   const GEOM = { '20GBJ9901': [4, 2], '20GBA9901': [5, 3], '20GAA9902': [5, 3], '20GAI9901': [3, 2], '20GAT9901': [8, 4], '20GBD9901': [4, 2], '20GBF9901': [3, 1] };
   const KEYS = { stream: [8], work: [8, 4], play: [8] };
+  // Keys per page: all on one page if they fit, the sample's pages on Neo and + (touch
+  // points / swipe), three on the Pedal, else pages with Previous/Next Page keys.
+  const expectedPages = (t, model, cap) => {
+    const total = KEYS[t].reduce((a, b) => a + b, 0);
+    if (model === '20GBF9901') return [3];
+    if (total <= cap) return [total];
+    if (model === '20GBJ9901' || model === '20GBD9901') return KEYS[t];
+    const pages = [];
+    for (let left = total; left > 0;) {
+      const prev = pages.length > 0;
+      const next = left > cap - prev;
+      const keys = Math.min(left, cap - prev - next);
+      pages.push(keys + prev + next);
+      left -= keys;
+    }
+    return pages;
+  };
   const dev = (await d.state()).devices[0].id;
 
   await test('samples: names, descriptions and the icons of the first page', async () => {
@@ -3417,14 +3705,16 @@ async function suiteTemplates(d) {
         const r = await d.post(`/api/templates/${t}`, { model });
         eq(r.failed, [], `${t} on ${model}: plugins installed`);
         const prof = (await d.state()).profiles.find((p) => p.id === r.id);
-        eq([prof.model, prof.pages.length], [model, KEYS[t].length], `${t} on ${model}`);
+        const want = expectedPages(t, model, cols * rows);
+        eq([prof.model, prof.pages.length], [model, want.length], `${t} on ${model}`);
         for (const [i, pg] of prof.pages.entries()) {
           const page = await d.page(r.id, pg);
           const kp = page.controllers.find((c) => c.Type === 'Keypad')?.Actions || {};
-          eq(Object.keys(kp).length, Math.min(KEYS[t][i], cols * rows), `${t} on ${model}, page ${i + 1}: key count`);
+          eq(Object.keys(kp).length, want[i], `${t} on ${model}, page ${i + 1}: key count`);
           for (const [coord, a] of Object.entries(kp)) {
             const [c, rr] = coord.split(',').map(Number);
             assert(c < cols && rr < rows, `${t} on ${model}: ${coord} is outside ${cols}x${rows}`);
+            if (/^com\.elgato\.streamdeck\.page\.(next|previous)$/.test(a.UUID)) continue;
             assert(a.States.every((s) => /^data:image\/svg/.test(s.Image || '') && s.Title && s.ShowTitle === false), `${t} ${model} ${coord}: icon and hidden title`);
           }
           eq(!!page.controllers.find((c) => c.Type === 'Neo')?.Actions?.['1,0'], model === '20GBJ9901', `${t} on ${model}: info bar`);
@@ -3544,7 +3834,27 @@ async function suiteCli(d) {
     assert(copy.length === orig.length && copy.every((x) => !orig.includes(x)), 'new action ids');
   });
 
+  await test('cli: with the service running, imports go through it and show at once', async () => {
+    mf.Name = 'CLI live';
+    exp[`${root}/manifest.json`] = JSON.stringify(mf);
+    let r = await d.cli(['import-profile', file('live.streamDeckProfile', zip(exp))]);
+    eq(r.code, 0, r.stderr);
+    const id = /Profile "CLI live" imported \(([0-9A-F-]+)\)/.exec(r.stdout)?.[1];
+    eq((await d.state()).profiles.find((p) => p.id === id)?.name, 'CLI live', r.stdout);
+    r = await d.cli(['install-plugin', file('live.streamDeckPlugin', pluginVariant('com.e2e.clilive'))]);
+    eq([r.code, r.stdout.trim()], [0, 'Plugin com.e2e.clilive installed'], r.stderr);
+    assert((await d.get('/api/plugins')).some((p) => p.uuid === 'com.e2e.clilive'), 'loaded without a restart');
+    // Each command takes only its own kind of package.
+    r = await d.cli(['import-profile', file('wrong.streamDeckPlugin', pluginVariant('com.e2e.wrongkind'))]);
+    assert(r.code === 1 && /is a plugin, not a profile/.test(r.stderr), r.stderr);
+    assert(!(await d.get('/api/plugins')).some((p) => p.uuid === 'com.e2e.wrongkind'), 'not installed');
+    r = await d.cli(['import-profile', file('bad-live.bin', 'not a zip')]);
+    assert(r.code === 1 && /not a package file/.test(r.stderr), r.stderr);
+  });
+
   await test('cli: bad files and paths fail with exit code 1 and change nothing', async () => {
+    // Without the service (with it, the service's checks answer; see above).
+    await d.kill();
     const before = fs.readdirSync(path.join(d.data, 'ProfilesV2')).sort();
     const tmp = path.join(d.dir, 'tmp');
     fs.mkdirSync(tmp);
@@ -3566,6 +3876,7 @@ async function suiteCli(d) {
     eq(fs.readdirSync(path.join(d.data, 'ProfilesV2')).sort(), before);
     eq(fs.readdirSync(tmp), [], 'import-elgato cleans up its temporary folder');
     assert(fs.existsSync(path.join(d.data, 'elgato')) === fs.existsSync(ELGATO), 'Elgato resources untouched');
+    await d.launch();
   });
 
   await test('cli: open-url forwards streamdeck:// links to the running daemon', async () => {
@@ -3608,11 +3919,22 @@ const GROUPS = [
   // The crash-looping test plugin is given up on purpose.
   { model: 'neo', name: 'neo: sdk', run: suiteSdk, allow: /Plugin com\.e2e\.crashloop exited \(exit status: 7\) and is no longer restarted/ },
   // Only the desktop entries made by prepareDesktop (plus system-wide Flatpaks) are found.
+  // No catalogue: nothing listens on port 9.
+  { model: 'neo', name: 'neo: convert-offline', run: suiteConvertOffline, opts: { env: () => ({ TUXDECK_CATALOGUE_URL: 'http://127.0.0.1:9/catalogue.json' }) } },
   { model: 'neo', name: 'neo: convert-edge', run: suiteConvertEdge, opts: { prepare: prepareDesktop, env: (d) => ({ XDG_DATA_DIRS: path.join(d.dir, 'share') }) } },
   // A catalogue that also has the plugins the sample profiles use.
   { model: 'neo', name: 'neo: templates', run: suiteTemplates, opts: { env: () => ({ TUXDECK_CATALOGUE_URL: CATALOGUE.fullUrl() }) } },
   { model: 'neo', name: 'cli', run: suiteCli, manual: true },
-  { model: 'mk2', name: 'mk2', run: (d) => suiteSmall(d, 'mk2', [5, 3]) },
+  { model: 'mk2', name: 'mk2', run: async (d) => {
+    await suiteSmall(d, 'mk2', [5, 3]);
+    await test('mk2: the profile it shows can be deleted when an Original profile fits', async () => {
+      const dev = await d.device();
+      const original = await d.post('/api/profiles', { name: 'From the Original', model: '20GAA9902' });
+      await d.del(`/api/profiles/${dev.profile}`);
+      eq((await d.device()).profile, original.id, 'the deck shows the Original profile');
+    });
+  } },
+  { model: 'neo,neo', name: 'two decks', run: suiteMultiDeck },
 ];
 
 if (!fs.existsSync(BIN)) {

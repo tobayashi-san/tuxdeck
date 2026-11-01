@@ -75,6 +75,16 @@ addEventListener('contextmenu', (e) => {
 });
 
 
+// Web links (marketplace, plugin sources) open in the user's default browser, not in the
+// UI window's own browser profile without their logins.
+addEventListener('click', (e) => {
+  const a = e.target.closest?.('a[target="_blank"][href^="http"]');
+  if (!a || e.defaultPrevented || e.button !== 0) return;
+  e.preventDefault();
+  api('/api/open-url', { method: 'POST', body: { url: a.href } }).catch(() => window.open(a.href, '_blank', 'noopener'));
+});
+
+
 // ============================================================================================
 // Boot
 // ============================================================================================

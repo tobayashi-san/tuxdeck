@@ -124,7 +124,8 @@ impl Engine {
             .values()
             .map(|p| {
                 json!({"id": p.id, "name": p.manifest.name, "model": p.manifest.device.model, "pages": p.manifest.pages.pages,
-                       "default_page": p.manifest.pages.default, "folders": p.folders(), "app": p.app_identifier()})
+                       "default_page": p.manifest.pages.default, "folders": p.folders(), "app": p.app_identifier(),
+                       "device": self.deck_named(&p.manifest.device.uuid)})
             })
             .collect();
         json!({"devices": devices, "profiles": profiles, "active_app": self.active_app,

@@ -8,6 +8,7 @@ mod engine;
 mod i18n;
 mod iconpacks;
 mod input;
+mod keymap;
 mod layout;
 mod linuxcheck;
 mod net;
@@ -101,12 +102,28 @@ fn main() -> Result<()> {
             Ok(())
         }
         Cmd::ImportProfile { file } => {
+            // A running service imports it itself (and shows it right away).
+            if let Some(r) = import_via_service(&paths, &file, "profile")? {
+                println!("Profile \"{}\" imported ({})", r["name"].as_str().unwrap_or_default(), r["id"].as_str().unwrap_or_default());
+                return Ok(());
+            }
             // Like importing in the UI: new action ids, nothing left behind on errors.
-            let p = packages::import_profile(&std::fs::read(&file)?, &paths.profiles())?;
+            let mut p = packages::import_profile(&std::fs::read(&file)?, &paths.profiles())?;
+            if engine::looks_imported(&p, &engine::Engine::scan_registry(&paths, &paths::Settings::load(&paths))) {
+                p.set_imported(true);
+                p.save_manifest()?;
+            }
             println!("Profile \"{}\" imported ({})", p.manifest.name, p.id);
             Ok(())
         }
         Cmd::InstallPlugin { file } => {
+            if let Some(r) = import_via_service(&paths, &file, "plugin")? {
+                println!("Plugin {} installed", r["id"].as_str().unwrap_or_default());
+                if r["runs_on_linux"] == false {
+                    println!("It does not run on Linux: {}", r["reason"].as_str().unwrap_or_default());
+                }
+                return Ok(());
+            }
             let id = plugins::install_archive(&std::fs::read(&file)?, &paths.user_plugins())?;
             println!("Plugin {id} installed");
             Ok(())
@@ -119,17 +136,22 @@ fn main() -> Result<()> {
         Cmd::List => {
             // A test instance with a simulated deck lists that one and leaves real
             // hardware alone (like `run`).
-            if let Some(kind) = virtual_device() {
-                let model = virtual_model(&kind);
-                println!("{}  serial VIRTUAL-{}  firmware virtual  (simulated)", model.name, kind.to_uppercase());
+            if let Some(kinds) = virtual_device() {
+                for kind in kinds.split(',').map(str::trim).filter(|k| !k.is_empty()) {
+                    println!("{}  serial VIRTUAL-{}  firmware virtual  (simulated)", virtual_model(kind).name, kind.to_uppercase());
+                }
                 return Ok(());
             }
             let api = hidapi::HidApi::new()?;
             for info in device::enumerate(&api) {
-                match device::Deck::open(&api, info) {
+                match device::Deck::inspect(&api, info) {
                     Ok(d) => println!("{}  serial {}  firmware {}  {}", d.model.name, short_serial(&d.serial), d.firmware, d.path),
                     Err(e) => println!("{:04x}:{:04x} {}: {e:#}", info.vendor_id(), info.product_id(), info.path().to_string_lossy()),
                 }
+            }
+            for info in device::unsupported(&api) {
+                let name = info.product_string().filter(|s| !s.is_empty()).unwrap_or("Elgato device");
+                println!("{name}  {:04x}:{:04x}  not supported by TuxDeck  {}", info.vendor_id(), info.product_id(), info.path().to_string_lossy());
             }
             Ok(())
         }
@@ -140,6 +162,42 @@ fn main() -> Result<()> {
             Ok(())
         }
     }
+}
+
+/// Hand a package to the running service (`None` if it isn't running).
+fn import_via_service(paths: &paths::Paths, file: &std::path::Path, kind: &str) -> Result<Option<serde_json::Value>> {
+    let port = paths::Settings::load(paths).ui_port;
+    if !daemon_running(port) {
+        return Ok(None);
+    }
+    let bytes = std::fs::read(file)?;
+    // The service takes any package; this command only its own kind.
+    let found = match packages::classify(&bytes, file.file_name().and_then(|f| f.to_str()))? {
+        packages::Package::Plugin => "plugin",
+        packages::Package::Profile => "profile",
+        packages::Package::IconPack => "icon pack",
+    };
+    if found != kind {
+        anyhow::bail!("{} is a {found}, not a {kind}", file.display());
+    }
+    let name = file.file_name().map(|f| f.to_string_lossy().replace(|c: char| !c.is_ascii_graphic() && c != ' ', "_")).unwrap_or_default();
+    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+    rt.block_on(async {
+        let r = net::local()
+            .post(format!("http://127.0.0.1:{port}/api/import"))
+            .header("x-tuxdeck-token", paths.api_token()?)
+            .header("x-filename", name)
+            .body(bytes)
+            .send()
+            .await?;
+        let ok = r.status().is_success();
+        let v: serde_json::Value = r.json().await.unwrap_or_default();
+        if ok {
+            Ok(Some(v))
+        } else {
+            anyhow::bail!("{}", v.get("error").and_then(|e| e.as_str()).unwrap_or("error"))
+        }
+    })
 }
 
 fn daemon_running(port: u16) -> bool {
@@ -263,10 +321,14 @@ fn probe(seconds: u64) -> Result<()> {
     let api = hidapi::HidApi::new()?;
     let infos = device::enumerate(&api);
     let info = infos.first().context("no Stream Deck found")?;
+    // The service reads the same input and would run the keys' actions.
+    let _lock = DeviceLock::acquire(&info.path().to_string_lossy())
+        .context("TuxDeck is using this deck: stop it first (systemctl --user stop tuxdeck) and start it again afterwards")?;
     let deck = device::Deck::open(&api, info)?;
     println!("{} serial {} firmware {}", deck.model.name, short_serial(&deck.serial), deck.firmware);
     deck.set_brightness(70)?;
-    for k in 0..deck.model.key_count() {
+    // The Pedal has no key displays.
+    for k in (0..deck.model.key_count()).filter(|_| deck.model.key_px > 0) {
         let spec = render::KeySpec { background: Some(format!("hsl({}, 70%, 35%)", k * 45)), big_text: Some((k + 1).to_string()), ..Default::default() };
         deck.set_key_image(k as u8, &render::encode_device(&render::render_key(&spec, deck.model.key_px), deck.model.key_format))?;
     }
@@ -378,12 +440,13 @@ fn virtual_model(kind: &str) -> &'static device::Model {
     device::MODELS.iter().find(|m| format!("{:?}", m.kind).eq_ignore_ascii_case(kind)).unwrap_or(&device::MODELS[0])
 }
 
-/// Simulated deck for tests (`TUXDECK_VIRTUAL_DEVICE=neo|mk2|xl|plus|pedal|original|mini`):
-/// accepts all device commands, input comes from the API (`…/press`).
-fn spawn_virtual_device(kind: &str, events: UnboundedSender<DevEvent>) {
+/// Simulated deck for tests (`TUXDECK_VIRTUAL_DEVICE=neo|mk2|xl|plus|pedal|original|mini`,
+/// several separated by commas): accepts all device commands, input comes from the API
+/// (`…/press`), `…/virtual` unplugs and plugs it in again.
+fn spawn_virtual_device(kind: &str, n: usize, events: UnboundedSender<DevEvent>) {
     let model = virtual_model(kind);
     let (tx, rx) = std::sync::mpsc::channel::<DevCmd>();
-    let id = format!("VIRTUAL-{}", kind.to_uppercase());
+    let id = if n > 1 { format!("VIRTUAL-{}-{n}", kind.to_uppercase()) } else { format!("VIRTUAL-{}", kind.to_uppercase()) };
     let _ = events.send(DevEvent::Connected { id, model, firmware: "virtual".into(), tx });
     std::thread::spawn(move || {
         let (mut keys, mut screens, mut other) = (0u64, 0u64, 0u64);
@@ -534,8 +597,14 @@ fn run(paths: paths::Paths, open_browser: bool) -> Result<()> {
 
         // Devices
         let (dtx, mut drx) = unbounded_channel::<DevEvent>();
-        if let Ok(kind) = std::env::var("TUXDECK_VIRTUAL_DEVICE") {
-            spawn_virtual_device(&kind, dtx.clone());
+        if let Ok(kinds) = std::env::var("TUXDECK_VIRTUAL_DEVICE") {
+            // "neo,neo": several decks; the second of a kind gets the id suffix "-2".
+            let mut seen: HashMap<String, usize> = HashMap::new();
+            for kind in kinds.split(',').map(str::trim).filter(|k| !k.is_empty()) {
+                let n = seen.entry(kind.to_ascii_lowercase()).or_default();
+                *n += 1;
+                spawn_virtual_device(kind, *n, dtx.clone());
+            }
         }
         let running = Arc::new(AtomicBool::new(true));
         let threads: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>> = Arc::default();

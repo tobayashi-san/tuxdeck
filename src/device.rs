@@ -153,6 +153,12 @@ pub fn enumerate(api: &HidApi) -> Vec<&DeviceInfo> {
     api.device_list().filter(|d| is_deck_interface(d.vendor_id(), d.product_id(), d.interface_number())).collect()
 }
 
+/// Elgato USB devices that TuxDeck doesn't drive (other Stream Deck models, but also
+/// capture cards or microphones).
+pub fn unsupported(api: &HidApi) -> Vec<&DeviceInfo> {
+    api.device_list().filter(|d| d.vendor_id() == ELGATO_VID && model_for_pid(d.product_id()).is_none() && d.interface_number() <= 0).collect()
+}
+
 fn is_deck_interface(vid: u16, pid: u16, interface: i32) -> bool {
     // Only the first HID interface carries the Stream Deck protocol.
     vid == ELGATO_VID && model_for_pid(pid).is_some() && interface <= 0
@@ -165,6 +171,16 @@ fn extract_string(b: &[u8]) -> String {
 
 impl Deck {
     pub fn open(api: &HidApi, info: &DeviceInfo) -> Result<Self> {
+        let deck = Self::inspect(api, info)?;
+        // An image upload interrupted earlier (e.g. by a crash) would corrupt the next
+        // one: send an empty image report first, like python-elgato-streamdeck does.
+        let _ = deck.reset_key_stream();
+        Ok(deck)
+    }
+
+    /// Open a deck only to read its serial number and firmware: writes nothing, so it
+    /// doesn't disturb a TuxDeck instance that drives the deck.
+    pub fn inspect(api: &HidApi, info: &DeviceInfo) -> Result<Self> {
         let model = model_for_pid(info.product_id()).context("unsupported device")?;
         let dev =
             info.open_device(api).with_context(|| format!("cannot open {} ({}); check permissions (udev rule)", model.name, info.path().to_string_lossy()))?;
@@ -175,9 +191,6 @@ impl Deck {
             deck.serial = info.serial_number().unwrap_or_default().to_string();
         }
         deck.firmware = deck.read_feature_string(fr, fo).unwrap_or_default();
-        // An image upload interrupted earlier (e.g. by a crash) would corrupt the next
-        // one: send an empty image report first, like python-elgato-streamdeck does.
-        let _ = deck.reset_key_stream();
         Ok(deck)
     }
 
@@ -204,6 +217,10 @@ impl Deck {
     }
 
     pub fn set_brightness(&self, percent: u8) -> Result<()> {
+        // The Pedal has nothing to light.
+        if self.model.key_px == 0 && self.model.screen.is_none() {
+            return Ok(());
+        }
         self.write_feature(&brightness_report(self.model.protocol, percent))
     }
 

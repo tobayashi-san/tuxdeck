@@ -32,7 +32,13 @@ pub fn app_matches(identifier: &str, class: &str) -> bool {
         return false;
     }
     let last = class.rsplit('.').next().unwrap_or(&class).to_string();
-    identifier.split([';', ',']).map(normalize).filter(|n| !n.is_empty()).any(|n| n == class || n == last || n.replace(' ', "-") == class)
+    // Windows/macOS program names also mean their Linux counterpart (obs64 → obs).
+    identifier
+        .split([';', ','])
+        .map(normalize)
+        .filter(|n| !n.is_empty())
+        .flat_map(|n| std::iter::once(n.clone()).chain(crate::apps::linux_names(&n)))
+        .any(|n| n == class || n == last || n.replace(' ', "-") == class)
 }
 
 fn hypr_socket() -> Option<PathBuf> {
@@ -199,6 +205,12 @@ mod tests {
     fn matching_more() {
         assert!(app_matches("org.gnome.Nautilus.desktop", "org.gnome.Nautilus"));
         assert!(app_matches("C:\\Apps\\Discord.exe", "discord"));
+        // Windows program names of applications whose Linux window class differs.
+        assert!(app_matches("C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe", "com.obsproject.Studio"));
+        assert!(app_matches("chrome.exe", "google-chrome"));
+        assert!(app_matches("msedge.exe", "microsoft-edge"));
+        assert!(app_matches("ms-teams.exe", "teams-for-linux"));
+        assert!(!app_matches("obs64.exe", "firefox"));
         assert!(app_matches("steam, firefox", "Firefox"));
         assert!(app_matches(";;kitty;", " kitty "));
         assert!(app_matches("Visual Studio Code", "visual-studio-code"));

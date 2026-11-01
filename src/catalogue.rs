@@ -77,8 +77,22 @@ pub async fn load() -> Result<Arc<Vec<Entry>>> {
             return Ok(list.clone());
         }
     }
-    let r = crate::net::http().get(catalogue_url()).send().await?.error_for_status()?;
-    let raw: serde_json::Map<String, Value> = r.json().await.context("invalid catalogue")?;
+    let fetched = async {
+        let r = crate::net::http().get(catalogue_url()).timeout(crate::net::SHORT).send().await?.error_for_status()?;
+        r.json::<serde_json::Map<String, Value>>().await.context("invalid catalogue")
+    }
+    .await;
+    let raw = match fetched {
+        Ok(raw) => raw,
+        // Offline for a while: the last list is better than none.
+        Err(e) => match cache.lock().as_ref() {
+            Some((_, list)) => {
+                tracing::warn!("plugin catalogue: {e:#} (using the last list)");
+                return Ok(list.clone());
+            }
+            None => return Err(e),
+        },
+    };
     let list: Vec<Entry> = raw
         .into_iter()
         .filter_map(|(id, v)| {
@@ -136,18 +150,34 @@ pub async fn resolve(e: &Entry) -> Result<Release> {
         return Ok(Release { tag: String::new(), file, url: url.to_string() });
     }
     let repo = github_repo(&e.repository).with_context(|| crate::tr!("not a GitHub repository: {url}", url = e.repository))?;
-    let mut req = crate::net::http().get(format!("{}/repos/{repo}/releases?per_page=10", github_api())).header("Accept", "application/vnd.github+json");
-    // Never send the token to a replacement API (tests).
-    if std::env::var_os("TUXDECK_GITHUB_API").is_none() {
-        if let Some(t) = github_token() {
-            req = req.bearer_auth(t);
+    // A token that doesn't work (any more) is dropped: the releases are public.
+    static TOKEN_BAD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    let token = github_token().filter(|_| std::env::var_os("TUXDECK_GITHUB_API").is_none() && !TOKEN_BAD.load(std::sync::atomic::Ordering::Relaxed));
+    let get = |token: Option<&String>| {
+        let req = crate::net::http()
+            .get(format!("{}/repos/{repo}/releases?per_page=10", github_api()))
+            .header("Accept", "application/vnd.github+json")
+            .timeout(crate::net::SHORT);
+        match token {
+            Some(t) => req.bearer_auth(t),
+            None => req,
         }
+    };
+    let mut r = get(token.as_ref()).send().await?;
+    if token.is_some() && r.status() == reqwest::StatusCode::UNAUTHORIZED {
+        tracing::warn!("GitHub refuses the token (GITHUB_TOKEN, GH_TOKEN or gh login): continuing without it");
+        TOKEN_BAD.store(true, std::sync::atomic::Ordering::Relaxed);
+        r = get(None).send().await?;
     }
-    let r = req.send().await?;
-    if r.status() == reqwest::StatusCode::FORBIDDEN || r.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
-        bail!(crate::tr!("GitHub limits the number of requests – please try again in an hour"));
+    match r.status() {
+        reqwest::StatusCode::FORBIDDEN | reqwest::StatusCode::TOO_MANY_REQUESTS => {
+            bail!(crate::tr!("GitHub limits the number of requests – please try again in an hour"))
+        }
+        reqwest::StatusCode::NOT_FOUND => bail!(crate::tr!("The plugin's GitHub repository no longer exists")),
+        s if !s.is_success() => bail!(crate::tr!("GitHub answered with an error ({status})", status = s)),
+        _ => {}
     }
-    let releases: Vec<Value> = r.error_for_status()?.json().await?;
+    let releases: Vec<Value> = r.json().await?;
     let usable: Vec<&Value> = releases.iter().filter(|r| r["draft"] != true).collect();
     let release = usable.iter().find(|r| r["prerelease"] != true).or(usable.first()).with_context(|| crate::tr!("the plugin has no release yet"))?;
     pick_asset(release).with_context(|| crate::tr!("the newest release contains no plugin package"))
@@ -174,18 +204,24 @@ fn pick_asset(release: &Value) -> Option<Release> {
 
 /// Download a release package (size-limited).
 pub async fn download(r: &Release) -> Result<Vec<u8>> {
-    let resp = crate::net::http().get(&r.url).send().await?;
+    let stalled = |e: reqwest::Error| if e.is_timeout() { anyhow::anyhow!(crate::tr!("The download stalled – please try again")) } else { e.into() };
+    let mut resp = crate::net::http().get(&r.url).send().await.map_err(stalled)?;
     if !resp.status().is_success() {
         bail!(crate::tr!("Download failed ({status})", status = resp.status()));
     }
-    if resp.content_length().is_some_and(|n| n as usize > crate::packages::MAX_BYTES) {
+    let max = crate::packages::MAX_BYTES;
+    if resp.content_length().is_some_and(|n| n as usize > max) {
         bail!(crate::tr!("the package is too large"));
     }
-    let bytes = resp.bytes().await?;
-    if bytes.len() > crate::packages::MAX_BYTES {
-        bail!(crate::tr!("the package is too large"));
+    // Checked while it arrives (a server may not say how big it is).
+    let mut out = Vec::with_capacity(resp.content_length().unwrap_or(0) as usize);
+    while let Some(chunk) = resp.chunk().await.map_err(stalled)? {
+        if out.len() + chunk.len() > max {
+            bail!(crate::tr!("the package is too large"));
+        }
+        out.extend_from_slice(&chunk);
     }
-    Ok(bytes.to_vec())
+    Ok(out)
 }
 
 #[cfg(test)]

@@ -200,6 +200,39 @@ pub fn qt_key(qt: i64) -> (Option<KeyCode>, Option<String>) {
         };
         return (ascii_key(c.to_ascii_uppercase()), Some(sym));
     }
+    // Latin-1 characters of European layouts (recorded from the layout: ä, ß, é, …): the
+    // keysym of the lower-case letter; the physical key comes from LinuxCode.
+    if (0xa0..=0xff).contains(&qt) {
+        let c = char::from_u32(qt as u32).map(|c| c.to_lowercase().next().unwrap_or(c)).unwrap_or(' ');
+        let sym = match c {
+            'ä' => "adiaeresis",
+            'ö' => "odiaeresis",
+            'ü' => "udiaeresis",
+            'ß' => "ssharp",
+            'é' => "eacute",
+            'è' => "egrave",
+            'ê' => "ecircumflex",
+            'à' => "agrave",
+            'â' => "acircumflex",
+            'ç' => "ccedilla",
+            'ñ' => "ntilde",
+            'å' => "aring",
+            'ø' => "oslash",
+            'æ' => "ae",
+            'ò' => "ograve",
+            'ù' => "ugrave",
+            'ì' => "igrave",
+            '§' => "section",
+            '°' => "degree",
+            '´' => "acute",
+            '¨' => "diaeresis",
+            '£' => "sterling",
+            '¿' => "questiondown",
+            '¡' => "exclamdown",
+            _ => return (None, None),
+        };
+        return (None, Some(sym.to_string()));
+    }
     let f = |n: i64| -> (Option<KeyCode>, Option<String>) {
         let codes = [
             K::KEY_F1,
@@ -380,8 +413,23 @@ impl InputWorker {
 /// Terminal emulators use Ctrl+Shift+V to paste (Ctrl+V is passed to the program).
 fn is_terminal(class: &str) -> bool {
     let c = class.to_lowercase();
-    let exact = ["st", "st-256color", "rio", "foot", "footclient", "kgx", "xterm", "urxvt"];
-    let contains = ["kitty", "alacritty", "wezterm", "konsole", "terminal", "ghostty", "terminator", "tilix", "org.gnome.console", "termite", "blackbox"];
+    let exact = ["st", "st-256color", "rio", "foot", "footclient", "kgx", "xterm", "urxvt", "tilda"];
+    let contains = [
+        "kitty",
+        "alacritty",
+        "wezterm",
+        "konsole",
+        "terminal",
+        "ghostty",
+        "terminator",
+        "tilix",
+        "org.gnome.console",
+        "termite",
+        "blackbox",
+        "ptyxis",
+        "yakuake",
+        "guake",
+    ];
     exact.contains(&c.as_str()) || contains.iter().any(|t| c.contains(t))
 }
 
@@ -496,6 +544,8 @@ struct Desktop {
     xdotool: bool,
     wl_copy: bool,
     xclip: bool,
+    /// GNOME or KDE: their Wayland sessions have no virtual-keyboard protocol for wtype.
+    gnome_kde: bool,
 }
 
 impl Desktop {
@@ -510,6 +560,10 @@ impl Desktop {
             // Dry run exercises the clipboard path without the tools.
             wl_copy: dry_run() || has_cmd("wl-copy"),
             xclip: dry_run() || has_cmd("xclip"),
+            gnome_kde: std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|d| {
+                let d = d.to_uppercase();
+                d.contains("GNOME") || d.contains("KDE")
+            }),
         }
     }
 
@@ -517,8 +571,9 @@ impl Desktop {
     fn usable(&self, name: &str) -> bool {
         match name {
             "hyprctl" => self.hyprland && self.hyprctl,
-            "wtype" => self.wayland && self.wtype,
-            "xdotool" => self.xdotool,
+            "wtype" => self.wayland && self.wtype && !self.gnome_kde,
+            // In a Wayland session xdotool only reaches XWayland windows.
+            "xdotool" => self.xdotool && self.x11 && !self.wayland,
             _ => false,
         }
     }
@@ -527,7 +582,7 @@ impl Desktop {
     fn clipboard(&self) -> Option<(&'static str, &'static [&'static str])> {
         if self.wayland && self.wl_copy {
             Some(("wl-copy", &[]))
-        } else if self.xclip {
+        } else if self.xclip && self.x11 {
             Some(("xclip", &["-selection", "clipboard"]))
         } else {
             None
@@ -562,25 +617,32 @@ fn fallback_backend(d: &Desktop) -> Backend {
 /// How text is typed when it is not pasted.
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Typing {
+    /// Key by key on the virtual keyboard, with the session's layout.
+    Uinput,
     Wtype,
     Xdotool,
     Hyprland,
     Paste,
+    /// Nothing can type here (and pasting instead would put the text on the clipboard,
+    /// which typing is meant to avoid).
+    Unavailable,
 }
 
-fn typing_method(paste: bool, backend: Backend, d: &Desktop) -> Typing {
-    if !paste {
-        if d.wtype && d.wayland {
-            return Typing::Wtype;
-        }
-        if d.xdotool && d.x11 && !d.wayland {
-            return Typing::Xdotool;
-        }
-        if backend == Backend::Hyprland || d.usable("hyprctl") {
-            return Typing::Hyprland;
-        }
+fn typing_method(paste: bool, backend: Backend, d: &Desktop, keymap: bool) -> Typing {
+    if paste {
+        return Typing::Paste;
     }
-    Typing::Paste
+    if backend == Backend::Uinput && keymap {
+        Typing::Uinput
+    } else if d.usable("wtype") {
+        Typing::Wtype
+    } else if d.usable("xdotool") {
+        Typing::Xdotool
+    } else if backend == Backend::Hyprland || d.usable("hyprctl") {
+        Typing::Hyprland
+    } else {
+        Typing::Unavailable
+    }
 }
 
 const MOD_NAMES: [(u32, &str); 4] = [(MOD_CTRL, "ctrl"), (MOD_SHIFT, "shift"), (MOD_ALT, "alt"), (MOD_SUPER, "super")];
@@ -783,22 +845,67 @@ impl Injector {
             Backend::Hyprland => self.hypr_shortcut(c, None),
             Backend::Wtype => run("wtype", &wtype_args(c).iter().map(|s| s.as_str()).collect::<Vec<_>>()),
             Backend::Xdotool => run("xdotool", &["key", &xdotool_combo(c)]),
-            _ => bail!("no key injection backend available (enable /dev/uinput or install wtype/xdotool)"),
+            _ => bail!(crate::tr!("no way to send keys here: enable /dev/uinput (see the handbook) or install wtype (wlroots) or xdotool (X11)")),
         }
     }
 
     /// Insert text. `paste` uses the clipboard + Ctrl+V like the official app.
     pub fn text(&mut self, text: &str, paste: bool) -> Result<()> {
-        self.text_on(&Desktop::detect(), text, paste)
+        let keymap = if !paste && self.backend == Backend::Uinput { crate::keymap::current() } else { None };
+        self.text_on(&Desktop::detect(), text, paste, keymap.as_deref())
     }
 
-    fn text_on(&mut self, d: &Desktop, text: &str, paste: bool) -> Result<()> {
-        match typing_method(paste, self.backend, d) {
+    fn text_on(&mut self, d: &Desktop, text: &str, paste: bool, keymap: Option<&crate::keymap::Keymap>) -> Result<()> {
+        match typing_method(paste, self.backend, d, keymap.is_some()) {
+            Typing::Uinput => self.type_uinput(keymap.unwrap(), text),
             Typing::Wtype => run("wtype", &["--", text]),
             Typing::Xdotool => run("xdotool", &["type", "--", text]),
             Typing::Hyprland => self.type_hyprland(d, text),
             Typing::Paste => self.paste(d, text),
+            Typing::Unavailable => {
+                bail!(crate::tr!("text can't be typed here: enable /dev/uinput (see the handbook) or turn off \"Type instead of paste\""))
+            }
         }
+    }
+
+    /// Type text on the virtual keyboard. Every character must be on the layout (no dead
+    /// keys or compose sequences): nothing is typed otherwise.
+    fn type_uinput(&mut self, keymap: &crate::keymap::Keymap, text: &str) -> Result<()> {
+        let strokes: Vec<Option<crate::keymap::Stroke>> = text
+            .chars()
+            .filter(|c| *c != '\r')
+            .map(|c| match c {
+                '\n' => Some(crate::keymap::Stroke { code: KeyCode::KEY_ENTER.code(), shift: false, altgr: false }),
+                c => keymap.stroke(c),
+            })
+            .collect();
+        let missing: String = text.chars().filter(|c| *c != '\r' && *c != '\n').filter(|c| keymap.stroke(*c).is_none()).collect();
+        if !missing.is_empty() {
+            bail!(crate::tr!(
+                "{chars} can't be typed with the keyboard layout {layout}: turn off \"Type instead of paste\"",
+                chars = missing,
+                layout = keymap.name
+            ));
+        }
+        for s in strokes.into_iter().flatten() {
+            let mut keys = Vec::new();
+            if s.shift {
+                keys.push(KeyCode::KEY_LEFTSHIFT);
+            }
+            if s.altgr {
+                keys.push(KeyCode::KEY_RIGHTALT);
+            }
+            keys.push(KeyCode::new(s.code));
+            for k in &keys {
+                self.emit(&[*k], true)?;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+            for k in keys.iter().rev() {
+                self.emit(&[*k], false)?;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        Ok(())
     }
 
     /// Type text key by key through Hyprland (keysyms are resolved with the active
@@ -832,7 +939,7 @@ impl Injector {
 
     fn paste(&mut self, d: &Desktop, text: &str) -> Result<()> {
         // Clipboard + paste shortcut.
-        let Some((tool, args)) = d.clipboard() else { bail!("no clipboard tool (wl-copy/xclip) found") };
+        let Some((tool, args)) = d.clipboard() else { bail!(crate::tr!("no clipboard tool found: install wl-clipboard (Wayland) or xclip (X11)")) };
         pipe(tool, args, text)?;
         std::thread::sleep(Duration::from_millis(60));
         let mods = if is_terminal(&self.focused_class) { MOD_CTRL | MOD_SHIFT } else { MOD_CTRL };
@@ -860,8 +967,13 @@ fn pipe(cmd: &str, args: &[&str], input: &str) -> Result<()> {
     }
     let mut child = Command::new(cmd).args(args).stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null()).spawn()?;
     child.stdin.take().unwrap().write_all(input.as_bytes())?;
-    // wl-copy forks into the background and keeps serving the clipboard.
-    let _ = child.wait();
+    // wl-copy and xclip fork into the background and keep serving the clipboard; they
+    // exit successfully once they own it. Otherwise the paste shortcut would insert
+    // whatever was on the clipboard before.
+    let st = child.wait()?;
+    if !st.success() {
+        bail!(crate::tr!("{tool} could not take the clipboard ({status})", tool = cmd, status = st));
+    }
     Ok(())
 }
 
@@ -878,7 +990,7 @@ pub fn media(inj: &mut Injector, idx: i64) -> Result<()> {
         4 => vol(&["set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]),
         5 => vol(&["set-volume", "-l", "1.0", "@DEFAULT_AUDIO_SINK@", "5%+"]),
         6 => vol(&["set-volume", "@DEFAULT_AUDIO_SINK@", "5%-"]),
-        _ => bail!("unsupported multimedia action {idx}"),
+        _ => bail!(crate::tr!("unsupported multimedia action {idx}", idx = idx)),
     };
     if r.is_ok() {
         return Ok(());
@@ -952,8 +1064,10 @@ mod tests {
         Combo { mods, key, keysym: (!keysym.is_empty()).then(|| keysym.to_string()), code }
     }
 
-    const ALL: Desktop = Desktop { wayland: true, x11: true, hyprland: true, hyprctl: true, wtype: true, xdotool: true, wl_copy: true, xclip: true };
-    const NONE: Desktop = Desktop { wayland: false, x11: false, hyprland: false, hyprctl: false, wtype: false, xdotool: false, wl_copy: false, xclip: false };
+    const ALL: Desktop =
+        Desktop { wayland: true, x11: true, hyprland: true, hyprctl: true, wtype: true, xdotool: true, wl_copy: true, xclip: true, gnome_kde: false };
+    const NONE: Desktop =
+        Desktop { wayland: false, x11: false, hyprland: false, hyprctl: false, wtype: false, xdotool: false, wl_copy: false, xclip: false, gnome_kde: false };
 
     #[test]
     fn qt_keys() {
@@ -961,6 +1075,9 @@ mod tests {
         assert_eq!(qt_key('a' as i64), (Some(KeyCode::KEY_A), Some("a".into())));
         assert_eq!(qt_key('7' as i64), (Some(KeyCode::KEY_7), Some("7".into())));
         assert_eq!(qt_key(' ' as i64), (Some(KeyCode::KEY_SPACE), Some("space".into())));
+        // Layout characters of European keyboards.
+        assert_eq!(qt_key(0xdc), (None, Some("udiaeresis".into())));
+        assert_eq!(qt_key(0xdf), (None, Some("ssharp".into())));
         assert_eq!(qt_key('/' as i64), (Some(KeyCode::KEY_SLASH), Some("slash".into())));
         assert_eq!(qt_key('.' as i64), (Some(KeyCode::KEY_DOT), Some("period".into())));
         // Shifted symbols have no unshifted US key, only a keysym.
@@ -1083,8 +1200,11 @@ mod tests {
         }
         assert_eq!(fallback_backend(&ALL), Backend::Hyprland);
         assert_eq!(fallback_backend(&wlroots), Backend::Wtype);
-        // wtype needs a Wayland session; xdotool is tried anyway.
-        assert_eq!(fallback_backend(&Desktop { wayland: false, ..wlroots }), Backend::Xdotool);
+        // wtype needs a wlroots-like Wayland session, xdotool an X11 one.
+        assert_eq!(fallback_backend(&Desktop { gnome_kde: true, ..wlroots }), Backend::None);
+        assert_eq!(fallback_backend(&Desktop { wayland: false, ..wlroots }), Backend::None);
+        assert_eq!(fallback_backend(&Desktop { x11: true, ..wlroots }), Backend::Wtype);
+        assert_eq!(fallback_backend(&Desktop { wtype: false, x11: true, ..wlroots }), Backend::None);
         assert_eq!(fallback_backend(&x11), Backend::Xdotool);
         assert_eq!(fallback_backend(&NONE), Backend::None);
         for (b, n) in
@@ -1097,27 +1217,44 @@ mod tests {
 
     #[test]
     fn typing_and_clipboard_choice() {
-        assert_eq!(typing_method(true, Backend::Hyprland, &ALL), Typing::Paste);
-        assert_eq!(typing_method(false, Backend::Uinput, &ALL), Typing::Wtype);
-        assert_eq!(typing_method(false, Backend::Uinput, &Desktop { wtype: false, ..ALL }), Typing::Hyprland);
+        assert_eq!(typing_method(true, Backend::Hyprland, &ALL, true), Typing::Paste);
+        // The virtual keyboard types with the session's layout, before any tool.
+        assert_eq!(typing_method(false, Backend::Uinput, &ALL, true), Typing::Uinput);
+        assert_eq!(typing_method(false, Backend::Uinput, &ALL, false), Typing::Wtype);
+        assert_eq!(typing_method(false, Backend::Uinput, &Desktop { wtype: false, ..ALL }, false), Typing::Hyprland);
         let x11 = Desktop { x11: true, xdotool: true, ..NONE };
-        assert_eq!(typing_method(false, Backend::Uinput, &x11), Typing::Xdotool);
-        // XWayland: xdotool can't type into Wayland windows.
-        assert_eq!(typing_method(false, Backend::Uinput, &Desktop { wayland: true, ..x11 }), Typing::Paste);
-        assert_eq!(typing_method(false, Backend::Hyprland, &NONE), Typing::Hyprland);
-        assert_eq!(typing_method(false, Backend::Uinput, &NONE), Typing::Paste);
+        assert_eq!(typing_method(false, Backend::Uinput, &x11, false), Typing::Xdotool);
+        // XWayland: xdotool can't type into Wayland windows; GNOME/KDE don't let wtype.
+        assert_eq!(typing_method(false, Backend::Uinput, &Desktop { wayland: true, ..x11 }, false), Typing::Unavailable);
+        let gnome = Desktop { wayland: true, wtype: true, wl_copy: true, gnome_kde: true, ..NONE };
+        assert_eq!(typing_method(false, Backend::Uinput, &gnome, false), Typing::Unavailable);
+        assert_eq!(typing_method(false, Backend::Uinput, &gnome, true), Typing::Uinput);
+        assert_eq!(typing_method(false, Backend::Hyprland, &NONE, false), Typing::Hyprland);
+        assert_eq!(typing_method(false, Backend::Uinput, &NONE, false), Typing::Unavailable);
 
         assert_eq!(ALL.clipboard(), Some(("wl-copy", &[][..])));
         assert_eq!(Desktop { wl_copy: false, ..ALL }.clipboard(), Some(("xclip", &["-selection", "clipboard"][..])));
         assert_eq!(Desktop { wayland: false, ..ALL }.clipboard().unwrap().0, "xclip");
         assert_eq!(Desktop { wayland: true, wl_copy: false, ..NONE }.clipboard(), None);
+        // xclip needs an X server.
+        assert_eq!(Desktop { x11: false, wl_copy: false, ..ALL }.clipboard(), None);
         assert_eq!(NONE.clipboard(), None);
     }
 
     #[test]
     fn terminals() {
-        for t in ["kitty", "Alacritty", "org.wezfurlong.wezterm", "foot", "st-256color", "com.mitchellh.ghostty", "gnome-terminal-server", "org.gnome.Console"]
-        {
+        for t in [
+            "kitty",
+            "Alacritty",
+            "org.wezfurlong.wezterm",
+            "foot",
+            "st-256color",
+            "com.mitchellh.ghostty",
+            "gnome-terminal-server",
+            "org.gnome.Console",
+            "org.gnome.Ptyxis",
+            "org.kde.yakuake",
+        ] {
             assert!(is_terminal(t), "{t}");
         }
         for t in ["firefox", "", "steam", "code"] {
@@ -1192,18 +1329,18 @@ mod tests {
     #[test]
     fn text_typing() {
         let wl = Desktop { wayland: true, wtype: true, wl_copy: true, ..NONE };
-        assert_eq!(record(ok, || inj(Backend::Uinput).text_on(&wl, "-n hi", false).unwrap()), ["wtype -- -n hi"]);
+        assert_eq!(record(ok, || inj(Backend::Uinput).text_on(&wl, "-n hi", false, None).unwrap()), ["wtype -- -n hi"]);
         let x11 = Desktop { x11: true, xdotool: true, xclip: true, ..NONE };
-        assert_eq!(record(ok, || inj(Backend::Uinput).text_on(&x11, "a b", false).unwrap()), ["xdotool type -- a b"]);
+        assert_eq!(record(ok, || inj(Backend::Uinput).text_on(&x11, "a b", false, None).unwrap()), ["xdotool type -- a b"]);
 
         // Hyprland: plain keys as shortcuts, the rest pasted in runs.
         let hypr = Desktop { wayland: true, hyprland: true, hyprctl: true, wl_copy: true, ..NONE };
         let mut i = inj(Backend::Hyprland);
         i.hypr_lua = Some(true);
-        let log = record(ok, || i.text_on(&hypr, "Hi 2ü€\t", false).unwrap());
+        let log = record(ok, || i.text_on(&hypr, "Hi 2ü€\t", false, None).unwrap());
         let key = |m: &str, k: &str| format!(r#"hyprctl dispatch hl.dsp.send_shortcut({{ mods = "{m}", key = "{k}" }})"#);
         assert_eq!(log, [key("SHIFT", "h"), key("", "i"), key("", "space"), key("", "2"), "wl-copy <<< ü€".into(), key("CTRL", "v"), key("", "Tab")]);
-        let log = record(ok, || i.text_on(&hypr, "a€", false).unwrap());
+        let log = record(ok, || i.text_on(&hypr, "a€", false, None).unwrap());
         assert_eq!(log, [key("", "a"), "wl-copy <<< €".into(), key("CTRL", "v")]);
     }
 
@@ -1211,22 +1348,20 @@ mod tests {
     fn text_paste() {
         let wl = Desktop { wayland: true, wl_copy: true, wtype: true, ..NONE };
         let mut i = inj(Backend::Wtype);
-        assert_eq!(record(ok, || i.text_on(&wl, "hello", true).unwrap()), ["wl-copy <<< hello", "wtype -M ctrl -k v -m ctrl"]);
+        assert_eq!(record(ok, || i.text_on(&wl, "hello", true, None).unwrap()), ["wl-copy <<< hello", "wtype -M ctrl -k v -m ctrl"]);
         // Terminals paste with Ctrl+Shift+V.
         i.focused_class = "kitty".into();
-        assert_eq!(record(ok, || i.text_on(&wl, "ls", true).unwrap()), ["wl-copy <<< ls", "wtype -M ctrl -M shift -k v -m shift -m ctrl"]);
+        assert_eq!(record(ok, || i.text_on(&wl, "ls", true, None).unwrap()), ["wl-copy <<< ls", "wtype -M ctrl -M shift -k v -m shift -m ctrl"]);
         let x11 = Desktop { x11: true, xclip: true, xdotool: true, ..NONE };
         let mut i = inj(Backend::Xdotool);
-        assert_eq!(record(ok, || i.text_on(&x11, "x", true).unwrap()), ["xclip -selection clipboard <<< x", "xdotool key ctrl+v"]);
-        // Nothing to type with -> paste; nothing to paste with -> error.
-        assert_eq!(
-            record(ok, || i.text_on(&Desktop { xdotool: false, ..x11 }, "y", false).unwrap()),
-            ["xclip -selection clipboard <<< y", "xdotool key ctrl+v"]
-        );
-        let log = record(ok, || assert!(inj(Backend::Uinput).text_on(&NONE, "z", false).is_err()));
+        assert_eq!(record(ok, || i.text_on(&x11, "x", true, None).unwrap()), ["xclip -selection clipboard <<< x", "xdotool key ctrl+v"]);
+        // Nothing to type with: an error, not the clipboard (typing is meant to avoid it).
+        let log = record(ok, || assert!(i.text_on(&Desktop { xdotool: false, ..x11 }, "y", false, None).is_err()));
+        assert!(log.is_empty());
+        let log = record(ok, || assert!(inj(Backend::Uinput).text_on(&NONE, "z", false, None).is_err()));
         assert!(log.is_empty());
         // A failing clipboard tool stops before the shortcut.
-        assert_eq!(record(|_| anyhow::bail!("no"), || assert!(i.text_on(&x11, "x", true).is_err())), ["xclip -selection clipboard <<< x"]);
+        assert_eq!(record(|_| anyhow::bail!("no"), || assert!(i.text_on(&x11, "x", true, None).is_err())), ["xclip -selection clipboard <<< x"]);
         assert_eq!(record(ok, || i.enter().unwrap()), ["xdotool key Return"]);
     }
 

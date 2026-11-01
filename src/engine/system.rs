@@ -18,24 +18,101 @@ pub fn spawn_task(f: impl std::future::Future<Output = ()> + Send + 'static) {
     }
 }
 
-/// Spawn a process without leaving zombies behind.
-pub fn spawn_detached(mut cmd: Command) -> Result<()> {
-    if input::dry_run() {
-        tracing::info!("DRYRUN exec {cmd:?}");
-        return Ok(());
-    }
-    let mut child = cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn()?;
-    std::thread::spawn(move || {
-        let _ = child.wait();
-    });
-    Ok(())
+/// Called with the exit status of a watched process and how long it ran.
+pub type OnExit = Box<dyn FnOnce(std::process::ExitStatus, Duration) + Send>;
+
+/// A program started for the user. Quitting it later signals exactly this program
+/// (its scope or process group), not every process that happens to share its name.
+#[derive(Clone, Debug)]
+pub struct Launched {
+    pub pid: u32,
+    /// The transient systemd scope it runs in.
+    pub unit: Option<String>,
+    /// Start time of the process (`/proc/<pid>/stat`), to recognise a reused pid.
+    pub started: Option<u64>,
 }
 
-/// Start a program for the user (Open, Open Application, links). Under the systemd user
-/// service it gets its own transient scope: otherwise it would stay in tuxdeck.service's
-/// cgroup and systemd would kill it whenever the service restarts or stops.
-pub fn spawn_program(cmd: Command) -> Result<()> {
-    spawn_detached(if scopes_available() { in_scope(&cmd) } else { cmd })
+/// Start time of a process in clock ticks since boot.
+fn start_time(pid: u32) -> Option<u64> {
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    // After the command name in parentheses: field 22 is the start time.
+    stat.rsplit_once(')')?.1.split_whitespace().nth(19)?.parse().ok()
+}
+
+/// Spawn a process without leaving zombies behind.
+pub fn spawn_detached(cmd: Command) -> Result<()> {
+    spawn_watched(cmd, None).map(drop)
+}
+
+/// Spawn a process without leaving zombies behind and hand its exit status to `on_exit`.
+/// Returns the process id (`None` in dry-run mode).
+fn spawn_watched(mut cmd: Command, on_exit: Option<OnExit>) -> Result<Option<u32>> {
+    if input::dry_run() {
+        tracing::info!("DRYRUN exec {cmd:?}");
+        return Ok(None);
+    }
+    let started = Instant::now();
+    let mut child = cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn()?;
+    let pid = child.id();
+    std::thread::spawn(move || {
+        if let (Ok(status), Some(f)) = (child.wait(), on_exit) {
+            f(status, started.elapsed());
+        }
+    });
+    Ok(Some(pid))
+}
+
+/// Start a program for the user (Open, Open Application, links) and report how it ended.
+/// Under the systemd user service it gets its own transient scope: otherwise it would
+/// stay in tuxdeck.service's cgroup and systemd would kill it whenever the service
+/// restarts or stops.
+pub fn launch(mut cmd: Command, on_exit: Option<OnExit>) -> Result<Option<Launched>> {
+    if scopes_available() {
+        let (c, unit) = in_scope(&cmd);
+        return Ok(spawn_watched(c, on_exit)?.map(|pid| Launched { pid, unit: Some(unit), started: start_time(pid) }));
+    }
+    // Its own process group, so quitting it also reaches the programs it started.
+    use std::os::unix::process::CommandExt;
+    cmd.process_group(0);
+    Ok(spawn_watched(cmd, on_exit)?.map(|pid| Launched { pid, unit: None, started: start_time(pid) }))
+}
+
+/// Signal a program started by [`launch`] and everything it started. False if it is gone.
+pub fn quit_launched(l: &Launched, signal: i32) -> bool {
+    match &l.unit {
+        Some(unit) => Command::new("systemctl")
+            .args(["--user", "kill", "--quiet"])
+            .arg(format!("--signal={signal}"))
+            .arg(unit)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success()),
+        // The pid stays taken while the group has members. A process with that pid that
+        // started later is another program: the group is gone.
+        None => {
+            if start_time(l.pid).is_some_and(|t| l.started != Some(t)) {
+                return false;
+            }
+            (unsafe { libc::kill(-(l.pid as i32), signal) }) == 0
+        }
+    }
+}
+
+/// Why a program that was started for a key ended right away, or `None` if it didn't fail.
+pub fn exit_problem(program: &str, status: std::process::ExitStatus, ran: Duration) -> Option<String> {
+    if status.success() || ran > Duration::from_secs(5) {
+        return None;
+    }
+    Some(match status.code()? {
+        3 | 4 if program.starts_with("xdg-open ") => {
+            crate::tr!("no application is set up to open {target}", target = program.trim_start_matches("xdg-open "))
+        }
+        127 => crate::tr!("{program}: command not found", program = program),
+        126 => crate::tr!("{program} is not executable", program = program),
+        code => crate::tr!("{program} exited with code {code}", program = program, code = code),
+    })
 }
 
 /// Whether `systemd-run --user --scope` works here (checked once).
@@ -58,7 +135,7 @@ pub fn scopes_available() -> bool {
 
 /// `cmd` wrapped in `systemd-run --user --scope` (unit `app-tuxdeck-<program>-<random>.scope`,
 /// named like the desktop launchers do).
-fn in_scope(cmd: &Command) -> Command {
+fn in_scope(cmd: &Command) -> (Command, String) {
     let program = std::path::Path::new(cmd.get_program()).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
     // `sh -c "<command line>"`: name the scope after the command line's program.
     let args: Vec<_> = cmd.get_args().map(|a| a.to_string_lossy().into_owned()).collect();
@@ -91,7 +168,7 @@ fn in_scope(cmd: &Command) -> Command {
     if let Some(d) = cmd.get_current_dir() {
         c.current_dir(d);
     }
-    c
+    (c, unit)
 }
 
 /// Signal every process of the given program (like `pkill -x`, but also for names
@@ -125,10 +202,15 @@ pub fn kill_processes(name: &str, signal: i32) -> Result<usize> {
 }
 
 pub fn open_url(url: &str) -> Result<()> {
+    launch(url_opener(url), None).map(drop)
+}
+
+/// `xdg-open <url>` (a browser that isn't running yet becomes its child, so it is
+/// started like a program).
+pub(super) fn url_opener(url: &str) -> Command {
     let mut c = Command::new("xdg-open");
     c.arg(url);
-    // A browser that isn't running yet becomes a child of xdg-open.
-    spawn_program(c)
+    c
 }
 
 pub(super) fn expand_home(p: &str) -> String {
@@ -208,6 +290,36 @@ mod tests {
     }
 
     #[test]
+    fn quick_failures() {
+        let exit = |code: i32| std::process::ExitStatus::from_raw(code << 8);
+        let quick = Duration::from_millis(200);
+        assert_eq!(exit_problem("nope", exit(127), quick).as_deref(), Some("nope: command not found"));
+        assert_eq!(exit_problem("x.sh", exit(126), quick).as_deref(), Some("x.sh is not executable"));
+        assert_eq!(exit_problem("xdg-open mailto:", exit(3), quick).as_deref(), Some("no application is set up to open mailto:"));
+        assert_eq!(exit_problem("tool", exit(2), quick).as_deref(), Some("tool exited with code 2"));
+        assert_eq!(exit_problem("tool", exit(0), quick), None);
+        assert_eq!(exit_problem("tool", exit(1), Duration::from_secs(60)), None);
+        // Killed by a signal (quit from the deck): not an error.
+        assert_eq!(exit_problem("tool", std::process::ExitStatus::from_raw(libc::SIGTERM), quick), None);
+    }
+
+    #[test]
+    fn launched_programs_quit_with_their_group() {
+        if input::dry_run() || scopes_available() {
+            return;
+        }
+        let mut c = Command::new("sh");
+        c.args(["-c", "sleep 30 & wait"]);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let l = launch(c, Some(Box::new(move |st, _| tx.send(st).unwrap()))).unwrap().unwrap();
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(quit_launched(&l, libc::SIGTERM));
+        assert_eq!(rx.recv_timeout(Duration::from_secs(5)).unwrap().signal(), Some(libc::SIGTERM));
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(!quit_launched(&l, libc::SIGTERM));
+    }
+
+    #[test]
     fn home_expansion() {
         let home = dirs::home_dir().unwrap();
         assert_eq!(expand_home("~"), home.to_string_lossy());
@@ -266,16 +378,17 @@ mod tests {
         let mut sh = Command::new("sh");
         sh.arg("-c").arg("exec \"$0\" --x").arg("/opt/My App/obs");
         sh.env("A", "1");
-        let c = in_scope(&sh);
+        let (c, unit) = in_scope(&sh);
         let a = argv(&c);
+        assert_eq!(a[5], format!("--unit={unit}"));
         assert_eq!(a[..5], ["systemd-run", "--user", "--scope", "--collect", "--quiet"]);
         assert!(a[5].starts_with("--unit=app-tuxdeck-obs-") && a[5].ends_with(".scope"), "{}", a[5]);
         assert_eq!(a[6..], ["--", "sh", "-c", "exec \"$0\" --x", "/opt/My App/obs"]);
         assert!(c.get_envs().any(|(k, v)| k == "A" && v == Some("1".as_ref())));
         let mut sh = Command::new("sh");
         sh.arg("-c").arg("flatpak run org.x.Y --new");
-        assert!(argv(&in_scope(&sh))[5].starts_with("--unit=app-tuxdeck-flatpak-"));
-        assert!(argv(&in_scope(&Command::new("/usr/bin/my prog!")))[5].starts_with("--unit=app-tuxdeck-my_prog_-"));
+        assert!(argv(&in_scope(&sh).0)[5].starts_with("--unit=app-tuxdeck-flatpak-"));
+        assert!(argv(&in_scope(&Command::new("/usr/bin/my prog!")).0)[5].starts_with("--unit=app-tuxdeck-my_prog_-"));
     }
 
     /// Start a process that waits on its stdin.

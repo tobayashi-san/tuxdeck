@@ -57,7 +57,8 @@ for (const m of html.matchAll(/<\w+([^>]*)\sdata-i18n-attr="([^"]+)"([^>]*)>/g))
 // Rust
 const RS_STR = String.raw`"(?:[^"\\]|\\.)*"`;
 for (const f of fs.readdirSync(path.join(ROOT, 'src'), { recursive: true }).filter((f) => f.endsWith('.rs'))) {
-  const src = read(`src/${f}`).replace(/#\[cfg\(test\)\][\s\S]*$/, '');
+  // Only the test module at the end (single items can be test-only too).
+  const src = read(`src/${f}`).replace(/#\[cfg\(test\)\]\s*mod tests[\s\S]*$/, '');
   for (const m of src.matchAll(new RegExp(String.raw`\btr!\(\s*(${RS_STR})`, 'g'))) add(unq(m[1]), `src/${f}`);
   for (const m of src.matchAll(new RegExp(String.raw`i18n::tr\(\s*(${RS_STR})`, 'g'))) add(unq(m[1]), `src/${f}`);
   // not_found("Page") translates the noun at runtime

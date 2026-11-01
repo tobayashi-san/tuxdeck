@@ -228,6 +228,10 @@ pub struct Settings {
     /// Installed profiles shipped with plugins: "<plugin uuid>/<profile name>" -> profile ids.
     #[serde(default)]
     pub plugin_profiles: BTreeMap<String, Vec<String>>,
+    /// Profiles imported before TuxDeck marked imports were checked once (see
+    /// `Engine::mark_old_imports`).
+    #[serde(default)]
+    pub import_marks: bool,
     /// GitHub repository with the published Linux check results ("" = none).
     #[serde(default = "checks_repo")]
     pub checks_repo: String,

@@ -8,39 +8,57 @@ use resvg::{tiny_skia, usvg};
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
 
-static FONTDB: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
-static EXTRA_FONT_DIRS: OnceLock<Vec<std::path::PathBuf>> = OnceLock::new();
+static FONTDB: parking_lot::RwLock<Option<Arc<usvg::fontdb::Database>>> = parking_lot::RwLock::new(None);
+static EXTRA_FONT_DIRS: parking_lot::Mutex<Vec<std::path::PathBuf>> = parking_lot::Mutex::new(Vec::new());
 
-/// Register additional font directories (must be called before the first render).
+/// Register additional font directories (fonts of info bar layouts). When they change
+/// (layouts imported while the service runs), the fonts are loaded again.
+/// Bumped when the font folders change: a database loaded before is not stored.
+static FONT_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 pub fn set_extra_font_dirs(dirs: Vec<std::path::PathBuf>) {
-    let _ = EXTRA_FONT_DIRS.set(dirs);
+    let mut cur = EXTRA_FONT_DIRS.lock();
+    if *cur != dirs {
+        *cur = dirs;
+        FONT_GENERATION.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        *FONTDB.write() = None;
+    }
 }
 
 pub fn fontdb() -> Arc<usvg::fontdb::Database> {
-    FONTDB
-        .get_or_init(|| {
-            let mut db = usvg::fontdb::Database::new();
-            db.load_system_fonts();
-            for d in EXTRA_FONT_DIRS.get().into_iter().flatten() {
-                db.load_fonts_dir(d);
-            }
-            // Bundled fallback so titles render even on systems without (matching) fonts.
-            db.load_font_data(include_bytes!("../assets/fonts/DejaVuSans.ttf").to_vec());
-            db.load_font_data(include_bytes!("../assets/fonts/DejaVuSans-Bold.ttf").to_vec());
-            let families: Vec<String> = db.faces().flat_map(|f| f.families.iter().map(|(n, _)| n.clone())).collect();
-            // A common UI font, else the desktop's sans-serif font (fontconfig), else DejaVu.
-            let configured = std::process::Command::new("fc-match")
-                .args(["-f", "%{family[0]}", "sans-serif"])
-                .output()
-                .ok()
-                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-                .filter(|f| !f.is_empty());
-            let prefs = ["Inter", "Noto Sans", "Adwaita Sans", "Cantarell", "Ubuntu", "Open Sans", "Roboto", "Liberation Sans", "Arimo", "Arial"];
-            let pick = prefs.into_iter().chain(configured.as_deref()).find(|p| families.iter().any(|f| f == p)).unwrap_or("DejaVu Sans");
-            db.set_sans_serif_family(pick);
-            Arc::new(db)
-        })
-        .clone()
+    if let Some(db) = FONTDB.read().as_ref() {
+        return db.clone();
+    }
+    let generation = FONT_GENERATION.load(std::sync::atomic::Ordering::SeqCst);
+    let db = Arc::new(load_fonts());
+    let mut slot = FONTDB.write();
+    if FONT_GENERATION.load(std::sync::atomic::Ordering::SeqCst) == generation {
+        *slot = Some(db.clone());
+    }
+    db
+}
+
+fn load_fonts() -> usvg::fontdb::Database {
+    let mut db = usvg::fontdb::Database::new();
+    db.load_system_fonts();
+    for d in EXTRA_FONT_DIRS.lock().iter() {
+        db.load_fonts_dir(d);
+    }
+    // Bundled fallback so titles render even on systems without (matching) fonts.
+    db.load_font_data(include_bytes!("../assets/fonts/DejaVuSans.ttf").to_vec());
+    db.load_font_data(include_bytes!("../assets/fonts/DejaVuSans-Bold.ttf").to_vec());
+    let families: Vec<String> = db.faces().flat_map(|f| f.families.iter().map(|(n, _)| n.clone())).collect();
+    // A common UI font, else the desktop's sans-serif font (fontconfig), else DejaVu.
+    let configured = std::process::Command::new("fc-match")
+        .args(["-f", "%{family[0]}", "sans-serif"])
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .filter(|f| !f.is_empty());
+    let prefs = ["Inter", "Noto Sans", "Adwaita Sans", "Cantarell", "Ubuntu", "Open Sans", "Roboto", "Liberation Sans", "Arimo", "Arial"];
+    let pick = prefs.into_iter().chain(configured.as_deref()).find(|p| families.iter().any(|f| f == p)).unwrap_or("DejaVu Sans");
+    db.set_sans_serif_family(pick);
+    db
 }
 
 /// Encoded image ready to be embedded in SVG. Cheap to clone and to hash (key specs
@@ -222,7 +240,13 @@ impl ImageData {
     fn read_file(path: &Path) -> Option<ImageData> {
         let bytes = std::fs::read(path).ok()?;
         let mime = mime_guess::from_path(path).first_or_octet_stream().essence_str().to_string();
-        let mime = if mime == "application/octet-stream" { sniff(&bytes).to_string() } else { mime };
+        // The content wins over the file name (a WebP saved as .png).
+        let sniffed = sniff(&bytes);
+        let mime = if mime == "application/octet-stream" || (sniffed != "image/svg+xml" && mime.starts_with("image/") && sniffed != mime) {
+            sniffed.to_string()
+        } else {
+            mime
+        };
         ImageData::new(mime, bytes).normalized()
     }
 
@@ -230,6 +254,31 @@ impl ImageData {
     /// Lenient like browsers: line-wrapped or unpadded base64, stray trailing `;`
     /// (World Clock plugin), MIME aliases.
     pub fn from_data_url(url: &str) -> Option<ImageData> {
+        // Remembered: plugins send the same picture repeatedly, and big ones are decoded
+        // and scaled ahead, outside the engine lock (see `sdk.rs`).
+        type Decoded = parking_lot::Mutex<std::collections::HashMap<u64, Option<ImageData>>>;
+        static DECODED: OnceLock<Decoded> = OnceLock::new();
+        if url.len() < 4096 {
+            return Self::parse_data_url(url);
+        }
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        url.hash(&mut h);
+        let key = h.finish();
+        let cache = DECODED.get_or_init(Default::default);
+        if let Some(d) = cache.lock().get(&key) {
+            return d.clone();
+        }
+        let d = Self::parse_data_url(url);
+        let mut c = cache.lock();
+        if c.len() > 64 {
+            c.clear();
+        }
+        c.insert(key, d.clone());
+        d
+    }
+
+    fn parse_data_url(url: &str) -> Option<ImageData> {
         let rest = url.trim().strip_prefix("data:")?;
         let (meta, data) = rest.split_once(',')?;
         let mime = meta.split(';').next().unwrap_or("").trim().to_ascii_lowercase();
@@ -253,24 +302,85 @@ impl ImageData {
         ImageData::new(mime, bytes).normalized()
     }
 
+    /// The image as a data URL usvg can show inside another SVG (remembered per image:
+    /// keys and the touch strip are rebuilt often).
     pub fn to_href(&self) -> String {
+        type Hrefs = parking_lot::Mutex<std::collections::HashMap<u64, Arc<str>>>;
+        static HREFS: OnceLock<Hrefs> = OnceLock::new();
+        let cache = HREFS.get_or_init(Default::default);
+        if let Some(h) = cache.lock().get(&self.digest) {
+            return h.to_string();
+        }
+        let href: Arc<str> = self.make_href().into();
+        let mut c = cache.lock();
+        if c.len() > 256 {
+            c.clear();
+        }
+        c.insert(self.digest, href.clone());
+        href.to_string()
+    }
+
+    fn make_href(&self) -> String {
         let mut mime = self.mime.as_str();
-        // usvg cannot decode animated GIF frames itself; re-encode the first frame.
         let png;
-        let bytes: &[u8] = if mime == "image/gif" || mime == "image/bmp" || mime == "image/webp" {
-            match decode_limited(&self.bytes).and_then(|img| encode_png_dyn(&img)) {
+        let bytes: &[u8] = match mime {
+            // usvg cannot decode GIF frames, BMP or WebP itself: the first frame as PNG.
+            "image/gif" | "image/bmp" | "image/webp" => match decode_limited(&self.bytes).and_then(|img| encode_png_dyn(&img)) {
                 Some(out) => {
                     png = out;
                     mime = "image/png";
                     &png
                 }
                 None => &self.bytes,
-            }
-        } else {
-            &self.bytes
+            },
+            // An SVG inside an SVG loses its embedded raster images in usvg: render it here.
+            "image/svg+xml" => match std::str::from_utf8(&self.bytes).ok().and_then(svg_to_png) {
+                Some(out) => {
+                    png = out;
+                    mime = "image/png";
+                    &png
+                }
+                None => &self.bytes,
+            },
+            _ => &self.bytes,
         };
         format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes))
     }
+
+    /// For storing an uploaded image: formats usvg can't show (WebP, BMP) become PNG.
+    pub fn storable(self) -> ImageData {
+        if !matches!(self.mime.as_str(), "image/webp" | "image/bmp") {
+            return self;
+        }
+        match decode_limited(&self.bytes).and_then(|img| encode_png_dyn(&img)) {
+            Some(png) => ImageData::new("image/png", png),
+            None => self,
+        }
+    }
+}
+
+/// Rasterize an SVG image at its own aspect ratio (longer side 288 px, enough for every
+/// key and the touch strip).
+fn svg_to_png(svg: &str) -> Option<Vec<u8>> {
+    let tree = usvg::Tree::from_str(svg, &usvg_options()).ok()?;
+    let (w, h) = (tree.size().width(), tree.size().height());
+    let scale = MAX_EDGE as f32 / w.max(h);
+    let (pw, ph) = (((w * scale).round() as u32).max(1), ((h * scale).round() as u32).max(1));
+    let mut pixmap = tiny_skia::Pixmap::new(pw, ph)?;
+    resvg::render(&tree, tiny_skia::Transform::from_scale(scale, scale), &mut pixmap.as_mut());
+    pixmap.encode_png().ok()
+}
+
+/// SVG options: our fonts, and images only from `data:` URLs (an SVG of a plugin must
+/// not read files of the computer).
+fn usvg_options() -> usvg::Options<'static> {
+    let db = fontdb();
+    // Used when a font-family value can't be parsed (e.g. "--apple-system" from the
+    // weather plugin); usvg's default would be Times New Roman.
+    let font_family = db.family_name(&usvg::fontdb::Family::SansSerif).to_string();
+    let font_resolver = usvg::FontResolver { select_font: Box::new(select_font), select_fallback: usvg::FontResolver::default_fallback_selector() };
+    let image_href_resolver = usvg::ImageHrefResolver { resolve_data: usvg::ImageHrefResolver::default_data_resolver(), resolve_string: Box::new(|_, _| None) };
+    usvg::Options { fontdb: db, font_family, font_resolver, image_href_resolver, ..Default::default() }
 }
 
 fn sniff(b: &[u8]) -> &'static str {
@@ -482,12 +592,7 @@ fn select_font(font: &usvg::Font, db: &mut Arc<usvg::fontdb::Database>) -> Optio
 
 /// Rasterize an SVG document to `w`x`h` pixels.
 pub fn rasterize(svg: &str, w: u32, h: u32) -> RgbaImage {
-    let db = fontdb();
-    // Used when a font-family value can't be parsed (e.g. "--apple-system" from the
-    // weather plugin); usvg's default would be Times New Roman.
-    let font_family = db.family_name(&usvg::fontdb::Family::SansSerif).to_string();
-    let font_resolver = usvg::FontResolver { select_font: Box::new(select_font), select_fallback: usvg::FontResolver::default_fallback_selector() };
-    let opt = usvg::Options { fontdb: db, font_family, font_resolver, ..Default::default() };
+    let opt = usvg_options();
     let mut pixmap = tiny_skia::Pixmap::new(w.max(1), h.max(1)).unwrap();
     match usvg::Tree::from_str(svg, &opt) {
         Ok(tree) => {
@@ -1039,8 +1144,28 @@ mod tests {
         assert_eq!(back.get_pixel(1, 1).0, [9, 8, 7]);
         // Undecodable data is passed through unchanged.
         assert_eq!(ImageData::new("image/gif", b"GIF8broken".to_vec()).to_href(), "data:image/gif;base64,R0lGOGJyb2tlbg==");
-        let svg = ImageData::svg("<svg/>");
-        assert_eq!(svg.to_href(), "data:image/svg+xml;base64,PHN2Zy8+");
+        // SVGs are rendered here (usvg drops raster images of an SVG inside an SVG);
+        // what isn't an SVG stays as it is.
+        assert!(ImageData::svg("<svg/>").to_href().starts_with("data:image/png;base64,"));
+        assert_eq!(ImageData::svg("<nope").to_href(), "data:image/svg+xml;base64,PG5vcGU=");
+    }
+
+    #[test]
+    fn svg_images_keep_their_raster_content() {
+        let mut red = Vec::new();
+        DynamicImage::ImageRgb8(image::RgbImage::from_pixel(4, 4, image::Rgb([255, 0, 0])))
+            .write_to(&mut std::io::Cursor::new(&mut red), image::ImageFormat::Png)
+            .unwrap();
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&red);
+        let svg = format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="72" height="72"><image width="72" height="72" xlink:href="data:image/png;base64,{b64}"/></svg>"#
+        );
+        let key = render_key(&KeySpec { image: Some(ImageData::svg(svg)), ..Default::default() }, 72);
+        assert_eq!(key.get_pixel(36, 36).0, [255, 0, 0, 255]);
+        // Files are not read.
+        let file = r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="72" height="72"><image width="72" height="72" xlink:href="/usr/share/pixmaps/x.png"/></svg>"#;
+        let key = render_key(&KeySpec { image: Some(ImageData::svg(file)), ..Default::default() }, 72);
+        assert_eq!(key.get_pixel(36, 36).0, [0, 0, 0, 255]);
     }
 
     #[test]

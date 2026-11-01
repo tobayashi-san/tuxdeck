@@ -99,6 +99,27 @@ fn image_href(value: &str, plugin_dir: Option<&Path>) -> Option<String> {
     if v.is_empty() {
         return None;
     }
+    // Plugins send the same picture again and again (the strip is rebuilt every
+    // refresh): decode it once.
+    if v.starts_with("data:") || v.starts_with("<svg") || v.starts_with("<?xml") {
+        type Hrefs = parking_lot::Mutex<std::collections::HashMap<u64, Option<String>>>;
+        static HREFS: std::sync::OnceLock<Hrefs> = std::sync::OnceLock::new();
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        v.hash(&mut h);
+        let key = h.finish();
+        let cache = HREFS.get_or_init(Default::default);
+        if let Some(href) = cache.lock().get(&key) {
+            return href.clone();
+        }
+        let href = if v.starts_with("data:") { ImageData::from_data_url(v) } else { Some(ImageData::svg(v)) }.map(|d| d.to_href());
+        let mut c = cache.lock();
+        if c.len() > 256 {
+            c.clear();
+        }
+        c.insert(key, href.clone());
+        return href;
+    }
     let data = if v.starts_with("data:") {
         ImageData::from_data_url(v)?
     } else if v.starts_with("<svg") || v.starts_with("<?xml") {
@@ -361,9 +382,10 @@ mod tests {
     #[test]
     fn image_references() {
         assert!(image_href("  ", None).is_none());
-        assert!(image_href("data:image/svg+xml,<svg/>", None).unwrap().starts_with("data:image/svg+xml;base64,"));
-        assert!(image_href("<svg xmlns='http://www.w3.org/2000/svg'/>", None).unwrap().starts_with("data:image/svg+xml;base64,"));
-        assert!(image_href("<?xml version='1.0'?><svg/>", None).unwrap().starts_with("data:image/svg+xml;base64,"));
+        // SVGs arrive rendered (see `ImageData::to_href`).
+        assert!(image_href("data:image/svg+xml,<svg/>", None).unwrap().starts_with("data:image/png;base64,"));
+        assert!(image_href("<svg xmlns='http://www.w3.org/2000/svg'/>", None).unwrap().starts_with("data:image/png;base64,"));
+        assert!(image_href("<?xml version='1.0'?><svg/>", None).unwrap().starts_with("data:image/png;base64,"));
         assert!(image_href("icons/knob", None).is_none());
         let dir = tmp_dir("img");
         std::fs::create_dir_all(dir.join("icons")).unwrap();
@@ -472,7 +494,7 @@ mod tests {
             {"key": "none", "type": "pixmap", "rect": [0, 0, 10, 10], "opacity": -1}
         ]);
         let s = svg_items(items.clone(), json!({"icon": "data:image/svg+xml,<svg/>"}));
-        assert!(s.contains(r#"<image x="16" y="40" width="48" height="48" preserveAspectRatio="xMidYMid meet" xlink:href="data:image/svg+xml;base64,"#));
+        assert!(s.contains(r#"<image x="16" y="40" width="48" height="48" preserveAspectRatio="xMidYMid meet" xlink:href="data:image/png;base64,"#));
         assert!(s.contains(r##"<rect x="16" y="40" width="48" height="48" fill="#ff0000"/>"##));
         assert!(s.contains(r#"<g clip-path="url(#c0)" opacity="1">"#), "opacity clamped");
         assert!(s.contains(r#"<clipPath id="c1">"#) && !s.contains("url(#c1)"), "empty items are not drawn");

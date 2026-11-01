@@ -109,9 +109,124 @@ pub(super) fn nested_entry_mut(inst: &mut ActionInstance, li: usize, ei: usize) 
     list.get_mut("Actions")?.as_array_mut()?.get_mut(ei)
 }
 
+/// Stop a sound player and reap it (a killed child left unwaited stays a zombie).
+fn stop_player(mut c: Child) {
+    let _ = c.kill();
+    let _ = c.wait();
+}
+
+/// Quotes around the whole string belong to the path; quotes followed by arguments
+/// are shell syntax and stay.
+fn unquote(s: &str) -> &str {
+    match s.strip_prefix('"').and_then(|r| r.strip_suffix('"')) {
+        Some(inner) if !inner.contains('"') => inner,
+        _ => s,
+    }
+}
+
+/// The words of a command line, with simple shell quoting ('…', "…", \x).
+pub(super) fn shell_words(s: &str) -> Vec<String> {
+    let (mut words, mut cur, mut quote, mut any) = (Vec::new(), String::new(), None, false);
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        match (quote, c) {
+            (None, '\'' | '"') => (quote, any) = (Some(c), true),
+            (Some(q), c) if c == q => quote = None,
+            (None | Some('"'), '\\') => cur.extend(chars.next()),
+            (None, c) if c.is_whitespace() => {
+                if any || !cur.is_empty() {
+                    words.push(std::mem::take(&mut cur));
+                }
+                any = false;
+            }
+            (_, c) => cur.push(c),
+        }
+    }
+    if any || !cur.is_empty() {
+        words.push(cur);
+    }
+    words
+}
+
+#[derive(Debug, PartialEq)]
+pub(super) enum QuitTarget {
+    Name(String),
+    Flatpak(String),
+    /// An interpreter or launcher: quitting by its name would hit unrelated programs.
+    Unknown,
+}
+
+/// What quitting a command's program means when the key didn't start it itself.
+pub(super) fn quit_target(cmd: &str) -> QuitTarget {
+    const LAUNCHERS: &str = "sh bash dash zsh fish ksh env node nodejs perl ruby java sudo pkexec doas gtk-launch gio xdg-open systemd-run \
+        nohup setsid exec nice ionice taskset gamemoderun prime-run mangohud wine steam-run appimage-run npx uv uvx bun deno dbus-launch flatpak-spawn";
+    let words = shell_words(cmd);
+    let mut it = words.iter().map(String::as_str).skip_while(|w| *w == "env" || w.contains('=') || w.starts_with('-'));
+    let Some(program) = it.next() else { return QuitTarget::Unknown };
+    let name = std::path::Path::new(program).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
+    if name == "flatpak" {
+        return match it.next() {
+            Some("run") => it.find(|w| !w.starts_with('-')).map(|id| QuitTarget::Flatpak(id.to_string())).unwrap_or(QuitTarget::Unknown),
+            _ => QuitTarget::Unknown,
+        };
+    }
+    if name.is_empty() || name.starts_with("python") || LAUNCHERS.split_whitespace().any(|l| l == name) {
+        return QuitTarget::Unknown;
+    }
+    QuitTarget::Name(name)
+}
+
+/// How to start a desktop entry (a path or a desktop file name): `gio launch` for a
+/// path, gtk-launch for a name, otherwise whichever exists, and its `Exec` line last.
+fn desktop_launcher(entry: &str) -> Result<(Command, String)> {
+    let path = std::path::Path::new(entry);
+    let file_name = path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
+    if has_cmd("gtk-launch") && !path.is_absolute() {
+        let mut c = Command::new("gtk-launch");
+        c.arg(&file_name);
+        return Ok((c, file_name));
+    }
+    let Some(file) = crate::apps::desktop_file(entry) else { bail!(crate::tr!("{path} does not exist", path = entry)) };
+    if has_cmd("gio") {
+        let mut c = Command::new("gio");
+        c.arg("launch").arg(&file);
+        return Ok((c, file_name));
+    }
+    if has_cmd("gtk-launch") {
+        let mut c = Command::new("gtk-launch");
+        c.arg(&file_name);
+        return Ok((c, file_name));
+    }
+    let line = crate::apps::desktop_command(&file.to_string_lossy()).with_context(|| crate::tr!("{path} is not an application", path = entry))?;
+    let mut c = Command::new("sh");
+    c.arg("-c").arg(&line);
+    Ok((c, shell_words(&line).into_iter().next().unwrap_or_default()))
+}
+
 impl Engine {
     /// Execute an action instance (key down or up).
     pub fn trigger(&mut self, loc: &Loc, inst: &ActionInstance, down: bool, held: Duration) {
+        // Released because the deck went away: only let go of what is held (plugin keyUp,
+        // a held hotkey, Key Logic's held action); nothing is started or quit.
+        if self.releasing && !down && builtin::def(&inst.uuid).is_some() {
+            match inst.uuid.as_str() {
+                HOTKEY => {}
+                KEY_LOGIC => {
+                    let key = (loc.device.clone(), loc.slot.clone());
+                    if let Some(st) = self.key_logic.get_mut(&key) {
+                        st.pressed = false;
+                        st.double_timer = false;
+                        st.hold_timer = false;
+                        st.generation += 1;
+                        if let Some((l, a, t)) = st.held.take() {
+                            self.trigger(&l, &a, false, t.elapsed());
+                        }
+                    }
+                    return;
+                }
+                _ => return,
+            }
+        }
         let ctx = context_id(&loc.device, &inst.action_id);
         self.contexts.insert(ctx.clone(), loc.clone());
         // Inside a multi action the configured state is what the user wants, not a toggle.
@@ -253,6 +368,31 @@ impl Engine {
         self.log("warn", format!("{}: {err:#}", name.unwrap_or_default()));
         self.runtime.entry(ctx.to_string()).or_default().overlay = Some((Overlay::Alert, Instant::now()));
         self.refresh_context(ctx);
+        // Inside a Multi Action or Key Logic: the deck shows the key that holds it.
+        let top = self.contexts.get(ctx).filter(|l| l.nested.is_some()).map(|l| Loc { nested: None, ..l.clone() });
+        if let Some(top) = top {
+            if let Some(inst) = self.instance_at(&top) {
+                let top_ctx = context_id(&top.device, &inst.action_id);
+                self.runtime.entry(top_ctx.clone()).or_default().overlay = Some((Overlay::Alert, Instant::now()));
+                self.refresh_context(&top_ctx);
+            }
+        }
+    }
+
+    /// Start a program for a key and remember it (Open Application quits exactly that).
+    /// A program that fails right away shows the alert on the key.
+    fn launch_for(&mut self, ctx: &str, cmd: Command, label: String) -> Result<()> {
+        let (weak, c) = (self.self_ref.clone(), ctx.to_string());
+        let on_exit: OnExit = Box::new(move |status, ran| {
+            let Some(msg) = exit_problem(&label, status, ran) else { return };
+            if let Some(sh) = weak.and_then(|w| w.upgrade()) {
+                sh.lock().action_failed(&c, None, &anyhow!(msg));
+            }
+        });
+        if let Some(l) = launch(cmd, Some(on_exit))? {
+            self.runtime.entry(ctx.to_string()).or_default().launched = Some(l);
+        }
+        Ok(())
     }
 
     pub(super) fn run_builtin(&mut self, loc: &Loc, inst: &ActionInstance, ctx: &str, down: bool, held: Duration) -> Result<()> {
@@ -303,23 +443,24 @@ impl Engine {
                         path = sv("path").trim_matches('"')
                     ));
                 }
-                let path = expand_home(sv("path").trim().trim_matches('"'));
+                let path = expand_home(unquote(sv("path").trim()));
                 if path.is_empty() {
                     bail!(crate::tr!("no path set"));
                 }
                 let p = std::path::Path::new(&path);
+                let first = shell_words(&path).into_iter().next().map(|w| expand_home(&w)).unwrap_or_default();
                 if path.contains("://") || p.is_dir() || (p.is_file() && !is_executable(p)) {
-                    open_url(&path)?;
+                    self.launch_for(ctx, url_opener(&path), format!("xdg-open {path}"))?;
                 } else if p.is_file() {
-                    spawn_program(Command::new(&path))?;
+                    self.launch_for(ctx, Command::new(&path), path.clone())?;
                 } else if path.starts_with("/Applications/") || path.starts_with("/System/") {
                     bail!(crate::tr!("the macOS path {path} does not exist on Linux", path = path));
-                } else if path.starts_with('/') && !std::path::Path::new(path.split_whitespace().next().unwrap_or("")).exists() {
-                    bail!(crate::tr!("{path} does not exist", path = path));
+                } else if first.starts_with('/') && !std::path::Path::new(&first).exists() {
+                    bail!(crate::tr!("{path} does not exist", path = first));
                 } else {
                     let mut c = Command::new("sh");
                     c.arg("-c").arg(&path);
-                    spawn_program(c)?;
+                    self.launch_for(ctx, c, first)?;
                 }
             }
             (OPEN_APP, false) => {
@@ -336,23 +477,55 @@ impl Engine {
                 let long = held >= Duration::from_millis(600);
                 let lp = s.get("long_press").and_then(|v| v.as_str()).unwrap_or("quit");
                 if long && lp != "none" {
-                    let program = if is_path { exec.as_str() } else { exec.split_whitespace().next().unwrap_or(&exec) };
-                    let name = std::path::Path::new(program).file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or(exec.clone());
                     let sig = if lp == "kill" || s.get("force_kill").and_then(|v| v.as_bool()).unwrap_or(false) { libc::SIGKILL } else { libc::SIGTERM };
-                    kill_processes(&name, sig)?;
+                    // What this key started; otherwise the program named by the command.
+                    if self.runtime.get(ctx).and_then(|r| r.launched.as_ref()).is_some_and(|l| quit_launched(l, sig)) {
+                        return Ok(());
+                    }
+                    let cmd = if exec.ends_with(".desktop") {
+                        crate::apps::desktop_command(&exec).unwrap_or_default()
+                    } else if is_path {
+                        format!("\"{}\"", exec)
+                    } else {
+                        exec.clone()
+                    };
+                    match quit_target(&cmd) {
+                        QuitTarget::Name(name) => {
+                            if kill_processes(&name, sig)? == 0 && !input::dry_run() {
+                                bail!(crate::tr!("{app} is not running", app = name));
+                            }
+                        }
+                        QuitTarget::Flatpak(id) => {
+                            if input::dry_run() {
+                                tracing::info!("DRYRUN flatpak kill {id}");
+                            } else if !Command::new("flatpak")
+                                .args(["kill", &id])
+                                .stdin(Stdio::null())
+                                .stderr(Stdio::null())
+                                .status()
+                                .is_ok_and(|s| s.success())
+                            {
+                                bail!(crate::tr!("{app} is not running", app = id));
+                            }
+                        }
+                        QuitTarget::Unknown => bail!(crate::tr!(
+                            "TuxDeck can't tell which program {command} is: start it with this key, then hold the key to quit it",
+                            command = exec
+                        )),
+                    }
                 } else if exec.ends_with(".desktop") {
-                    let mut c = Command::new("gtk-launch");
-                    c.arg(std::path::Path::new(&exec).file_name().unwrap());
-                    spawn_program(c)?;
+                    let (cmd, label) = desktop_launcher(&exec)?;
+                    self.launch_for(ctx, cmd, label)?;
                 } else if is_path {
                     // Arguments stay shell syntax (quotes), the program path is passed as is.
                     let mut c = Command::new("sh");
                     c.arg("-c").arg(format!("exec \"$0\" {}", sv("args"))).arg(expand_home(&exec));
-                    spawn_program(c)?;
+                    self.launch_for(ctx, c, exec.clone())?;
                 } else {
+                    let line = format!("{} {}", exec, sv("args"));
                     let mut c = Command::new("sh");
-                    c.arg("-c").arg(format!("{} {}", exec, sv("args")));
-                    spawn_program(c)?;
+                    c.arg("-c").arg(&line);
+                    self.launch_for(ctx, c, shell_words(&line).into_iter().next().unwrap_or_default())?;
                 }
             }
             (CLOSE, true) => {
@@ -383,7 +556,7 @@ impl Engine {
                     url = format!("https://{url}");
                 }
                 if s.get("openInBrowser").and_then(|v| v.as_bool()).unwrap_or(true) {
-                    open_url(&url)?;
+                    self.launch_for(ctx, url_opener(&url), format!("xdg-open {url}"))?;
                 } else {
                     // "Access in background": plain GET request, result only logged.
                     if input::dry_run() {
@@ -391,7 +564,7 @@ impl Engine {
                     } else {
                         let shared = self.self_ref.as_ref().and_then(|w| w.upgrade());
                         spawn_task(async move {
-                            let r = crate::net::http().get(&url).send().await;
+                            let r = crate::net::http().get(&url).timeout(crate::net::SHORT).send().await;
                             let msg = match r {
                                 Ok(r) if r.status().is_success() => None,
                                 Ok(r) => Some(crate::tr!("Website {url}: HTTP {status}", url = url, status = r.status())),
@@ -463,10 +636,25 @@ impl Engine {
             (SWITCH_PROFILE, true) => {
                 let target = sv("ProfileUUID");
                 let id = self.profiles.keys().find(|k| k.eq_ignore_ascii_case(&target)).cloned().with_context(|| crate::tr!("profile not found"))?;
-                if !self.profile_fits(&dev, &id) {
+                // The deck named in the action (one deck can switch another), else this one,
+                // else the only connected deck the profile fits (imported setups whose
+                // device ids are from another computer).
+                let deck = match self.deck_named(&sv("DeviceUUID")) {
+                    Some(d) => d,
+                    None if self.profile_fits(&dev, &id) => dev.clone(),
+                    None => {
+                        let fits: Vec<String> =
+                            self.devices.values().filter(|d| d.connected() && self.profile_fits(&d.id, &id)).map(|d| d.id.clone()).collect();
+                        match fits.as_slice() {
+                            [only] => only.clone(),
+                            _ => bail!(crate::tr!("The profile was made for a different device model")),
+                        }
+                    }
+                };
+                if !self.profile_fits(&deck, &id) {
                     bail!(crate::tr!("The profile was made for a different device model"));
                 }
-                self.set_profile(&dev, &id);
+                self.set_profile(&deck, &id);
             }
             (PLAY_AUDIO, _) => {
                 let mode = s.get("actionType").and_then(|v| v.as_i64()).unwrap_or(0);
@@ -474,14 +662,14 @@ impl Engine {
                 rt.audio.retain_mut(|c| matches!(c.try_wait(), Ok(None)));
                 match (mode, down) {
                     (2, false) => {
-                        for mut c in rt.audio.drain(..) {
-                            let _ = c.kill();
+                        for c in rt.audio.drain(..) {
+                            stop_player(c);
                         }
                     }
                     (_, true) => {
                         if mode == 0 && !rt.audio.is_empty() {
-                            for mut c in rt.audio.drain(..) {
-                                let _ = c.kill();
+                            for c in rt.audio.drain(..) {
+                                stop_player(c);
                             }
                         } else {
                             let path = sv("path");
@@ -501,8 +689,8 @@ impl Engine {
                     tracing::info!("DRYRUN stop_audio");
                 }
                 for r in self.runtime.values_mut() {
-                    for mut c in r.audio.drain(..) {
-                        let _ = c.kill();
+                    for c in r.audio.drain(..) {
+                        stop_player(c);
                     }
                 }
             }
@@ -572,6 +760,26 @@ impl Engine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn command_lines() {
+        assert_eq!(shell_words(r#""/opt/My Apps/app" --new 'a b' c\ d """#), ["/opt/My Apps/app", "--new", "a b", "c d", ""]);
+        assert_eq!(unquote(r#""/opt/My Apps/app""#), "/opt/My Apps/app");
+        assert_eq!(unquote(r#""/opt/My Apps/app" --new"#), r#""/opt/My Apps/app" --new"#);
+        assert_eq!(unquote("plain"), "plain");
+    }
+
+    #[test]
+    fn what_quit_signals() {
+        let name = |n: &str| QuitTarget::Name(n.into());
+        assert_eq!(quit_target("obs --startreplaybuffer"), name("obs"));
+        assert_eq!(quit_target(r#""/opt/My Apps/app" --x"#), name("app"));
+        assert_eq!(quit_target("env GDK_BACKEND=x11 /usr/bin/gimp"), name("gimp"));
+        assert_eq!(quit_target("flatpak run --branch=stable org.mozilla.firefox --new-window"), QuitTarget::Flatpak("org.mozilla.firefox".into()));
+        for cmd in ["python3 ~/bin/tool.py", "bash -c 'x'", "sh script.sh", "/usr/bin/python3.12 x", "flatpak update", "", "node app.js"] {
+            assert_eq!(quit_target(cmd), QuitTarget::Unknown, "{cmd}");
+        }
+    }
 
     #[test]
     fn key_logic_storage() {

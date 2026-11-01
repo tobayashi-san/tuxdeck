@@ -210,11 +210,13 @@ pub fn router(sh: Shared) -> Router {
         // Plugin and icon pack files for the UI (icons): never run as a page here.
         .merge(plugin_file_routes().layer(axum::middleware::map_response(inert)))
         .route("/api/devices/{id}/input", post(device_input))
+        .route("/api/devices/{id}/virtual", post(plug_virtual_device))
         .route("/api/windows", get(windows))
         .route("/api/iconpacks", get(list_iconpacks))
         .route("/api/iconpacks/{id}", axum::routing::delete(delete_iconpack))
         .route("/api/iconpacks/{id}/icons", get(iconpack_icons))
         .route("/api/active-app", post(set_active_app))
+        .route("/api/open-url", post(open_external_url))
         .merge(crate::web_plugins::routes())
         .fallback(get(static_file))
         .with_state(sh)
@@ -605,6 +607,16 @@ struct PatchReq {
 }
 
 async fn patch_slot(State(sh): State<Shared>, Path((profile, page)): Path<(String, String)>, Json(mut req): Json<PatchReq>) -> ApiResult<Json<Value>> {
+    // Decoding (and scaling a big picture) happens before taking the engine lock.
+    let upload = match req.image.clone().filter(|i| !i.is_empty()) {
+        Some(img) => Some(
+            tokio::task::spawn_blocking(move || crate::render::ImageData::from_data_url(&img).map(crate::render::ImageData::storable))
+                .await
+                .map_err(|e| anyhow!("{e}"))?
+                .ok_or_else(|| anyhow!(crate::tr!("invalid image")))?,
+        ),
+        None => None,
+    };
     let mut guard = sh.lock();
     if req.settings_merge.is_some() || req.settings_remove.is_some() {
         let current =
@@ -650,7 +662,7 @@ async fn patch_slot(State(sh): State<Shared>, Path((profile, page)): Path<(Strin
         if img.is_empty() {
             inst.states[si].image = None;
         } else {
-            let data = crate::render::ImageData::from_data_url(img).ok_or_else(|| anyhow!(crate::tr!("invalid image")))?;
+            let data = upload.ok_or_else(|| anyhow!(crate::tr!("invalid image")))?;
             let ext = match data.mime.as_str() {
                 "image/svg+xml" => "svg",
                 "image/jpeg" => "jpg",
@@ -865,6 +877,24 @@ async fn press_slot(State(sh): State<Shared>, Path((profile, page)): Path<(Strin
 /// Simulated device input (tests, virtual devices):
 /// `{"type":"dial","index":0,"ticks":-2}`, `{"type":"dial_press","index":0,"down":true}`,
 /// `{"type":"touch","x":250,"y":50,"kind":1|2|3,"x2":..,"y2":..}` (1 tap, 2 long, 3 swipe).
+/// Unplug a simulated deck or plug it in again (tests).
+async fn plug_virtual_device(State(sh): State<Shared>, Path(id): Path<String>, Json(req): Json<Value>) -> ApiResult<Json<Value>> {
+    let connected = req.get("connected").and_then(|v| v.as_bool()).unwrap_or(true);
+    tokio::task::spawn_blocking(move || {
+        let mut e = sh.lock();
+        let (model, tx) = e.virtual_decks.get(&id).cloned().ok_or_else(|| not_found("Device"))?;
+        match (connected, e.devices.get(&id).is_some_and(|d| d.connected())) {
+            (false, true) => e.device_disconnected(&id),
+            (true, false) => e.device_connected(id, model, "virtual".into(), tx),
+            _ => {}
+        }
+        Ok::<_, ApiError>(())
+    })
+    .await
+    .map_err(|e| anyhow!("{e}"))??;
+    Ok(Json(json!({"ok": true})))
+}
+
 async fn device_input(State(sh): State<Shared>, Path(id): Path<String>, Json(req): Json<Value>) -> ApiResult<Json<Value>> {
     tokio::task::spawn_blocking(move || {
         let mut e = sh.lock();
@@ -879,6 +909,11 @@ async fn device_input(State(sh): State<Shared>, Path(id): Path<String>, Json(req
                 e.on_input(&id, crate::device::Input::EncoderTurn(t));
             }
             "dial_press" => e.dial_press(&id, idx, req.get("down").and_then(|v| v.as_bool()).unwrap_or(true)),
+            "key" => {
+                if !e.key_press(&id, idx, req.get("down").and_then(|v| v.as_bool()).unwrap_or(true)) {
+                    return Err(ApiError(StatusCode::BAD_REQUEST, crate::tr!("no such key")));
+                }
+            }
             "touch" if enc > 0 => {
                 let (x, y) = (n("x").clamp(0, 65535) as u16, n("y").clamp(0, 65535) as u16);
                 let input = crate::device::Input::Touch {
@@ -970,6 +1005,9 @@ struct ProfilePatch {
     /// Smart profile: application (window class) that activates this profile; "" = none.
     #[serde(default)]
     app: Option<String>,
+    /// The deck a smart profile is meant for; "" = every deck of the model.
+    #[serde(default)]
+    device: Option<String>,
 }
 
 async fn rename_profile(State(sh): State<Shared>, Path(profile): Path<String>, Json(req): Json<ProfilePatch>) -> ApiResult<Json<Value>> {
@@ -984,8 +1022,11 @@ async fn rename_profile(State(sh): State<Shared>, Path(profile): Path<String>, J
     if let Some(a) = &req.app {
         p.set_app_identifier(a);
     }
+    if let Some(d) = &req.device {
+        p.manifest.device.uuid = d.trim().to_string();
+    }
     p.save_manifest()?;
-    if req.app.is_some() {
+    if req.app.is_some() || req.device.is_some() {
         // Re-evaluate with the currently focused application.
         let app = std::mem::take(&mut e.active_app);
         e.active_app_changed(&app);
@@ -1008,21 +1049,49 @@ async fn set_active_app(State(sh): State<Shared>, Json(req): Json<Value>) -> Api
     Ok(Json(json!({"ok": true})))
 }
 
+/// Open a web link of the UI (marketplace, plugin source) in the user's default browser
+/// instead of the UI window's own browser profile.
+async fn open_external_url(Json(req): Json<Value>) -> ApiResult<Json<Value>> {
+    let url = req.get("url").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+    if !external_web_link(&url) {
+        return Err(ApiError(StatusCode::BAD_REQUEST, crate::tr!("only web links can be opened")));
+    }
+    tokio::task::spawn_blocking(move || crate::engine::open_url(&url)).await.map_err(|e| anyhow!("{e}"))??;
+    Ok(Json(json!({"ok": true})))
+}
+
+/// An http(s) link to another computer.
+fn external_web_link(url: &str) -> bool {
+    let Ok(u) = reqwest::Url::parse(url) else { return false };
+    let host = u.host_str().unwrap_or("").trim_matches(['[', ']']).trim_end_matches('.').to_ascii_lowercase();
+    let local = match host.parse::<std::net::IpAddr>() {
+        Ok(ip) => ip.is_loopback() || ip.is_unspecified() || matches!(ip, std::net::IpAddr::V6(v6) if v6.to_ipv4_mapped().is_some_and(|v4| v4.is_loopback())),
+        Err(_) => host.is_empty() || host == "localhost" || host.ends_with(".localhost"),
+    };
+    matches!(u.scheme(), "http" | "https") && !local
+}
+
 async fn delete_profile(State(sh): State<Shared>, Path(profile): Path<String>) -> ApiResult<Json<Value>> {
     let mut e = sh.lock();
-    let p = e.profiles.get(&profile).ok_or_else(|| not_found("Profile"))?;
-    let model = p.manifest.device.model.clone();
-    if e.profiles.values().filter(|x| x.manifest.device.model == model).count() <= 1 && e.devices.values().any(|d| d.profile == profile) {
+    if !e.profiles.contains_key(&profile) {
+        return Err(not_found("Profile"));
+    }
+    // A deck showing it needs another profile that fits it (MK.2 and Original share theirs).
+    let users: Vec<String> = e.devices.values().filter(|d| d.profile == profile).map(|d| d.id.clone()).collect();
+    // Preferably a regular profile (not a smart one) that isn't meant for another deck.
+    let next_for = |e: &crate::engine::Engine, d: &str| {
+        let fits: Vec<&crate::profile::Profile> = e.profiles.values().filter(|o| o.id != profile && e.profile_fits(d, &o.id)).collect();
+        let own_deck = |o: &&crate::profile::Profile| e.deck_named(&o.manifest.device.uuid).is_none_or(|x| x == d);
+        fits.iter().find(|o| o.app_identifier().is_none() && own_deck(o)).or(fits.iter().find(|o| own_deck(o))).or(fits.first()).map(|o| o.id.clone())
+    };
+    if users.iter().any(|d| next_for(&e, d).is_none()) {
         return Err(ApiError(StatusCode::CONFLICT, crate::tr!("The last profile of a connected device cannot be deleted")));
     }
+    let next: Vec<(String, String)> = users.iter().filter_map(|d| next_for(&e, d).map(|n| (d.clone(), n))).collect();
     let p = e.profiles.remove(&profile).unwrap();
     std::fs::remove_dir_all(&p.dir).map_err(anyhow::Error::from)?;
-    let users: Vec<String> = e.devices.values().filter(|d| d.profile == profile).map(|d| d.id.clone()).collect();
-    for d in users {
-        let next = e.profiles.values().find(|x| x.manifest.device.model == model).map(|x| x.id.clone());
-        if let Some(n) = next {
-            e.set_profile(&d, &n);
-        }
+    for (d, n) in next {
+        e.set_profile(&d, &n);
     }
     e.emit(json!({"event": "state"}));
     Ok(Json(json!({"ok": true})))

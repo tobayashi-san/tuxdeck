@@ -99,6 +99,10 @@ pub struct Manifest {
     pub sdk_version: Option<u32>,
     #[serde(default)]
     pub nodejs: Option<Value>,
+    /// Applications whose start and end the plugin wants to hear about
+    /// (`{"mac": [bundle ids], "windows": [program names]}`).
+    #[serde(rename = "ApplicationsToMonitor", default)]
+    pub applications_to_monitor: Option<Value>,
     #[serde(rename = "PrivateAPI", default)]
     pub private_api: bool,
     /// Profiles shipped with the plugin (`<Name>.streamDeckProfile` in its folder).
@@ -401,7 +405,8 @@ pub fn install_archive(data: &[u8], plugins_dir: &Path) -> Result<String> {
         if let Some(n) = entry_path(f.name()) {
             if let Some(first) = n.components().next() {
                 let s = first.as_os_str().to_string_lossy().to_string();
-                if s.ends_with(".sdPlugin") {
+                // Any case, like on Windows and macOS (`….sdplugin`).
+                if s.to_ascii_lowercase().ends_with(".sdplugin") {
                     root = Some(s);
                     break;
                 }
@@ -409,11 +414,13 @@ pub fn install_archive(data: &[u8], plugins_dir: &Path) -> Result<String> {
         }
     }
     let Some(root) = root else { bail!("archive contains no .sdPlugin directory") };
-    // Unpack next to the plugins (not scanned: no .sdPlugin extension) and only replace
-    // an installed version once the new one is complete and loadable.
-    let staging = plugins_dir.join(".installing");
-    let tmp = staging.join(&root);
-    let _ = fs::remove_dir_all(&tmp);
+    // Installed under the usual spelling, which the plugin scan looks for.
+    let name = format!("{}.sdPlugin", &root[..root.len() - ".sdPlugin".len()]);
+    // Each install unpacks into a folder of its own next to the plugins (not scanned: no
+    // .sdPlugin extension) and replaces an installed version only once the new one is
+    // complete and loadable.
+    let staging = plugins_dir.join(format!(".installing-{}", uuid::Uuid::new_v4().simple()));
+    let tmp = staging.join(&name);
     let result = unpack_plugin(&mut zip, &root, &tmp).and_then(|_| Plugin::load(&tmp, false, "en"));
     let plugin = match result {
         Ok(p) => p,
@@ -422,11 +429,23 @@ pub fn install_archive(data: &[u8], plugins_dir: &Path) -> Result<String> {
             return Err(e);
         }
     };
-    let target = plugins_dir.join(&root);
-    if target.exists() {
-        fs::remove_dir_all(&target)?;
+    // Replacing: one install at a time, and the old version is only removed once the new
+    // one is in place.
+    static REPLACE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _one = REPLACE.lock().unwrap_or_else(|e| e.into_inner());
+    let target = plugins_dir.join(&name);
+    let old = plugins_dir.join(format!(".replaced-{}", uuid::Uuid::new_v4().simple()));
+    let had_old = target.exists() && fs::rename(&target, &old).is_ok();
+    if let Err(e) = fs::rename(&tmp, &target) {
+        if had_old {
+            let _ = fs::rename(&old, &target);
+        }
+        let _ = fs::remove_dir_all(&staging);
+        return Err(e.into());
     }
-    fs::rename(&tmp, &target)?;
+    if had_old {
+        let _ = fs::remove_dir_all(&old);
+    }
     let _ = fs::remove_dir_all(&staging);
     Ok(plugin.uuid)
 }
@@ -459,6 +478,47 @@ fn unpack_plugin(zip: &mut zip::ZipArchive<std::io::Cursor<&[u8]>>, root: &str, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A plugin package: `files` below the root folder `root`.
+    fn package(root: &str, version: &str, files: usize) -> Vec<u8> {
+        use std::io::Write;
+        let mut zw = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        let o = zip::write::SimpleFileOptions::default();
+        for i in 0..files {
+            zw.start_file(format!("{root}/lib/f{i}.js"), o).unwrap();
+            zw.write_all(b"//").unwrap();
+        }
+        zw.start_file(format!("{root}/manifest.json"), o).unwrap();
+        let m = format!(r#"{{"Name":"T","UUID":"com.test.inst","Version":"{version}","Author":"t","SDKVersion":2,"CodePath":"p.js","Actions":[]}}"#);
+        zw.write_all(m.as_bytes()).unwrap();
+        zw.finish().unwrap().into_inner()
+    }
+
+    #[test]
+    fn installs_run_side_by_side_and_replace_whole() {
+        let dir = std::env::temp_dir().join(format!("tuxdeck-install-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        // A lower-case folder name is installed under the usual spelling.
+        assert_eq!(install_archive(&package("com.test.inst.sdplugin", "1", 3), &dir).unwrap(), "com.test.inst");
+        let target = dir.join("com.test.inst.sdPlugin");
+        assert!(target.join("manifest.json").is_file());
+        // Several installs at once: each is complete, the last one wins, nothing is left over.
+        let big = package("com.test.inst.sdPlugin", "2", 400);
+        std::thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| install_archive(&big, &dir).unwrap());
+            }
+        });
+        assert_eq!(fs::read_dir(target.join("lib")).unwrap().count(), 400);
+        assert!(fs::read_to_string(target.join("manifest.json")).unwrap().contains(r#""Version":"2""#));
+        let names: Vec<String> = fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        assert_eq!(names, ["com.test.inst.sdPlugin"]);
+        // A broken package leaves the installed one alone.
+        assert!(install_archive(&package("com.test.inst.sdPlugin", "3", 0)[..40], &dir).is_err());
+        assert!(fs::read_to_string(target.join("manifest.json")).unwrap().contains(r#""Version":"2""#));
+        fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn zip_entry_paths() {

@@ -78,7 +78,7 @@ pub fn local(paths: &Paths, uuid: &str) -> Option<Value> {
 /// Fetch the published results (`index.json` of the checks repository).
 pub async fn fetch_remote(paths: &Paths, repo: &str) -> Result<usize> {
     let url = format!("https://raw.githubusercontent.com/{repo}/main/index.json");
-    let r = crate::net::http().get(&url).send().await?.error_for_status()?;
+    let r = crate::net::http().get(&url).timeout(crate::net::SHORT).send().await?.error_for_status()?;
     let v: Value = r.json().await?;
     let plugins = v.get("plugins").and_then(|p| p.as_object()).cloned().context("no plugins in index.json")?;
     let n = plugins.len();

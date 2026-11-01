@@ -46,12 +46,6 @@ fn open_path(uuid: &str, settings: &Value) -> Option<String> {
     }
 }
 
-/// An Open action from Windows/macOS: a path that can't exist here, or no path but a
-/// title naming the application.
-fn foreign_open(path: &str, title: &str) -> bool {
-    apps::is_foreign(path) || (path.trim().trim_matches('"').is_empty() && !title.is_empty())
-}
-
 /// What happens to one key when converting.
 enum Plan {
     Open(Target),
@@ -63,27 +57,57 @@ enum Plan {
     Install(String, String),
     /// No counterpart: an Open action with an empty command.
     Manual(String),
+    /// Unknown until the plugin catalogue can be reached: stays as it is for now.
+    Wait,
+}
+
+/// Settings field of a converted key without a counterpart: the action it was.
+const CONVERTED_FROM: &str = "_from";
+
+/// Whether a profile was made with the official app on Windows/macOS: a Windows or macOS
+/// path, or an action of a plugin that isn't installed here. Checked when importing.
+pub fn looks_imported(p: &Profile, registry: &Registry) -> bool {
+    let mut found = false;
+    for page in p.pages.values() {
+        for c in &page.controllers {
+            for inst in c.actions.values() {
+                let Ok(mut v) = serde_json::to_value(inst) else { continue };
+                walk(&mut v, &mut |o| {
+                    let uuid = o["UUID"].as_str().unwrap_or_default();
+                    found |= match open_path(uuid, o.get("Settings").unwrap_or(&Value::Null)) {
+                        Some(path) => apps::is_foreign(&path),
+                        None => builtin::def(uuid).is_none() && registry.plugin_for_action(uuid).is_none(),
+                    };
+                });
+            }
+        }
+    }
+    found
 }
 
 impl Engine {
-    fn plan_key(&self, o: &Map<String, Value>, catalogue: &[crate::catalogue::Entry]) -> Option<Plan> {
+    /// `catalogue`: `None` if it can't be reached. `imported`: the profile came from the
+    /// official app; otherwise only what can't come from Linux counts (Windows/macOS
+    /// paths, Elgato's own plugins), not keys that wait for a command or a plugin.
+    fn plan_key(&self, o: &Map<String, Value>, catalogue: Option<&[crate::catalogue::Entry]>, imported: bool) -> Option<Plan> {
         let uuid = o["UUID"].as_str().unwrap_or_default();
         let title = title_of(o);
-        if let Some(path) = open_path(uuid, o.get("Settings").unwrap_or(&Value::Null)) {
-            if !foreign_open(&path, &title) {
-                return None;
+        let settings = o.get("Settings").unwrap_or(&Value::Null);
+        if let Some(path) = open_path(uuid, settings) {
+            if apps::is_foreign(&path) {
+                return Some(match apps::resolve(&path, &title) {
+                    Some(t) => Plan::Open(t),
+                    None => Plan::Manual(if title.is_empty() { apps::candidates(&path, "").into_iter().next().unwrap_or(path) } else { title }),
+                });
             }
-            return match apps::resolve(&path, &title) {
-                Some(t) => Some(Plan::Open(t)),
-                // An Open key without a command already waits for one of the user's own.
-                None if !apps::is_foreign(&path) => None,
-                None => Some(Plan::Manual(if title.is_empty() { apps::candidates(&path, "").into_iter().next().unwrap_or(path) } else { title })),
-            };
+            // No command but a title naming the program (keys converted before excepted).
+            let empty = path.trim().trim_matches('"').is_empty() && !title.is_empty() && settings.get(CONVERTED_FROM).is_none();
+            return if imported && empty { apps::resolve(&path, &title).map(Plan::Open) } else { None };
         }
         if builtin::def(uuid).is_some() || self.registry.plugin_for_action(uuid).is_some() {
             return None;
         }
-        let cat = catalogue.iter().filter(|e| uuid.starts_with(&format!("{}.", e.id))).max_by_key(|e| e.id.len());
+        let cat = catalogue.and_then(|c| c.iter().filter(|e| uuid.starts_with(&format!("{}.", e.id))).max_by_key(|e| e.id.len()));
         let name = || {
             let n = o.get("Name").and_then(Value::as_str).unwrap_or(uuid);
             if title.is_empty() || title == n {
@@ -92,20 +116,24 @@ impl Engine {
                 format!("{n} ({title})")
             }
         };
-        Some(match compat::classify(uuid, cat.is_some()) {
-            (Some(r), Status::Replace(to)) => Plan::Replace { group: r, to },
+        match compat::classify(uuid, cat.is_some()) {
+            (Some(r), Status::Replace(to)) => Some(Plan::Replace { group: r, to }),
+            _ if !imported => None,
             (_, Status::Install) => {
                 let e = cat.unwrap();
-                Plan::Install(e.id.clone(), e.name.clone())
+                Some(Plan::Install(e.id.clone(), e.name.clone()))
             }
-            _ => Plan::Manual(name()),
-        })
+            _ if catalogue.is_none() => Some(Plan::Wait),
+            _ => Some(Plan::Manual(name())),
+        }
     }
 
     /// What converting a profile would do (`needed`: false if there is nothing to do).
-    pub fn conversion_plan(&self, profile: &str, catalogue: &[crate::catalogue::Entry]) -> Result<Value> {
+    pub fn conversion_plan(&self, profile: &str, catalogue: Option<&[crate::catalogue::Entry]>) -> Result<Value> {
         let p = self.profiles.get(profile).with_context(|| crate::tr!("profile not found"))?;
+        let imported = p.imported();
         let (mut programs, mut web, mut folders, mut manual) = (vec![], vec![], vec![], vec![]);
+        let mut waiting = 0;
         let mut replaced: Vec<Value> = vec![];
         let mut installs: Vec<(String, String)> = vec![];
         let count = |list: &mut Vec<Value>, key: &str, label: &str| match list.iter_mut().find(|x| x["key"] == key) {
@@ -118,7 +146,7 @@ impl Engine {
                     let Ok(mut v) = serde_json::to_value(inst) else { continue };
                     walk(&mut v, &mut |o| {
                         let title = title_of(o);
-                        match self.plan_key(o, catalogue) {
+                        match self.plan_key(o, catalogue, imported) {
                             Some(Plan::Open(t)) => {
                                 let item = json!({"title": title, "target": t.label()});
                                 match t {
@@ -148,6 +176,7 @@ impl Engine {
                                 count(&mut replaced, &id, &name);
                             }
                             Some(Plan::Manual(name)) => manual.push(json!(name)),
+                            Some(Plan::Wait) => waiting += 1,
                             None => {}
                         }
                     });
@@ -156,19 +185,21 @@ impl Engine {
         }
         let needed = !(programs.is_empty() && web.is_empty() && folders.is_empty() && replaced.is_empty() && manual.is_empty());
         Ok(json!({"profile": profile, "needed": needed, "programs": programs, "web": web, "folders": folders, "replaced": replaced,
-                  "manual": manual, "installs": installs.iter().map(|(id, name)| json!({"id": id, "name": name})).collect::<Vec<_>>()}))
+                  "manual": manual, "installs": installs.iter().map(|(id, name)| json!({"id": id, "name": name})).collect::<Vec<_>>(),
+                  "waiting": waiting}))
     }
 
     /// Convert a profile (the plugins it needs are installed already). Returns how many
     /// keys changed and how many need a command of the user's own.
-    pub fn convert_profile(&mut self, profile: &str, catalogue: &[crate::catalogue::Entry]) -> Result<Value> {
+    pub fn convert_profile(&mut self, profile: &str, catalogue: Option<&[crate::catalogue::Entry]>) -> Result<Value> {
         let name_of = |e: &Engine, uuid: &str| -> String {
             builtin::def(uuid)
                 .map(|d| crate::i18n::tr(d.name))
                 .or_else(|| e.registry.plugin_for_action(uuid).and_then(|p| p.action(uuid).map(|a| p.action_name(a))))
                 .unwrap_or_else(|| uuid.rsplit('.').next().unwrap_or(uuid).to_string())
         };
-        let (mut changed, mut manual) = (0, 0);
+        let (mut changed, mut manual, mut left) = (0, 0, 0);
+        let imported = self.profiles.get(profile).is_some_and(|p| p.imported());
         let page_ids: Vec<String> = self.profiles.get(profile).with_context(|| crate::tr!("profile not found"))?.pages.keys().cloned().collect();
         let mut pages_changed = Vec::new();
         for page_id in page_ids {
@@ -179,23 +210,36 @@ impl Engine {
                     let Ok(mut v) = serde_json::to_value(&*inst) else { continue };
                     let mut n = 0;
                     walk(&mut v, &mut |o| {
-                        let (uuid, settings) = match self.plan_key(o, catalogue) {
+                        let manual_key = |name: String, o: &mut Map<String, Value>| {
+                            // Keys without a title get the action's name, so it's clear which key it was.
+                            if let Some(states) = o.get_mut("States").and_then(Value::as_array_mut) {
+                                for st in states.iter_mut().filter(|st| st.get("Title").and_then(Value::as_str).is_none_or(|t| t.trim().is_empty())) {
+                                    st["Title"] = json!(name);
+                                }
+                            }
+                            (OPEN.to_string(), json!({"path": "", CONVERTED_FROM: name}))
+                        };
+                        let (uuid, settings) = match self.plan_key(o, catalogue, imported) {
                             None => return,
                             Some(Plan::Open(Target::App { exec, .. })) => (OPEN.to_string(), json!({"path": apps::launch_command(&exec)})),
                             Some(Plan::Open(Target::Url(url))) => (WEBSITE.to_string(), json!({"openInBrowser": true, "path": url})),
                             Some(Plan::Open(t @ Target::Dir(_))) => (OPEN.to_string(), json!({"path": t.label()})),
                             Some(Plan::Replace { group, to }) => match compat::replacement_uuid(group, to) {
                                 Some(u) if builtin::def(&u).is_some() || self.registry.plugin_for_action(&u).is_some() => (u, compat::replacement_settings(to)),
+                                // Its plugin could not be installed: stays as it is, for the next try.
                                 _ => {
-                                    manual += 1;
-                                    (OPEN.to_string(), json!({"path": ""}))
+                                    left += 1;
+                                    return;
                                 }
                             },
                             // Installed by now; a failed install leaves the key as it was.
-                            Some(Plan::Install(..)) => return,
-                            Some(Plan::Manual(_)) => {
+                            Some(Plan::Install(..)) | Some(Plan::Wait) => {
+                                left += 1;
+                                return;
+                            }
+                            Some(Plan::Manual(name)) => {
                                 manual += 1;
-                                (OPEN.to_string(), json!({"path": ""}))
+                                manual_key(name.clone(), o)
                             }
                         };
                         o.insert("Name".into(), json!(name_of(self, &uuid)));
@@ -218,6 +262,14 @@ impl Engine {
                 pages_changed.push(page_id);
             }
         }
+        // Converted: no more offers, unless keys had to stay for now (catalogue or a
+        // plugin installation failed).
+        if left == 0 {
+            if let Some(p) = self.profiles.get_mut(profile).filter(|p| p.imported()) {
+                p.set_imported(false);
+                p.save_manifest()?;
+            }
+        }
         for page in &pages_changed {
             self.save_page(profile, page);
             self.emit(json!({"event": "page", "profile": profile, "page": page}));
@@ -228,7 +280,7 @@ impl Engine {
             self.refresh(&dev);
         }
         self.log("info", crate::tr!("Profile converted for Linux: {n} keys", n = changed));
-        Ok(json!({"changed": changed, "manual": manual}))
+        Ok(json!({"changed": changed, "manual": manual, "left": left}))
     }
 }
 

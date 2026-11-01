@@ -24,7 +24,31 @@ impl Engine {
         if inst.states.len() > 1 {
             p["state"] = json!(inst.state);
         }
+        // Files the action refers to (SDK 7.1, `setResources`).
+        p["resources"] = inst.resources.clone().filter(Value::is_object).unwrap_or_else(|| json!({}));
         p
+    }
+
+    /// A property inspector opened for an action the plugin doesn't see (its deck is not
+    /// connected): the official library only talks to a PI of an action it got
+    /// willAppear for, so the plugin gets one now and willDisappear when the PI closes.
+    pub fn pi_opened(&mut self, ctx: &str) {
+        let shown = self.devices.values().any(|d| d.visible.contains_key(ctx));
+        let Some((loc, inst)) = self.lookup(ctx).filter(|_| !shown) else { return };
+        let Some(pl) = self.plugin_of(&inst.uuid).map(|p| p.uuid.clone()) else { return };
+        let payload = self.action_payload(&loc.slot, &inst, loc.nested.is_some());
+        self.send_plugin(&pl, json!({"event": "willAppear", "action": inst.uuid, "context": ctx, "device": loc.device, "payload": payload}));
+        self.pi_shown.insert(ctx.to_string());
+    }
+
+    pub fn pi_closed(&mut self, ctx: &str) {
+        if !self.pi_shown.remove(ctx) || self.devices.values().any(|d| d.visible.contains_key(ctx)) {
+            return;
+        }
+        let Some((loc, inst)) = self.lookup(ctx) else { return };
+        let Some(pl) = self.plugin_of(&inst.uuid).map(|p| p.uuid.clone()) else { return };
+        let payload = self.action_payload(&loc.slot, &inst, loc.nested.is_some());
+        self.send_plugin(&pl, json!({"event": "willDisappear", "action": inst.uuid, "context": ctx, "device": loc.device, "payload": payload}));
     }
 
     pub(super) fn plugin_of(&self, action_uuid: &str) -> Option<&plugins::Plugin> {
@@ -55,6 +79,12 @@ impl Engine {
                     }
                 }
             }
+        }
+        // A disconnected deck shows nothing: its plugins got willDisappear, and get
+        // willAppear again when it comes back.
+        if !self.devices[dev].connected() {
+            self.devices.get_mut(dev).unwrap().visible.clear();
+            return;
         }
         let old = std::mem::take(&mut self.devices.get_mut(dev).unwrap().visible);
         for (ctx, (plugin, action, payload)) in &old {
@@ -158,7 +188,8 @@ impl Engine {
             .flat_map(|d| d.visible.iter().filter(|(_, (p, _, _))| p == uuid).map(move |(ctx, (_, action, payload))| (d.id.clone(), ctx, action, payload)))
             .map(|(dev, ctx, action, payload)| json!({"device": dev, "context": ctx, "action": action, "controller": payload["controller"], "coordinates": payload["coordinates"]}))
             .collect();
-        json!({"running": running, "connected": connected, "restarts": restarts, "stats": self.plugin_stats.get(uuid), "shown": shown})
+        let blocked = self.plugin_conns.get(uuid).and_then(|c| c.blocked.clone());
+        json!({"running": running, "connected": connected, "restarts": restarts, "blocked": blocked, "stats": self.plugin_stats.get(uuid), "shown": shown})
     }
 
     pub fn plugin_registered(&mut self, uuid: &str, tx: UnboundedSender<String>) {
@@ -173,6 +204,11 @@ impl Engine {
             })
             .collect();
         conn.tx = Some(tx);
+        // Monitored applications that run already, like the official app does.
+        let apps: Vec<String> = self.apps_running.iter().filter(|(p, _)| p == uuid).map(|(_, a)| a.clone()).collect();
+        for app in apps {
+            self.send_plugin(uuid, json!({"event": "applicationDidLaunch", "payload": {"application": app}}));
+        }
         let devs: Vec<String> = self.devices.values().filter(|d| d.tx.is_some()).map(|d| d.id.clone()).collect();
         for d in &devs {
             let info = self.device_info(d);
@@ -275,6 +311,7 @@ impl Engine {
         let devices: Vec<Value> = self
             .devices
             .values()
+            .filter(|d| d.connected())
             .map(|d| {
                 let mut i = self.device_info(&d.id);
                 i["id"] = json!(d.id);
@@ -344,6 +381,8 @@ impl Engine {
             "setFeedback",
             "setFeedbackLayout",
             "setTriggerDescription",
+            "getResources",
+            "setResources",
         ];
         if CONTEXT_EVENTS.contains(&event.as_str()) {
             let own = if from_pi {
@@ -361,7 +400,11 @@ impl Engine {
             "getSettings" => {
                 if let Some((loc, inst)) = self.lookup(&ctx) {
                     let p = self.action_payload(&loc.slot, &inst, loc.nested.is_some());
-                    let m = json!({"event": "didReceiveSettings", "action": inst.uuid, "context": ctx, "device": loc.device, "payload": p});
+                    let mut m = json!({"event": "didReceiveSettings", "action": inst.uuid, "context": ctx, "device": loc.device, "payload": p});
+                    // The request's id (SDK 7.1): an answer, not a change made in the PI.
+                    if let Some(id) = msg.get("id") {
+                        m["id"] = id.clone();
+                    }
                     if from_pi {
                         self.send_pi(&ctx, m);
                     } else {
@@ -386,7 +429,10 @@ impl Engine {
             }
             "getGlobalSettings" => {
                 let s = self.settings.global_settings.get(&plugin_uuid).cloned().unwrap_or(json!({}));
-                let m = json!({"event": "didReceiveGlobalSettings", "payload": {"settings": s}});
+                let mut m = json!({"event": "didReceiveGlobalSettings", "payload": {"settings": s}});
+                if let Some(id) = msg.get("id") {
+                    m["id"] = id.clone();
+                }
                 if from_pi {
                     self.send_pi(owner, m);
                 } else {
@@ -562,6 +608,40 @@ impl Engine {
                 }
             }
             "setTriggerDescription" => {}
+            // Marketplace secrets don't exist here: answer at once instead of never.
+            "getSecrets" => {
+                let mut m = json!({"event": "didReceiveSecrets", "payload": {"secrets": {}}});
+                if let Some(id) = msg.get("id") {
+                    m["id"] = id.clone();
+                }
+                self.send_plugin(owner, m);
+            }
+            "getResources" | "setResources" => {
+                let Some((loc, _)) = self.lookup(&ctx) else { return };
+                if event == "setResources" {
+                    let res = payload.get("resources").cloned().filter(Value::is_object).unwrap_or_else(|| json!({}));
+                    self.with_instance(&loc, |i| i.resources = Some(res));
+                }
+                let Some(inst) = self.instance_at(&loc) else { return };
+                let p = self.action_payload(&loc.slot, &inst, loc.nested.is_some());
+                let mut m = json!({"event": "didReceiveResources", "action": inst.uuid, "context": ctx, "device": loc.device, "payload": p});
+                if event == "getResources" {
+                    if let Some(id) = msg.get("id") {
+                        m["id"] = id.clone();
+                    }
+                    if from_pi {
+                        self.send_pi(&ctx, m);
+                    } else {
+                        self.send_plugin(owner, m);
+                    }
+                } else if from_pi {
+                    if let Some(pl) = self.plugin_of(&inst.uuid).map(|p| p.uuid.clone()) {
+                        self.send_plugin(&pl, m);
+                    }
+                } else {
+                    self.send_pi(&ctx, m);
+                }
+            }
             other => tracing::debug!("unhandled SDK event {other} from {owner}"),
         }
     }

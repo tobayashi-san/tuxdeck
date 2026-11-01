@@ -17,6 +17,7 @@ export const MODELS = {
   '20GAI9901': { name: 'Stream Deck Mini', kind: 'mini', cols: 3, rows: 2, touch_points: 0, screen: null, encoders: 0 },
   '20GAI9902': { name: 'Stream Deck Mini MK.2', kind: 'mini', cols: 3, rows: 2, touch_points: 0, screen: null, encoders: 0 },
   '20GAA9901': { name: 'Stream Deck (1st gen)', kind: 'original', cols: 5, rows: 3, touch_points: 0, screen: null, encoders: 0 },
+  '20GBF9901': { name: 'Stream Deck Pedal', kind: 'pedal', cols: 3, rows: 1, touch_points: 0, screen: null, encoders: 0 },
 };
 
 /** Profiles of model `b` can be shown on a device of model `a` (same layout). */
@@ -110,6 +111,13 @@ export function modelName(model) {
   return MODELS[model]?.name || model;
 }
 
+/** A deck's name; two decks with the same name get the end of their id. */
+export function deckLabel(d) {
+  const name = d.name || modelName(d.model);
+  const twin = (S.state?.devices || []).some((x) => x.id !== d.id && (x.name || modelName(x.model)) === name);
+  return twin ? `${name} · …${String(d.id).slice(-4)}` : name;
+}
+
 export function geometryFor(profile) {
   const d = currentDevice();
   const model = profile?.model;
@@ -173,6 +181,8 @@ export function instanceAccepts(controller, coord, inst, fromController) {
  * plugin actions only as plain title text (fixed style).
  */
 export function slotAppearance(controller, coord, inst) {
+  // The Pedal has no displays.
+  if (MODELS[profileById(S.view.profile)?.model]?.kind === 'pedal') return { image: false, title: false, titleStyle: false };
   if (controller !== 'Neo') return { image: true, title: true, titleStyle: true };
   const title = coord === '1,0' && !INFOBAR_BUILTINS.includes(inst?.UUID);
   return { image: false, title, titleStyle: false };

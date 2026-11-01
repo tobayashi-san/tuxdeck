@@ -2,13 +2,25 @@
 
 use std::time::Duration;
 
+/// Client for the internet (catalogue, downloads). Trusts the system's certificates too
+/// and takes a proxy from `HTTPS_PROXY`/`ALL_PROXY`. No limit for a whole download, only
+/// for connecting and for a pause in the data (slow connections finish big plugins);
+/// small requests set their own limit (`SHORT`).
 pub fn http() -> reqwest::Client {
     static C: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
     C.get_or_init(|| {
-        reqwest::Client::builder().user_agent(concat!("tuxdeck/", env!("CARGO_PKG_VERSION"))).timeout(Duration::from_secs(120)).build().expect("http client")
+        reqwest::Client::builder()
+            .user_agent(concat!("tuxdeck/", env!("CARGO_PKG_VERSION")))
+            .connect_timeout(Duration::from_secs(15))
+            .read_timeout(Duration::from_secs(60))
+            .build()
+            .expect("http client")
     })
     .clone()
 }
+
+/// Time limit for small requests (lists, API answers).
+pub const SHORT: Duration = Duration::from_secs(30);
 
 /// Client for requests to the local daemon: they carry the API token, so they must never
 /// go through a proxy from the environment.

@@ -69,16 +69,18 @@ overrides:
       - libc6 (>= 2.35)
       - libudev1
     recommends:
+      - libxkbcommon0
       - playerctl
       - wl-clipboard | xclip
       - xdg-utils
     suggests:
-      - nodejs
+      - nodejs (>= 20)
       - chromium | google-chrome-stable | brave-browser
   rpm:
     depends:
       - libudev.so.1()(64bit)
     recommends:
+      - libxkbcommon
       - playerctl
       - wl-clipboard
       - xdg-utils

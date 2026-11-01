@@ -7,7 +7,7 @@ is covered by `assets/fonts/LICENSE-DejaVu.txt`. This file is generated with
 
 ## Overview
 
-- Apache License 2.0 (152 crates)
+- Apache License 2.0 (154 crates)
 - MIT License (65 crates)
 - Unicode License v3 (19 crates)
 - BSD 3-Clause "New" or "Revised" License (4 crates)
@@ -3854,6 +3854,7 @@ Used by:
 - [mime 0.3.17](https://github.com/hyperium/mime)
 - [num-traits 0.2.19](https://github.com/rust-num/num-traits)
 - [once_cell 1.21.4](https://github.com/matklad/once_cell)
+- [openssl-probe 0.2.2](https://github.com/rustls/openssl-probe)
 - [parking_lot 0.12.5](https://github.com/Amanieu/parking_lot)
 - [parking_lot_core 0.9.12](https://github.com/Amanieu/parking_lot)
 - [percent-encoding 2.3.2](https://github.com/servo/rust-url/)
@@ -3863,6 +3864,7 @@ Used by:
 - [regex-syntax 0.8.11](https://github.com/rust-lang/regex)
 - [ring 0.17.14](https://github.com/briansmith/ring)
 - [roxmltree 0.20.0](https://github.com/RazrFalcon/roxmltree)
+- [rustls-native-certs 0.8.5](https://github.com/rustls/rustls-native-certs)
 - [rustls 0.23.46](https://github.com/rustls/rustls)
 - [scopeguard 1.2.0](https://github.com/bluss/scopeguard)
 - [signal-hook-registry 1.4.8](https://github.com/vorner/signal-hook)
@@ -7012,7 +7014,7 @@ SOFTWARE.
 ## MIT License
 
 Used by:
-- [tuxdeck 0.5.0](https://github.com/tobayashi-san/tuxdeck)
+- [tuxdeck 0.6.0-beta.1](https://github.com/tobayashi-san/tuxdeck)
 
 ```text
 MIT License

@@ -19,6 +19,9 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+/// Manifest field: the profile was imported and waits to be converted for Linux.
+const IMPORTED: &str = "TuxDeckImported";
+
 /// Alphabet the official app uses to name page directories (base32 without `U`).
 const PAGE_ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHIJKLMNOPQRSTVW";
 
@@ -375,6 +378,20 @@ impl Profile {
             self.manifest.extra.remove("AppIdentifier");
         } else {
             self.manifest.extra.insert("AppIdentifier".into(), Value::String(app.trim().to_string()));
+        }
+    }
+
+    /// Imported from the official app and not converted for Linux yet (only such profiles
+    /// are offered the conversion).
+    pub fn imported(&self) -> bool {
+        self.manifest.extra.get(IMPORTED).and_then(Value::as_bool).unwrap_or(false)
+    }
+
+    pub fn set_imported(&mut self, on: bool) {
+        if on {
+            self.manifest.extra.insert(IMPORTED.into(), Value::Bool(true));
+        } else {
+            self.manifest.extra.remove(IMPORTED);
         }
     }
 

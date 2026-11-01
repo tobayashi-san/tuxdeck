@@ -98,6 +98,13 @@ export async function loadPage() {
 }
 export const schedulePageReload = debounce(() => loadPage(), 120);
 
+/** A drag ended: show what changed meanwhile. */
+export function dragEnded() {
+  if (!renderAfterDrag) return;
+  renderAfterDrag = false;
+  renderAll();
+}
+
 function pickDevice() {
   const devs = S.state.devices;
   let d = devs.find((x) => x.id === S.deviceId);
@@ -169,7 +176,14 @@ export async function syncView() {
 }
 
 let catalogueModel;
+let renderAfterDrag = false;
 function renderAll() {
+  // Redrawing the keys while one is dragged would remove the dragged element (and with
+  // it the end of the drag): wait for the drop.
+  if (S.drag) {
+    renderAfterDrag = true;
+    return;
+  }
   renderCanvas();
   renderCrumbs();
   renderPagebar();

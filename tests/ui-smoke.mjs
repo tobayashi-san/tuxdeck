@@ -1050,6 +1050,26 @@ async function suiteNeo(d, b) {
     await until(async () => (await d.action('Keypad', '3,0'))?.Settings?.Hotkeys?.[0]?.QTKeyCode === 33554431, 'hotkey removed');
   });
 
+  await test('editor: on a QWERTZ layout Ctrl+Z is recorded and shown as Z (the key where US has Y)', async () => {
+    // The layout the browser reports for the keys (Chromium: navigator.keyboard).
+    await b.eval(`(() => { window.__layout = navigator.keyboard?.getLayoutMap; const kb = navigator.keyboard || {};
+      Object.defineProperty(navigator, 'keyboard', { configurable: true, value: { ...kb, getLayoutMap: async () => new Map([['KeyY', 'z'], ['KeyZ', 'y'], ['KeyQ', 'q']]) } }); })()`);
+    await placeAndEdit(b, d, 'Keypad', '1,1', 'com.elgato.streamdeck.system.hotkey');
+    await b.waitFor(`!!document.querySelector('#editor .hotkey button.btn')`, 'record button');
+    await b.clickText('#editor .hotkey button.btn', 'Record');
+    await b.waitFor(`document.querySelector('#editor .hk-display').textContent === 'Press a key combination…'`, 'recording');
+    await b.keyEvent('keyDown', 'Control', { code: 'ControlLeft', keyCode: 17, modifiers: CTRL });
+    await b.keyEvent('keyDown', 'z', { code: 'KeyY', keyCode: 90, modifiers: CTRL });
+    await b.keyEvent('keyUp', 'z', { code: 'KeyY', keyCode: 90, modifiers: CTRL });
+    await b.keyEvent('keyUp', 'Control', { code: 'ControlLeft', keyCode: 17 });
+    await b.waitFor(`document.querySelector('#editor .hk-display').textContent === 'Ctrl + Z'`, 'shows Ctrl + Z');
+    const hk = await until(async () => (await d.action('Keypad', '1,1'))?.Settings?.Hotkeys?.[0]?.LinuxCode === 21 && (await d.action('Keypad', '1,1')).Settings.Hotkeys[0], 'hotkey saved');
+    eq([hk.LinuxCode, hk.QTKeyCode], [21, 90], 'the physical key and the character Z');
+    await b.click('#editor .hotkey .icon-btn.danger:not([disabled])');
+    await until(async () => (await d.action('Keypad', '1,1'))?.Settings?.Hotkeys?.[0]?.QTKeyCode === 33554431, 'hotkey removed');
+    await b.eval(`delete navigator.keyboard`);
+  });
+
   await test('editor: multi action – add, reorder, edit and remove nested actions', async () => {
     await placeAndEdit(b, d, 'Keypad', '3,0', 'com.elgato.streamdeck.multiactions.routine');
     const key = await b.S(`S.actionMap.get('com.elgato.streamdeck.multiactions.routine').form.find((f) => f.type === 'actions').key`);
@@ -1100,7 +1120,9 @@ async function suiteNeo(d, b) {
   await test('editor: every built-in action can be placed and opens its editor without errors', async () => {
     await d.clear('Keypad', '2,1');
     await slotShows(b, 'Keypad', '2,1', false);
-    const actions = (await b.S(`S.catalogue.flatMap((g) => g.actions.map((a) => ({ uuid: a.uuid, name: a.name, ctl: a.controllers || ['Keypad'], form: (a.form || []).length, pi: !!a.pi })))`))
+    // The deck field only shows with several decks.
+    const actions = (await b.S(`S.catalogue.flatMap((g) => g.actions.map((a) => ({ uuid: a.uuid, name: a.name, ctl: a.controllers || ['Keypad'],
+      form: (a.form || []).filter((f) => f.type !== 'device' || S.state.devices.length > 1).length, pi: !!a.pi })))`))
       .filter((a) => !a.pi);
     // The folder last (replacing it would ask first).
     actions.sort((x, y) => (x.uuid.endsWith('openchild') ? 1 : 0) - (y.uuid.endsWith('openchild') ? 1 : 0));

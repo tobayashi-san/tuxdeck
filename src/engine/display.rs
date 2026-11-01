@@ -472,10 +472,23 @@ impl Engine {
         if slept > Duration::from_secs(10) {
             tracing::info!("system woke up (slept {} s)", slept.as_secs());
             self.broadcast_plugins(|_| Some(json!({"event": "systemDidWakeUp"})));
-            // The decks may have been reset while suspended: send everything again.
-            for d in self.devices.values_mut() {
-                d.sent.clear();
+            // The decks may have been reset while suspended: send everything again,
+            // brightness included (a sleeping deck stays dark).
+            let decks: Vec<(String, u8)> = self
+                .devices
+                .values_mut()
+                .map(|d| {
+                    d.sent.clear();
+                    (d.id.clone(), if d.sleeping { 0 } else { d.brightness })
+                })
+                .collect();
+            for (id, b) in decks {
+                self.send_dev(&id, DevCmd::Brightness(b));
             }
+        }
+        if self.fonts_checked.elapsed() > Duration::from_secs(15) {
+            self.fonts_checked = Instant::now();
+            render::set_extra_font_dirs(crate::resources::layout_font_dirs(&self.paths));
         }
         let expired: Vec<String> = self
             .runtime

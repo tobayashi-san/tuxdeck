@@ -11,6 +11,10 @@ pkgs.rustPlatform.buildRustPackage {
   cargoLock.lockFile = ./Cargo.lock;
   nativeBuildInputs = [ pkgs.pkg-config ];
   buildInputs = [ pkgs.udev ];
+  # libxkbcommon is loaded at runtime (typing text with the keyboard layout over uinput).
+  postFixup = ''
+    patchelf --add-rpath ${pkgs.libxkbcommon}/lib $out/bin/tuxdeck
+  '';
   postInstall = ''
     install -Dm644 packaging/70-tuxdeck.rules $out/lib/udev/rules.d/70-tuxdeck.rules
     install -Dm644 packaging/tuxdeck.desktop $out/share/applications/tuxdeck.desktop

@@ -114,6 +114,18 @@ impl Engine {
         }
     }
 
+    /// Press or release key `idx` (keys, then touch points; keeps the stored state consistent).
+    pub fn key_press(&mut self, dev: &str, idx: usize, down: bool) -> bool {
+        let Some(d) = self.devices.get(dev) else { return false };
+        let mut states = d.buttons.clone();
+        if idx >= states.len() {
+            return false;
+        }
+        states[idx] = down;
+        self.on_input(dev, Input::Buttons(states));
+        true
+    }
+
     /// Press or release dial `idx` (keeps the stored encoder state consistent).
     pub fn dial_press(&mut self, dev: &str, idx: usize, down: bool) {
         let Some(d) = self.devices.get(dev) else { return };

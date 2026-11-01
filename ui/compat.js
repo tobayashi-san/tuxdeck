@@ -74,6 +74,9 @@ async function offerConversion(profile, plan = null) {
       '{n} key has no Linux counterpart: it keeps its title and icon and waits for a command of your own',
       '{n} keys have no Linux counterpart: they keep their title and icon and wait for a command of your own'), [...new Set(plan.manual)]),
     plan.installs.length ? h('p.convert-note', null, t('Installs from the catalogue: {plugins}', { plugins: plan.installs.map((p) => p.name).join(', ') })) : null,
+    plan.waiting ? h('p.convert-note', null, tn(plan.waiting,
+      'The plugin catalogue can\'t be reached: {n} key stays as it is for now, TuxDeck offers it again later.',
+      'The plugin catalogue can\'t be reached: {n} keys stay as they are for now, TuxDeck offers them again later.')) : null,
     h('p.convert-note', null, t('A backup is made first (Settings → Backups).')));
   const choice = await modal(t('Convert for Linux?'), body, [
     { label: t('Not now'), value: 'later' },
@@ -87,6 +90,7 @@ async function offerConversion(profile, plan = null) {
       ? tn(r.manual, 'Profile converted. {n} key still needs a command.', 'Profile converted. {n} keys still need a command.')
       : t('Profile converted.'), 'info', 6000);
     if (r.failed?.length) toast(t('Could not install: {plugins}', { plugins: r.failed.join(', ') }), 'warn', 9000);
+    if (r.left) toast(tn(r.left, '{n} key stays as it is for now; TuxDeck offers it again later.', '{n} keys stay as they are for now; TuxDeck offers them again later.'), 'info', 9000);
   } catch (e) {
     toast(e.message, 'error', 8000);
   }

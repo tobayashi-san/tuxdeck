@@ -4,14 +4,12 @@ use super::*;
 
 impl Engine {
     pub fn device_connected(&mut self, id: String, model: &'static Model, firmware: String, tx: std::sync::mpsc::Sender<DevCmd>) {
+        if firmware == "virtual" {
+            self.virtual_decks.insert(id.clone(), (model, tx.clone()));
+        }
         let ds = self.settings.devices.get(&id).cloned();
-        let profile = ds
-            .as_ref()
-            .map(|d| d.profile.clone())
-            .filter(|p| self.profiles.get(p).is_some_and(|x| model.accepts_profile_model(&x.manifest.device.model)))
-            .or_else(|| self.profiles.values().find(|p| p.manifest.device.model == model.model_id).map(|p| p.id.clone()))
-            .or_else(|| self.profiles.values().find(|p| model.accepts_profile_model(&p.manifest.device.model)).map(|p| p.id.clone()))
-            .unwrap_or_else(|| self.create_default_profile(model));
+        let saved =
+            ds.as_ref().map(|d| d.profile.clone()).filter(|p| self.profiles.get(p).is_some_and(|x| model.accepts_profile_model(&x.manifest.device.model)));
         let brightness = ds.map(|d| d.brightness).unwrap_or(70);
         let _ = tx.send(DevCmd::Brightness(brightness));
         let n_buttons = model.key_count() + model.touch_points as usize;
@@ -40,6 +38,7 @@ impl Engine {
             old.sent.clear();
             old.firmware = dev.firmware;
             old.buttons = dev.buttons;
+            old.encoders = dev.encoders;
             old.pressed.clear();
             // A replugged deck shows its boot logo at the stored brightness: show the
             // keys instead of keeping it "asleep" in that state.
@@ -49,6 +48,7 @@ impl Engine {
         }
         self.log("info", crate::tr!("{device} connected ({id})", device = model.name, id = id));
         if !reconnect {
+            let profile = saved.unwrap_or_else(|| self.first_profile(&id, model));
             self.set_profile(&id, &profile);
             self.apply_smart(&id);
         } else {
@@ -61,8 +61,62 @@ impl Engine {
         self.emit(json!({"event": "state"}));
     }
 
+    /// The profile a deck shows the first time: its own (its id is stored in the profile,
+    /// e.g. by the official app), else one that no other deck uses, else a new one.
+    fn first_profile(&mut self, id: &str, model: &'static Model) -> String {
+        let taken: Vec<&String> = self
+            .devices
+            .values()
+            .filter(|d| d.id != id)
+            .map(|d| &d.profile)
+            .chain(self.settings.devices.iter().filter(|(k, _)| *k != id).map(|(_, v)| &v.profile))
+            .collect();
+        // Not smart profiles (they come and go with an application); the exact model first.
+        let mut candidates: Vec<(&Profile, Option<String>)> = self
+            .profiles
+            .values()
+            .filter(|p| model.accepts_profile_model(&p.manifest.device.model) && p.app_identifier().is_none())
+            .map(|p| (p, self.deck_named(&p.manifest.device.uuid)))
+            .collect();
+        candidates.sort_by_key(|(p, _)| p.manifest.device.model != model.model_id);
+        let own = candidates.iter().find(|(_, deck)| deck.as_deref() == Some(id));
+        let free = candidates.iter().find(|(p, deck)| deck.is_none() && !taken.contains(&&p.id));
+        match own.or(free) {
+            Some((p, _)) => p.id.clone(),
+            None => self.create_default_profile(model),
+        }
+    }
+
+    /// The known deck that a device id stored in a profile or action means: the deck's own
+    /// id, or the official app's id, which contains the serial number.
+    pub fn deck_named(&self, stored: &str) -> Option<String> {
+        let stored = stored.trim().to_ascii_uppercase();
+        if stored.is_empty() {
+            return None;
+        }
+        let ids = || self.devices.keys().filter(|d| !d.is_empty());
+        ids()
+            .find(|d| d.to_ascii_uppercase() == stored)
+            .or_else(|| ids().filter(|d| d.len() >= 6 && stored.contains(&d.to_ascii_uppercase())).max_by_key(|d| d.len()))
+            .cloned()
+    }
+
     pub fn device_disconnected(&mut self, id: &str) {
+        // Keys and dials held right now are released: a hotkey would stay pressed on the
+        // virtual keyboard and a plugin would never get its keyUp.
+        let held: Vec<Slot> = self.devices.get(id).map(|d| d.pressed.keys().cloned().collect()).unwrap_or_default();
+        self.releasing = true;
+        for slot in held {
+            match slot.coord.split(',').next().and_then(|i| i.parse::<usize>().ok()) {
+                Some(i) if slot.controller == "Encoder" => self.on_dial(id, i, "dialUp", 0),
+                _ => self.on_key(id, &slot, false),
+            }
+        }
+        self.releasing = false;
         if let Some(d) = self.devices.get_mut(id) {
+            d.buttons.iter_mut().for_each(|b| *b = false);
+            d.encoders.iter_mut().for_each(|b| *b = false);
+            d.pressed.clear();
             d.tx = None;
             let vis: Vec<_> = std::mem::take(&mut d.visible).into_iter().collect();
             for (ctx, (plugin, action, payload)) in vis {
@@ -145,12 +199,20 @@ impl Engine {
     pub(super) fn apply_smart(&mut self, dev: &str) {
         let Some(d) = self.devices.get(dev) else { return };
         let model = d.model;
+        // A profile meant for one deck (the deck's id stored in it) only switches that
+        // deck, and goes before the profiles meant for every deck of the model.
         let target = self
             .profiles
             .values()
             .filter(|p| model.accepts_profile_model(&p.manifest.device.model))
-            .find(|p| p.app_identifier().map(|a| crate::smart::app_matches(a, &self.active_app)).unwrap_or(false))
-            .map(|p| (p.id.clone(), p.manifest.name.clone()));
+            .filter(|p| p.app_identifier().map(|a| crate::smart::app_matches(a, &self.active_app)).unwrap_or(false))
+            .filter_map(|p| match self.deck_named(&p.manifest.device.uuid) {
+                Some(d) if d == dev => Some((0, p)),
+                Some(_) => None,
+                None => Some((1, p)),
+            })
+            .min_by_key(|(rank, _)| *rank)
+            .map(|(_, p)| (p.id.clone(), p.manifest.name.clone()));
         let (current, base) = (d.profile.clone(), d.smart_base.clone());
         match target {
             Some((t, name)) if t != current => {

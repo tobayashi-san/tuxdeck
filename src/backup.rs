@@ -86,7 +86,10 @@ fn add_dir<W: Write + std::io::Seek>(zw: &mut zip::ZipWriter<W>, o: zip::write::
             if ft.is_dir() {
                 stack.push(p);
             } else if ft.is_file() && !rel.ends_with(".tmp") && !rel.ends_with("LOCK") {
-                zw.start_file(format!("{prefix}/{rel}"), o)?;
+                // With its mode: plugin programs must stay executable after a restore.
+                use std::os::unix::fs::PermissionsExt;
+                let mode = e.metadata().map(|m| m.permissions().mode() & 0o777).unwrap_or(0o644);
+                zw.start_file(format!("{prefix}/{rel}"), o.unix_permissions(mode))?;
                 std::io::copy(&mut fs::File::open(&p)?, zw)?;
             }
         }
@@ -255,6 +258,11 @@ pub fn unpack(paths: &Paths, data: &[u8]) -> Result<Staged> {
             fs::create_dir_all(p)?;
         }
         write_zip_entry(&mut f, &target, &mut unpacked)?;
+        // Executable stays executable, private stays private; never writable for others.
+        if let Some(mode) = f.unix_mode() {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&target, fs::Permissions::from_mode((mode & 0o755) | 0o600));
+        }
     }
     // Only profiles that load are restored.
     st.profiles.retain(|p| crate::profile::Profile::load(&dir.join("profiles").join(p)).is_ok());
@@ -288,6 +296,15 @@ pub fn apply(paths: &Paths, settings: &mut Settings, st: &Staged) -> Result<()> 
             return Err(e);
         }
         let _ = fs::remove_dir_all(&previous);
+        // Profiles of the official app: offer converting them for Linux.
+        if st.elgato {
+            for p in &st.profiles {
+                if let Ok(mut prof) = crate::profile::Profile::load(&profiles.join(p)) {
+                    prof.set_imported(true);
+                    let _ = prof.save_manifest();
+                }
+            }
+        }
     }
     for (kind, list, target) in [("plugins", &st.plugins, paths.user_plugins()), ("iconpacks", &st.icon_packs, paths.icon_packs())] {
         fs::create_dir_all(&target)?;
@@ -356,6 +373,13 @@ mod tests {
         profile.save_all().unwrap();
         fs::create_dir_all(paths.plugin_data().join("Data/com.x")).unwrap();
         fs::write(paths.plugin_data().join("Data/com.x/token"), "secret").unwrap();
+        // A plugin with a program of its own.
+        use std::os::unix::fs::PermissionsExt;
+        let plugin = paths.user_plugins().join("com.x.sdPlugin");
+        fs::create_dir_all(plugin.join("bin")).unwrap();
+        fs::write(plugin.join("manifest.json"), "{}").unwrap();
+        fs::write(plugin.join("bin/run"), "#!/bin/sh\n").unwrap();
+        fs::set_permissions(plugin.join("bin/run"), fs::Permissions::from_mode(0o755)).unwrap();
         let mut settings = Settings::load(&paths);
         settings.language = "de".into();
         settings.save(&paths);
@@ -363,6 +387,7 @@ mod tests {
         let out = dir(&paths).join("full.zip");
         create(&paths, &out, Options { plugins: true, icon_packs: false }).unwrap();
         // Everything changes afterwards ...
+        fs::remove_dir_all(&plugin).unwrap();
         fs::remove_dir_all(paths.profiles()).unwrap();
         fs::create_dir_all(paths.profiles()).unwrap();
         crate::profile::Profile::new(&paths.profiles(), "Other", "20GBJ9901").save_all().unwrap();
@@ -379,6 +404,8 @@ mod tests {
         let names: Vec<String> = crate::profile::load_all(&paths.profiles()).into_iter().map(|p| p.manifest.name).collect();
         assert_eq!(names, vec!["Backed up".to_string()]);
         assert_eq!(fs::read_to_string(paths.plugin_data().join("Data/com.x/token")).unwrap(), "secret");
+        assert_eq!(fs::metadata(plugin.join("bin/run")).unwrap().permissions().mode() & 0o777, 0o755, "still executable");
+        assert_eq!(fs::metadata(plugin.join("manifest.json")).unwrap().permissions().mode() & 0o022, 0, "not writable for others");
         assert_eq!((current.language.as_str(), current.ui_port), ("de", 1234));
         assert!(!paths.data.join(".restore-staging").exists());
 

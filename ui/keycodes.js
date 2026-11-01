@@ -153,14 +153,40 @@ export function isUnusedHotkey(hk) {
   return !hk || ((hk.QTKeyCode == null || hk.QTKeyCode === QT_UNUSED) && !(hk.LinuxCode >= 0));
 }
 
-/** Build an Elgato hotkey object from a KeyboardEvent.code and modifier flags. */
+/** The keyboard layout's characters by KeyboardEvent.code (Chromium), for labels and the
+ * key code of the official format; null where the browser can't tell. */
+let layoutMap = null;
+let layoutLoading = Promise.resolve();
+export function loadLayoutMap() {
+  layoutLoading = (async () => {
+    try {
+      layoutMap = await navigator.keyboard?.getLayoutMap?.() ?? null;
+    } catch {
+      layoutMap = null;
+    }
+  })();
+  return layoutLoading;
+}
+/** Resolves once the layout started loading last is known. */
+export const layoutLoaded = () => layoutLoading;
+
+/** The upper-case letter, or the character itself where that is not one character (ß). */
+const upperChar = (ch) => ([...ch.toUpperCase()].length === 1 ? ch.toUpperCase() : ch);
+
+/** Build an Elgato hotkey object from a KeyboardEvent.code and modifier flags. The
+ * physical key goes to LinuxCode; the character the layout puts there (QWERTZ: Z on the
+ * US Y key) to QTKeyCode, which tools that send characters use. */
 export function makeHotkey(code, mods) {
   const k = KEYMAP.get(code);
   const shift = !!mods.shift, ctrl = !!mods.ctrl, alt = !!mods.alt, meta = !!mods.meta;
+  const ch = layoutMap?.get(code);
+  // Only for keys that type a character (letters, digits, punctuation).
+  const layoutQt = k && k.qt > 0x20 && k.qt < 0x1000000 && typeof ch === 'string' && [...ch].length === 1
+    ? upperChar(ch).codePointAt(0) : null;
   return {
     KeyCmd: meta, KeyCtrl: ctrl, KeyOption: alt, KeyShift: shift,
     KeyModifiers: (shift ? 1 : 0) | (ctrl ? 2 : 0) | (alt ? 4 : 0) | (meta ? 8 : 0),
-    QTKeyCode: k ? k.qt : QT_UNUSED, NativeCode: -1, VKeyCode: -1, LinuxCode: k ? k.ev : -1,
+    QTKeyCode: layoutQt ?? (k ? k.qt : QT_UNUSED), NativeCode: -1, VKeyCode: -1, LinuxCode: k ? k.ev : -1,
   };
 }
 
@@ -174,8 +200,12 @@ export function hotkeyLabel(hk, macStyle = false) {
   if (hk.KeyShift || m & 1) parts.push(t('Shift'));
   if (hk.KeyCmd || m & 8) parts.push(macStyle ? '⌘' : 'Super');
   let key = null;
-  if (hk.LinuxCode >= 0) key = BY_EV.get(hk.LinuxCode);
-  if (key) key = t(key);
+  // A character key is named by its character (recorded from the layout); other keys by
+  // their position.
+  const qt = hk.QTKeyCode;
+  if (qt != null && qt > 0x20 && qt < 0x1000000 && !(qt >= 0x7f && qt < 0xa0)) key = String.fromCodePoint(qt);
+  if (!key && hk.LinuxCode >= 0) key = BY_EV.get(hk.LinuxCode);
+  if (key && key.length > 1) key = t(key);
   if (!key && hk.QTKeyCode != null && hk.QTKeyCode !== QT_UNUSED) {
     key = BY_QT.get(hk.QTKeyCode);
     if (!key && hk.QTKeyCode >= 0x20 && hk.QTKeyCode < 0x7f) key = String.fromCharCode(hk.QTKeyCode);

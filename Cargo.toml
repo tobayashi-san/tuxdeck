@@ -25,7 +25,7 @@ hidapi = { version = "2", default-features = false, features = ["linux-native"] 
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }
 mime_guess = "2"
 parking_lot = "0.12"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "rustls-tls-native-roots", "json"] }
 resvg = "0.45"
 rust-embed = "8"
 serde = { version = "1", features = ["derive"] }
@@ -35,6 +35,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["v4"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
+xkbcommon-dl = "0.4"
 
 [profile.release]
 lto = "thin"

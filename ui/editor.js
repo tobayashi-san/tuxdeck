@@ -1,13 +1,13 @@
 // Bottom panel: property editor for the selected slot (title, image, settings / property inspector).
 import {
   S, api, enc, h, debounce, instanceAt, actionInfo, renderUrl, pagePath, profileById,
-  slotLabel, modelName, uuidv4, compatibleModel, slotAppearance, HOTKEY_SWITCH,
+  slotLabel, modelName, deckLabel, uuidv4, compatibleModel, slotAppearance, HOTKEY_SWITCH,
 } from './store.js';
 import { toast } from './dialogs.js';
 import { pickIcon } from './iconpacks.js';
 import { t, tn } from './i18n.js';
 import {
-  makeHotkey, unusedHotkey, isUnusedHotkey, hotkeyLabel, MODIFIER_CODES,
+  makeHotkey, unusedHotkey, isUnusedHotkey, hotkeyLabel, loadLayoutMap, layoutLoaded, MODIFIER_CODES,
 } from './keycodes.js';
 
 let root = null;
@@ -348,8 +348,11 @@ function buildEditor(sel, inst) {
   } else if (form.length) {
     const settings = structuredClone(inst.Settings || {});
     const rebuild = () => {
-      settingsBox.replaceChildren(h('div.form', null,
-        form.map((f) => buildField(f, settings, () => setSettings(settings), rebuild, form))));
+      // A key converted from Windows/macOS that had no Linux counterpart.
+      const from = settings._from && !settings.path
+        ? h('p.field-help', null, t('Converted from "{name}", which has no Linux counterpart: set a command of your own.', { name: settings._from })) : null;
+      settingsBox.replaceChildren(...[from, h('div.form', null,
+        form.map((f) => buildField(f, settings, () => setSettings(settings), rebuild, form)))].filter(Boolean));
     };
     rebuild();
   } else {
@@ -419,7 +422,8 @@ export async function imageFileToDataUrl(file) {
   let url = await readAsDataURL(file);
   // Ensure correct MIME prefix (some systems report an empty type)
   url = url.replace(/^data:[^;,]*/, 'data:' + mime);
-  if (mime === 'image/svg+xml') return url;
+  // SVGs stay sharp; GIFs keep their animation (the service scales the frames).
+  if (mime === 'image/svg+xml' || mime === 'image/gif') return url;
   const img = await loadImage(url);
   const w = img.naturalWidth, hgt = img.naturalHeight;
   const max = Math.max(w, hgt);
@@ -605,9 +609,27 @@ function buildField(f, settings, changed, rebuild, allFields) {
           ? h('option', { value: cur, selected: true }, t('Unknown page ({id}…)', { id: String(cur).slice(0, 8) })) : null);
       break;
     }
+    case 'device': {
+      // Only with several decks (or a deck already chosen, e.g. in an imported profile).
+      const cur = value ?? '';
+      const devs = S.state.devices;
+      if (devs.length < 2 && !cur) return null;
+      control = h('select.select', {
+        id, onchange: (e) => {
+          set(e.target.value || undefined);
+          rebuild();
+        },
+      },
+      h('option', { value: '', selected: !cur }, t('This deck')),
+      devs.map((d) => h('option', { value: d.id, selected: d.id === cur }, deckLabel(d))),
+      cur && !devs.some((d) => d.id === cur) ? h('option', { value: cur, selected: true }, t('Deck of another computer')) : null);
+      break;
+    }
     case 'profile': {
       const cur = value ?? '';
-      const viewModel = profileById(S.view.profile)?.model;
+      const devField = allFields.find((x) => x.type === 'device');
+      const target = devField && S.state.devices.find((d) => d.id === getPath(settings, devField.key));
+      const viewModel = target?.model || profileById(S.view.profile)?.model;
       const fitting = S.state.profiles.filter((p) => !viewModel || compatibleModel(viewModel, p.model));
       control = h('select.select', {
         id, onchange: (e) => {
@@ -699,12 +721,18 @@ function hotkeyField(id, value, set, rows = 0) {
       shown[recIdx]?.show(hotkeyLabel(makeHotkey(e.code, modsOf(e, '')), mac) + ' + …');
       return;
     }
-    const hk = makeHotkey(e.code, { shift: e.shiftKey, ctrl: e.ctrlKey, alt: e.altKey, meta: e.metaKey });
-    if (isUnusedHotkey(hk)) {
-      toast(t('This key cannot be used in a hotkey.'), 'warn');
-      return;
-    }
-    finish(hk);
+    const mods = { shift: e.shiftKey, ctrl: e.ctrlKey, alt: e.altKey, meta: e.metaKey };
+    const at = recIdx;
+    // The character the layout puts on the key may still be loading.
+    layoutLoaded().then(() => {
+      if (recIdx !== at) return;
+      const hk = makeHotkey(e.code, mods);
+      if (isUnusedHotkey(hk)) {
+        toast(t('This key cannot be used in a hotkey.'), 'warn');
+        return;
+      }
+      finish(hk);
+    });
   };
   const onKeyUp = (e) => {
     e.preventDefault();
@@ -720,6 +748,7 @@ function hotkeyField(id, value, set, rows = 0) {
   const onBlur = () => { stop(); render(); };
   const start = (i) => {
     stop();
+    loadLayoutMap();
     recIdx = i;
     focusIdx = i;
     pressedMods = new Set();
@@ -768,8 +797,13 @@ function hotkeyField(id, value, set, rows = 0) {
         }, '×')));
       if (i === focus) btn.focus({ preventScroll: true });
     }
+    // Hyprland's own way of sending keys reaches only the focused window.
+    if (S.state.settings?.injector_active === 'hyprctl') {
+      box.append(h('p.field-help', null, t('Without /dev/uinput, Hyprland gives the keys to the focused window only: Hyprland\'s own key bindings (workspaces, screenshots) don\'t react. See "Hotkeys or text do not arrive" in the handbook.')));
+    }
   }
   cur.teardown.push(stop);
+  loadLayoutMap();
   render();
   return box;
 }
@@ -781,7 +815,10 @@ function actionsField(id, value, set, rebuild, f = {}) {
   const list = Array.isArray(value) ? value : [];
   // Key Logic slots hold a single action and only accept actions supported there.
   const max = Number.isFinite(f.max) ? f.max : Infinity;
-  const allowed = f.filter === 'keylogic' ? (a) => a.keylogic !== false && a.controllers?.includes('Keypad') : (a) => a.multi;
+  // Plugin actions are left out: a nested action has no property inspector to set them up.
+  const allowed = f.filter === 'keylogic'
+    ? (a) => a.builtin && a.keylogic !== false && a.controllers?.includes('Keypad')
+    : (a) => a.builtin && a.multi;
   const save = () => set(list.slice());
   const items = list.map((inst, i) => {
     const a = actionInfo(inst?.UUID);

@@ -309,6 +309,9 @@ fn opts(items: impl IntoIterator<Item = (Value, String)>) -> Value {
 
 /// "digital_time_04" -> "Layout 4".
 fn layout_label(id: &str) -> String {
+    if let Some(imported) = id.strip_prefix(crate::layout::IMPORTED_PREFIX) {
+        return crate::tr!("{layout} (Elgato)", layout = layout_label(imported));
+    }
     match id.rsplit('_').next().and_then(|n| n.parse::<u32>().ok()) {
         Some(n) => crate::tr!("Layout {n}", n = n),
         None => id.replace('_', " "),
@@ -390,7 +393,9 @@ pub fn form(uuid: &str, ctx: &FormCtx) -> Value {
             json!({"key": "isTypingMode", "type": "checkbox", "label": "Type instead of paste"}),
             json!({"key": "isSendingEnter", "type": "checkbox", "label": "Press Enter afterwards"}),
         ],
-        SWITCH_PROFILE => vec![json!({"key": "ProfileUUID", "type": "profile", "label": "Profile"})],
+        SWITCH_PROFILE => {
+            vec![json!({"key": "DeviceUUID", "type": "device", "label": "Deck"}), json!({"key": "ProfileUUID", "type": "profile", "label": "Profile"})]
+        }
         PAGE_GOTO => vec![json!({"key": "PageIndex", "type": "number", "label": "Page number", "min": 1, "max": 10, "step": 1, "default": 1})],
         PLAY_AUDIO => vec![
             json!({"key": "path", "type": "file", "label": "Audio file", "placeholder": "/path/to/sound.mp3"}),

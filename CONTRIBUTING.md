@@ -31,7 +31,7 @@ node ui-mock/proxy.mjs 47899 http://127.0.0.1:47830   # UI from ui/, everything 
 
 | Variable | Effect |
 |---|---|
-| `TUXDECK_VIRTUAL_DEVICE=neo\|mk2\|xl\|plus\|pedal\|original\|mini` (or a model number) | simulated device; real devices are left alone (unless `TUXDECK_ALLOW_HARDWARE=1`) |
+| `TUXDECK_VIRTUAL_DEVICE=neo\|mk2\|xl\|plus\|pedal\|original\|mini` | simulated device, several separated by commas (`neo,neo`); real devices are left alone (unless `TUXDECK_ALLOW_HARDWARE=1`) |
 | `TUXDECK_DRY_RUN=1` | actions (processes, hotkeys, clipboard, media, audio) are only logged as `DRYRUN …` |
 | `TUXDECK_DATA_DIR`, `TUXDECK_CONFIG_DIR` | separate data and config directories |
 | `TUXDECK_NO_URL_HANDLER=1` | do not register the `streamdeck://` handler |

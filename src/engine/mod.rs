@@ -38,9 +38,11 @@ pub mod templates;
 
 pub use actions::{multi_lists, set_multi_lists, with_new_ids};
 use actions::{nested_entry_mut, KeyLogicState};
+pub use compat::looks_imported;
 pub use display::PreviewJob;
-use system::{expand_home, is_executable, play_audio};
-pub use system::{kill_processes, open_url, scopes_available, set_runtime, spawn_detached, spawn_program, spawn_task};
+use system::{exit_problem, launch, quit_launched, url_opener, Launched, OnExit};
+use system::{expand_home, has_cmd, is_executable, play_audio};
+pub use system::{kill_processes, open_url, scopes_available, set_runtime, spawn_detached, spawn_task};
 
 pub type Shared = Arc<Mutex<Engine>>;
 
@@ -153,6 +155,8 @@ pub struct Runtime {
     pub overlay: Option<(Overlay, Instant)>,
     pub timer: Option<TimerState>,
     pub audio: Vec<Child>,
+    /// The program this key started last (Open Application quits exactly that).
+    pub launched: Option<Launched>,
     /// Touch strip values sent by the plugin (`setFeedback`).
     pub feedback: Map<String, Value>,
     /// Touch strip layout set by the plugin (`setFeedbackLayout`).
@@ -202,6 +206,8 @@ pub struct PluginConn {
     /// Secret the plugin registers with (its `-pluginUUID`, new for every start): other
     /// local programs can reach the SDK port too, but can't pose as the plugin.
     pub key: Option<String>,
+    /// Why the plugin can't start (no or too old Node.js), reported once.
+    pub blocked: Option<String>,
 }
 
 pub struct Engine {
@@ -219,6 +225,11 @@ pub struct Engine {
     pub ui_session: String,
     /// Port of the plugin file server (`web::plugin_router`), 0 until it listens.
     pub plugin_port: u16,
+    /// When the fonts of info bar layouts were last looked for (layouts imported while
+    /// the service runs bring theirs).
+    fonts_checked: Instant,
+    /// Simulated decks of a test instance (they can be unplugged and plugged in again).
+    pub virtual_decks: HashMap<String, (&'static Model, std::sync::mpsc::Sender<DevCmd>)>,
     /// Secret of the current HTML plugin host page (`/plugin-host?k=…`).
     pub html_host_key: String,
     pub events: broadcast::Sender<String>,
@@ -228,6 +239,12 @@ pub struct Engine {
     /// What each plugin did over the SDK (Linux check, diagnostics).
     pub plugin_stats: HashMap<String, PluginStats>,
     pub pis: HashMap<String, UnboundedSender<String>>,
+    /// Keys are being released because their deck disconnected (see `trigger`).
+    releasing: bool,
+    /// (plugin, application) pairs of monitored applications that run now.
+    pub apps_running: HashSet<(String, String)>,
+    /// Contexts whose plugin got willAppear only because their PI is open (see `pi_opened`).
+    pub pi_shown: HashSet<String>,
     /// Property inspectors register with an alias instead of their action's context
     /// (handed out by `/api/pi`, which needs the API token): (alias, context), newest last.
     pub pi_aliases: Vec<(String, String)>,
@@ -297,6 +314,8 @@ impl Engine {
             api_token,
             ui_session,
             plugin_port: 0,
+            virtual_decks: HashMap::new(),
+            fonts_checked: Instant::now(),
             html_host_key: String::new(),
             events,
             runtime: HashMap::new(),
@@ -304,6 +323,9 @@ impl Engine {
             plugin_conns: HashMap::new(),
             plugin_stats: HashMap::new(),
             pis: HashMap::new(),
+            pi_shown: HashSet::new(),
+            apps_running: HashSet::new(),
+            releasing: false,
             pi_aliases: Vec::new(),
             pi_alias: HashMap::new(),
             self_ref: None,
@@ -312,17 +334,36 @@ impl Engine {
             clocks: (Instant::now(), std::time::SystemTime::now()),
         };
         e.reload_profiles();
+        e.mark_old_imports();
         e.install_plugin_profiles();
         e
     }
 
-    /// Import the profiles plugins ship (manifest `Profiles`) once, like the official app.
+    /// Profiles imported before imports were marked: mark those that look like they come
+    /// from the official app, once, so they are still offered the conversion.
+    fn mark_old_imports(&mut self) {
+        if self.settings.import_marks {
+            return;
+        }
+        let registry = &self.registry;
+        for p in self.profiles.values_mut() {
+            if !p.imported() && looks_imported(p, registry) {
+                p.set_imported(true);
+                let _ = p.save_manifest();
+            }
+        }
+        self.settings.import_marks = true;
+        self.settings.save(&self.paths);
+    }
+
+    /// Import the profiles plugins ship (manifest `Profiles`) once, like the official app:
+    /// a profile the user deleted stays deleted.
     pub(super) fn install_plugin_profiles(&mut self) {
         let mut todo = Vec::new();
         for p in &self.registry.plugins {
             for prof in p.manifest.profiles.iter().filter(|x| x.auto_install != Some(false)) {
                 let key = format!("{}/{}", p.uuid, prof.name);
-                let installed = self.settings.plugin_profiles.get(&key).is_some_and(|ids| ids.iter().any(|id| self.profiles.contains_key(id)));
+                let installed = self.settings.plugin_profiles.contains_key(&key);
                 let file = p.dir.join(format!("{}.streamDeckProfile", prof.name));
                 if !installed && file.is_file() {
                     todo.push((key, prof.name.clone(), file, p.name()));
@@ -361,7 +402,7 @@ impl Engine {
         }
     }
 
-    pub(super) fn scan_registry(paths: &Paths, settings: &Settings) -> Registry {
+    pub fn scan_registry(paths: &Paths, settings: &Settings) -> Registry {
         Registry::scan(
             &[(paths.builtin_plugins(), true), (paths.elgato_plugins(), true), (paths.user_plugins(), false)],
             crate::i18n::plugin_language(&crate::i18n::resolve(&settings.language)),

@@ -1,7 +1,7 @@
 // Top bar: device and profile selection, brightness, profile menu, import, settings.
 
 import { afterProfileImport } from './compat.js';
-import { MODELS, S, api, compatibleModel, currentDevice, debounce, enc, h, liveDevice, modelName, profileById } from './store.js';
+import { MODELS, S, api, compatibleModel, currentDevice, debounce, deckLabel, enc, h, liveDevice, modelName, profileById } from './store.js';
 import { askText, confirmDialog, contextMenu, modal, restoreFocus, toast } from './dialogs.js';
 import { flushEditor } from './editor.js';
 import { manageIconPacks } from './iconpacks.js';
@@ -15,7 +15,7 @@ export function renderTopbar() {
   const d = currentDevice();
   el.deviceSelect.replaceChildren(...(devs.length
     ? devs.map((x) => h('option', { value: x.id, selected: x.id === S.deviceId },
-      `${x.name || modelName(x.model)}${x.connected ? '' : ' – ' + t('not connected')}`))
+      `${deckLabel(x)}${x.connected ? '' : ' – ' + t('not connected')}`))
     : [h('option', { value: '' }, t('No device'))]));
   el.deviceSelect.disabled = !devs.length;
   // Without the service the last known device state may be stale.
@@ -33,11 +33,13 @@ export function renderTopbar() {
   el.profileSelect.disabled = !profs.length;
 
   const live = d && d.connected && !S.serviceDown;
-  el.brightness.disabled = !live;
+  // Nothing to light on the Pedal.
+  const lit = live && d.key_px !== 0;
+  el.brightness.disabled = !lit;
   if (document.activeElement !== el.brightness && d && typeof d.brightness === 'number') {
     el.brightness.value = d.brightness;
   }
-  el.brightnessVal.textContent = live ? `${el.brightness.value} %` : '–';
+  el.brightnessVal.textContent = lit ? `${el.brightness.value} %` : '–';
 }
 
 el.deviceSelect.addEventListener('change', () => {
@@ -147,7 +149,7 @@ export async function createProfile() {
     h('option', { value: m, selected: m === defModel }, `${info.name} (${m})`)));
   const body = h('div', null,
     h('label.modal-field', null, h('span', null, t('Name')), nameInput),
-    d ? h('p.modal-text', null, t('For {device}', { device: d.name || modelName(d.model) }))
+    d ? h('p.modal-text', null, t('For {device}', { device: deckLabel(d) }))
       : h('label.modal-field', null, h('span', null, t('Device type')), modelSel));
   const r = await modal(t('New profile'), body, [
     { label: t('Cancel'), value: 'cancel' }, { label: t('Create'), value: 'ok', primary: true },
@@ -213,6 +215,12 @@ async function smartProfile() {
     classes.length ? h('div.chip-row', null, classes.slice(0, 12).map((c) =>
       h('button.chip', { type: 'button', onclick: () => { input.value = c; input.focus(); } }, c))) : null,
     wins.active ? h('p.field-help', null, t('Currently active: {app}', { app: wins.active })) : null);
+  // With several decks that can show the profile: only one of them, or every one.
+  const decks = S.state.devices.filter((x) => compatibleModel(x.model, prof.model));
+  const deckSelect = h('select.select', null,
+    h('option', { value: '', selected: !prof.device }, t('Every deck of this model')),
+    decks.map((x) => h('option', { value: x.id, selected: x.id === prof.device }, t('Only {device}', { device: deckLabel(x) }))));
+  if (decks.length > 1 || prof.device) body.append(h('label.modal-field', null, h('span', null, t('Deck')), deckSelect));
   const r = await modal(t('Smart Profile – {name}', { name: prof.name }), body, [
     { label: t('Cancel'), value: 'cancel' },
     ...(prof.app ? [{ label: t('Remove link'), value: 'clear' }] : []),
@@ -221,7 +229,7 @@ async function smartProfile() {
   if (r !== 'ok' && r !== 'clear') return;
   const app = r === 'clear' ? '' : input.value.trim();
   try {
-    await api(`/api/profiles/${enc(prof.id)}`, { method: 'PATCH', body: { app } });
+    await api(`/api/profiles/${enc(prof.id)}`, { method: 'PATCH', body: { app, ...(decks.length > 1 || prof.device ? { device: deckSelect.value } : {}) } });
     toast(app ? t('"{profile}" is activated automatically for "{app}"', { profile: prof.name, app }) : t('Link removed'), 'info', 3000);
   } catch (e) {
     toast(e.message, 'error');
@@ -283,6 +291,14 @@ export async function importFile(f) {
     } else if (r?.kind === 'iconpack') {
       toast(t('Icon pack installed – find it in the image editor under "Icon…"'), 'info', 4000);
     } else {
+      await loadState();
+      const p = profileById(r?.id);
+      const d = currentDevice();
+      if (p && d && !compatibleModel(d.model, p.model)) {
+        // Profiles are shown for the decks they fit: this one waits for its model.
+        toast(t('"{name}" was made for the {model}: it shows up when such a deck is connected.', { name: p.name, model: modelName(p.model) }), 'warn', 10000);
+        return;
+      }
       toast(t('Profile imported'), 'info', 3000);
       await activateProfile(r?.id);
       if (r?.id) await afterProfileImport(r.id);
@@ -322,7 +338,7 @@ el.settingsBtn.addEventListener('click', () => {
   el.setDevices.replaceChildren(...(S.state.devices.length
     ? S.state.devices.map((d) => h('li', null,
       h('span.status-dot', { class: d.connected ? 'on' : 'off' }),
-      h('b', null, d.name || modelName(d.model)),
+      h('b', null, deckLabel(d)),
       h('span.muted', null, ` ${d.model} · ${d.id}${d.firmware ? ' · FW ' + d.firmware : ''}`)))
     : [h('li.muted', null, t('No known devices.'))]));
   el.settingsDialog.showModal();

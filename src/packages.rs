@@ -23,7 +23,9 @@ pub fn classify(bytes: &[u8], filename: Option<&str>) -> Result<Package> {
     let name = filename.unwrap_or("").to_lowercase();
     let zip = zip::ZipArchive::new(std::io::Cursor::new(bytes)).with_context(|| crate::tr!("invalid archive"))?;
     let names: Vec<String> = zip.file_names().map(|s| s.to_string()).collect();
-    if name.ends_with(".streamdeckplugin") || names.iter().any(|n| n.split('/').next().map(|f| f.ends_with(".sdPlugin")).unwrap_or(false)) {
+    // The plugin folder in any case (`….sdplugin`), like the official app on Windows/macOS.
+    let plugin_dir = |n: &String| n.split(['/', '\\']).next().is_some_and(|f| f.to_ascii_lowercase().ends_with(".sdplugin"));
+    if name.ends_with(".streamdeckplugin") || names.iter().any(plugin_dir) {
         Ok(Package::Plugin)
     } else if name.ends_with(".streamdeckprofile") || names.iter().any(|n| n.contains(".sdProfile/")) {
         Ok(Package::Profile)
@@ -95,8 +97,12 @@ pub fn install(sh: &Shared, bytes: &[u8], filename: Option<&str>) -> Result<Valu
         Package::Profile => {
             // Unpacking can take a while: don't hold the engine lock meanwhile.
             let profiles = sh.lock().paths.profiles();
-            let p = import_profile(bytes, &profiles)?;
+            let mut p = import_profile(bytes, &profiles)?;
             let mut e = sh.lock();
+            if crate::engine::looks_imported(&p, &e.registry) {
+                p.set_imported(true);
+                p.save_manifest()?;
+            }
             let (id, name) = (p.id.clone(), p.manifest.name.clone());
             e.profiles.insert(id.clone(), p);
             e.emit(json!({"event": "state"}));

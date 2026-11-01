@@ -195,7 +195,18 @@ const ALIASES: &[Alias] = &[
     ),
     a(
         &["cmd", "powershell", "terminal", "windowsterminal", "wt"],
-        &["org.gnome.Console", "org.gnome.Terminal", "org.kde.konsole", "kitty", "Alacritty", "foot", "com.mitchellh.ghostty", "xfce4-terminal"],
+        &[
+            "org.gnome.Ptyxis",
+            "org.gnome.Console",
+            "org.gnome.Terminal",
+            "org.kde.konsole",
+            "kitty",
+            "Alacritty",
+            "foot",
+            "com.mitchellh.ghostty",
+            "org.wezfurlong.wezterm",
+            "xfce4-terminal",
+        ],
         None,
     ),
     a(&["vlc"], &["vlc", "org.videolan.VLC"], None),
@@ -222,23 +233,68 @@ fn special_dir(name: &str) -> Option<PathBuf> {
     }
 }
 
-/// Resolve a key to what it should open on Linux.
+/// Resolve a key to what it should open on Linux. Names that only resemble the key's
+/// ("Spotify" → "Spotify Tray") count too: the conversion dialog shows what was found.
 pub fn resolve(path: &str, title: &str) -> Option<Target> {
-    resolve_in(&installed(), path, title)
+    resolve_in(&installed(), path, title, true)
 }
 
-fn resolve_in(apps: &[DesktopApp], path: &str, title: &str) -> Option<Target> {
+/// [`resolve`] with known names only (sample profiles: a program that isn't installed
+/// gets no command rather than one with a similar name).
+pub fn resolve_exact(path: &str, title: &str) -> Option<Target> {
+    resolve_in(&installed(), path, title, false)
+}
+
+/// Names that may mean a folder: the path itself when it doesn't name a program, and
+/// then the title. Not the folders a program is in (`Desktop\App.lnk` is the program).
+fn folder_names(path: &str, title: &str) -> Vec<String> {
+    let p = path.trim().trim_matches('"').trim_end_matches(['\\', '/']);
+    let last = p.rsplit(['\\', '/']).next().unwrap_or("");
+    let program = [".app", ".exe", ".lnk", ".bat", ".cmd", ".url"].iter().any(|x| last.to_ascii_lowercase().ends_with(x));
+    match (p.is_empty(), program) {
+        (true, _) => vec![title.to_string()],
+        (false, false) => vec![last.to_string(), title.to_string()],
+        (false, true) => vec![],
+    }
+}
+
+/// The words of a name in lower case: "SteamLink" and "Steam Link" → ["steam", "link"].
+fn words(s: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut prev_lower = false;
+    for c in s.chars() {
+        if !c.is_alphanumeric() {
+            prev_lower = false;
+            out.push(String::new());
+            continue;
+        }
+        if c.is_uppercase() && prev_lower {
+            out.push(String::new());
+        }
+        prev_lower = c.is_lowercase() || c.is_ascii_digit();
+        match out.last_mut() {
+            Some(w) => w.extend(c.to_lowercase()),
+            None => out.push(c.to_lowercase().collect()),
+        }
+    }
+    out.retain(|w| !w.is_empty());
+    out
+}
+
+fn resolve_in(apps: &[DesktopApp], path: &str, title: &str, similar: bool) -> Option<Target> {
     let names = candidates(path, title);
     let find = |want: &str| {
         let w = norm(want);
         apps.iter().find(|a| norm(&a.id) == w).or_else(|| apps.iter().find(|a| a.keys.contains(&w)))
     };
+    for name in folder_names(path, title) {
+        if let Some(d) = special_dir(&name) {
+            return Some(Target::Dir(d));
+        }
+    }
     let mut url = None;
     for name in &names {
         let n = norm(name);
-        if let Some(d) = special_dir(name) {
-            return Some(Target::Dir(d));
-        }
         if let Some(alias) = ALIASES.iter().find(|al| al.names.contains(&n.as_str())) {
             if let Some(app) = alias.apps.iter().find_map(|w| find(w)) {
                 return Some(app.target());
@@ -249,21 +305,32 @@ fn resolve_in(apps: &[DesktopApp], path: &str, title: &str) -> Option<Target> {
             url = url.or(alias.url);
         }
     }
-    // Any installed application with that name, then one whose name contains it.
+    // Any installed application with that name, then one whose name has these words.
     for name in &names {
         if let Some(app) = find(name) {
             return Some(app.target());
         }
     }
-    for name in &names {
-        let n = norm(name);
-        if n.len() >= 4 {
-            if let Some(app) = apps.iter().find(|a| a.keys.iter().any(|k| k.starts_with(&n) || (n.len() >= 6 && k.contains(&n)))) {
+    if similar {
+        for name in &names {
+            let want = words(name);
+            if want.concat().len() < 4 {
+                continue;
+            }
+            let has = |s: &str| words(s).windows(want.len()).any(|w| w == want.as_slice());
+            if let Some(app) = apps.iter().find(|a| has(&a.name) || has(a.id.rsplit('.').next().unwrap_or(&a.id))) {
                 return Some(app.target());
             }
         }
     }
     url.map(|u| Target::Url(u.to_string()))
+}
+
+/// The Linux application ids of a well-known Windows/macOS program (`obs64` →
+/// `com.obsproject.Studio`, `obs`), lower case.
+pub fn linux_names(program: &str) -> Vec<String> {
+    let n = norm(program);
+    ALIASES.iter().filter(|al| al.names.contains(&n.as_str())).flat_map(|al| al.apps.iter().map(|a| a.to_lowercase())).collect()
 }
 
 /// Desktop id of the default application for a MIME type (`xdg-mime query default`).
@@ -330,6 +397,29 @@ pub fn installed() -> Arc<Vec<DesktopApp>> {
     let apps = Arc::new(scan(&data_dirs()));
     *c = Some((Instant::now(), apps.clone()));
     apps
+}
+
+/// The command line of a desktop entry, given as a path or as a file name / desktop id
+/// (`firefox.desktop`), without field codes.
+pub fn desktop_command(entry: &str) -> Option<String> {
+    let p = Path::new(entry);
+    if p.is_absolute() {
+        let text = std::fs::read_to_string(p).ok()?;
+        let id = p.file_stem()?.to_string_lossy();
+        return parse_entry(&id, &text).map(|a| launch_command(&a.exec));
+    }
+    let id = entry.strip_suffix(".desktop").unwrap_or(entry);
+    installed().iter().find(|a| a.id == id).map(|a| launch_command(&a.exec))
+}
+
+/// The file of a desktop entry given as a path or as a file name / desktop id.
+pub fn desktop_file(entry: &str) -> Option<PathBuf> {
+    let p = Path::new(entry);
+    if p.is_absolute() {
+        return p.is_file().then(|| p.to_path_buf());
+    }
+    let name = if entry.ends_with(".desktop") { entry.to_string() } else { format!("{entry}.desktop") };
+    data_dirs().into_iter().map(|d| d.join("applications").join(&name)).find(|f| f.is_file())
 }
 
 fn data_dirs() -> Vec<PathBuf> {
@@ -436,7 +526,7 @@ mod tests {
     #[test]
     fn windows_paths_and_titles() {
         let a = apps();
-        let id = |p: &str, t: &str| match resolve_in(&a, p, t) {
+        let id = |p: &str, t: &str| match resolve_in(&a, p, t, true) {
             Some(Target::App { id, .. }) => id,
             Some(Target::Url(u)) => u,
             Some(Target::Dir(d)) => d.display().to_string(),
@@ -450,6 +540,25 @@ mod tests {
         assert_eq!(id(r#""C:\Program Files\Microsoft Office\root\Office16\OUTLOOK.EXE""#, "Microsoft\nOutlook"), "https://outlook.office.com/mail/");
         assert_eq!(id("", "ChatGPT"), "https://chatgpt.com/");
         assert_eq!(id("", "Nintendo"), "-");
+        // A program on the desktop or in Downloads is the program (here: its web version),
+        // not that folder.
+        assert_eq!(id(r#"C:\Users\Jared\Desktop\Spotify.lnk"#, "Spotify"), "https://open.spotify.com/");
+        assert_eq!(id(r#"C:\Users\Jared\Downloads\SomeTool.exe"#, ""), "-");
+        // Similar names only as whole words; known names only for sample profiles.
+        assert_eq!(id("", "Brave"), "brave-browser");
+        assert_eq!(id("", "Bra"), "-");
+        let link = vec![app("com.valvesoftware.SteamLink", "Steam Link", "flatpak run com.valvesoftware.SteamLink")];
+        assert!(resolve_in(&link, "", "Steam", false).is_none());
+        assert!(matches!(resolve_in(&link, "", "Steam", true), Some(Target::App { .. })));
+        assert!(resolve_in(&link, "", "Stea", true).is_none());
+    }
+
+    #[test]
+    fn name_words() {
+        assert_eq!(words("SteamLink"), ["steam", "link"]);
+        assert_eq!(words("Brave Web-Browser 2"), ["brave", "web", "browser", "2"]);
+        assert_eq!(words("OBS"), ["obs"]);
+        assert_eq!(linux_names("obs64"), ["com.obsproject.studio", "obs"]);
     }
 
     #[test]

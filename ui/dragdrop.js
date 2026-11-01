@@ -6,6 +6,7 @@ import { t } from './i18n.js';
 import { toast } from './dialogs.js';
 import { deleteSlot, moveSlot, placeAction, select, slotFromEvent } from './canvas.js';
 import { $, el } from './dom.js';
+import { dragEnded } from './data.js';
 import { IMPORT_RE, importFile } from './topbar.js';
 
 function canDrop(controller, coord, e) {
@@ -32,11 +33,13 @@ export function markCandidates() {
 }
 
 function endDrag() {
+  if (!S.drag) return;
   S.drag = null;
   document.body.classList.remove('dragging', 'dragging-slot');
   for (const s of el.device.querySelectorAll('.slot')) s.classList.remove('drop-ok', 'drop-candidate', 'drop-denied', 'drag-source');
   el.trash.classList.remove('over');
   el.sidebar.classList.remove('drop-delete');
+  dragEnded();
 }
 
 el.device.addEventListener('dragstart', (e) => {
@@ -50,6 +53,8 @@ el.device.addEventListener('dragstart', (e) => {
   e.dataTransfer.effectAllowed = 'copyMove';
   e.dataTransfer.setData('text/plain', `slot:${s.controller}/${s.coord}`);
   s.el.classList.add('drag-source');
+  // Also on the key itself: dragend reaches it even if it was removed from the page.
+  s.el.addEventListener('dragend', endDrag, { once: true });
   document.body.classList.add('dragging', 'dragging-slot');
   select(s);
   markCandidates();

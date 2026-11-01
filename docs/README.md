@@ -93,9 +93,16 @@ Then restart the app (`systemctl --user restart tuxdeck`). To disable it again, 
 and reboot.
 
 Without uinput the program falls back to Hyprland, `wtype` (Sway and other wlroots
-desktops) or `xdotool` (X11). GNOME and KDE on Wayland usually need uinput. Text
-additionally needs `wl-copy` (`wl-clipboard`) or `xclip`. The settings (gear icon) show
-which method is active.
+desktops) or `xdotool` (X11 sessions). GNOME and KDE on Wayland need uinput. On Hyprland
+without uinput the keys only reach the focused window: Hyprland's own key bindings
+(workspaces, a screenshot bind) don't react to them. Pasting text additionally needs
+`wl-copy` (`wl-clipboard`) or `xclip`. The settings (gear icon) show which method is
+active.
+
+"Type instead of paste" types over uinput with your keyboard layout (read from Hyprland,
+GNOME, KDE or X11; `libxkbcommon` must be installed). Characters the layout has no key
+for are reported instead of typed; set the layout yourself with
+`TUXDECK_XKB_LAYOUT=de` (and `TUXDECK_XKB_VARIANT=nodeadkeys`) if it is not detected.
 </details>
 
 <details>
@@ -113,6 +120,20 @@ like `/Applications/…`; you need to adjust those.
 Node.js plugins need `node` (≥ 20), HTML plugins a Chromium-based browser (Chromium,
 Chrome, Brave, Edge or Vivaldi). Plugins with Mac or Windows programs do not run on Linux.
 Plugin logs are in `~/.local/share/tuxdeck/logs/`.
+
+**Node.js:** TuxDeck checks the version before starting a plugin and reports it if Node.js
+is missing or too old (a plugin may ask for a newer one than 20 in its manifest). Ubuntu
+22.04 and Debian 12 ship an older Node.js: install version 20 or newer from
+[nodejs.org](https://nodejs.org/en/download) or your distribution's newer streams.
+The service only sees programs on its own `PATH`. A Node.js from nvm, fnm, volta or a
+home directory has to be named with `TUXDECK_NODE`:
+
+```sh
+systemctl --user edit tuxdeck
+#   [Service]
+#   Environment=TUXDECK_NODE=/home/you/.nvm/versions/node/v22.11.0/bin/node
+systemctl --user restart tuxdeck
+```
 </details>
 
 <details>
@@ -182,6 +203,7 @@ All optional; if one is missing, only the affected key reports an error.
 | Multimedia | `playerctl`, `wpctl` (`wireplumber`) or `pactl` (`pulseaudio-utils`) |
 | Soundboard, timer alarm | `pw-play` (`pipewire-bin`), `ffplay`, `mpv` or `paplay` |
 | Opening websites and files | `xdg-open` (`xdg-utils`) |
+| Open Application with a `.desktop` file | `gtk-launch` (`libgtk-3-bin`) or `gio` (`libglib2.0-bin`); without them TuxDeck runs the entry's command itself |
 | Node.js plugins | `node` (Node.js ≥ 20) |
 | HTML plugins | Chromium, Chrome, Brave, Edge or Vivaldi |
 | Linux check of plugins | `node` and `bwrap` (`bubblewrap`): the plugin under test runs without network and sees only system folders, not your files |
@@ -196,7 +218,7 @@ All optional; if one is missing, only the affected key reports an error.
 tuxdeck run [--no-browser]      start the daemon and UI (default)
 tuxdeck ui                      open the UI (starts the daemon if needed)
 tuxdeck list                    list connected devices
-tuxdeck probe [sec]             hardware test: fill keys, print input
+tuxdeck probe [sec]             hardware test: fill keys, print input (stop the service first)
 tuxdeck import-profile <file.streamDeckProfile>
 tuxdeck install-plugin <file.streamDeckPlugin>
 tuxdeck install-icon-pack <file.streamDeckIconPack>
@@ -231,7 +253,8 @@ original. These files are not part of TuxDeck. Requires `bsdtar` (Debian/Ubuntu 
 Versions before 0.5 used the folders `streamdeck-linux`; they are moved on the first start.
 
 Environment variables: `TUXDECK_DATA_DIR`, `TUXDECK_CONFIG_DIR`, `TUXDECK_NODE`
-(Node.js for plugins), `TUXDECK_BROWSER` (Chromium for HTML plugins), `GITHUB_TOKEN`
+(Node.js for plugins), `TUXDECK_BROWSER` (Chromium for HTML plugins),
+`TUXDECK_XKB_LAYOUT`/`TUXDECK_XKB_VARIANT` (keyboard layout for typing), `GITHUB_TOKEN`
 (optional, for more than 60 catalogue downloads per hour), `RUST_LOG`. For testing:
 `TUXDECK_VIRTUAL_DEVICE`, `TUXDECK_DRY_RUN`, `TUXDECK_NO_URL_HANDLER`,
 `TUXDECK_NO_WINDOW_WATCH`.
@@ -256,6 +279,10 @@ active window; there the feature stays off.
   official app. By default they are told the platform is `mac` so they use POSIX paths
   (configurable in the settings).
 - HTML plugins (SDK v1) run in a background Chromium.
+- Plugins that monitor applications (`ApplicationsToMonitor`) hear when such a program
+  starts or ends: TuxDeck looks for its process every few seconds. Windows program names
+  and macOS app ids are matched to their Linux programs as far as known (OBS, Spotify,
+  Discord, …). Marketplace secrets (`getSecrets`) are always empty.
 - A plugin can ship its own Linux program via the additional manifest field `CodePathLin`.
 - The catalogue is the open-source plugin registry of the
   [OpenAction](https://github.com/OpenActionAPI/plugins) project, which OpenDeck uses as
@@ -276,9 +303,15 @@ TuxDeck itself only goes online for the plugin catalogue: the list and icons fro
 `openactionapi.github.io`, plugin downloads and published Linux check results from GitHub
 (`api.github.com`, release downloads). For GitHub it uses `GITHUB_TOKEN`/`GH_TOKEN` or,
 if the GitHub CLI is logged in, its token (`gh auth token`), only to raise the download
-limit. Publishing your Linux check results to a repository (`checks_publish`, off by
-default, meant for maintainers) uploads them with `gh`. Nothing else is sent anywhere. Plugins are separate programs and may use the
+limit; a token GitHub refuses is dropped. Publishing your Linux check results to a
+repository (`checks_publish`, off by default, meant for maintainers) uploads them with
+`gh`. Nothing else is sent anywhere. Plugins are separate programs and may use the
 network as they like.
+
+Behind a proxy, give the service `HTTPS_PROXY` (desktop proxy settings don't reach it),
+for example in `~/.config/environment.d/proxy.conf` with the line
+`HTTPS_PROXY=http://proxy.example:3128`, then log in again. Certificates installed on the
+system (company or school networks) are trusted.
 </details>
 
 <details>

@@ -216,11 +216,12 @@ pub fn render_info_bar(layouts_root: Option<&Path>, content: &InfoContent, w: u3
         }
         InfoContent::Text(t) => return rasterize(&text_svg(t, w, h), w, h),
     };
+    // A built-in id always means the built-in layout (its themes are the ones offered);
+    // an imported layout of the same name is listed as `elgato:<id>`.
     let is_builtin = builtin_layouts(group).iter().any(|(i, _)| i == id);
     let manifest: Option<Value> = layouts_root
-        .and_then(|r| layout_dir(r, group, id))
-        // The fallback to the first imported layout must not replace a chosen built-in one.
-        .filter(|d| !is_builtin || d.ends_with(format!("{id}.sdLayoutEx")))
+        .filter(|_| !is_builtin)
+        .and_then(|r| layout_dir(r, group, id.strip_prefix(IMPORTED_PREFIX).unwrap_or(id)))
         .and_then(|d| std::fs::read(d.join("manifest.json")).ok())
         .and_then(|b| serde_json::from_slice(&b).ok());
     let manifest = manifest.unwrap_or_else(|| builtin_layout(group, id));
@@ -373,6 +374,9 @@ fn builtin_layout(group: &str, id: &str) -> Value {
 }
 
 /// All layout ids available for a group (built-ins plus any imported Elgato layouts).
+/// Id prefix of an imported layout whose name is also a built-in one.
+pub const IMPORTED_PREFIX: &str = "elgato:";
+
 pub fn list_layouts(root: Option<&Path>, group: &str) -> Vec<(String, Vec<String>)> {
     let theme_ids = |m: &Value| -> Vec<String> {
         m.get("themes")
@@ -387,15 +391,16 @@ pub fn list_layouts(root: Option<&Path>, group: &str) -> Vec<(String, Vec<String
                 let p = e.path();
                 let Some(stem) = p.file_stem().and_then(|s| s.to_str()) else { continue };
                 // Same rule as `layout_dir`: only directories with a manifest are layouts.
-                if !p.join("manifest.json").is_file() || out.iter().any(|(i, _)| i == stem) {
+                if !p.join("manifest.json").is_file() {
                     continue;
                 }
+                let id = if builtin_layouts(group).iter().any(|(i, _)| i == stem) { format!("{IMPORTED_PREFIX}{stem}") } else { stem.to_string() };
                 let themes = std::fs::read(p.join("manifest.json"))
                     .ok()
                     .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
                     .map(|m| theme_ids(&m))
                     .unwrap_or_default();
-                out.push((stem.to_string(), themes));
+                out.push((id, themes));
             }
         }
     }
@@ -706,9 +711,20 @@ mod tests {
         std::fs::create_dir_all(root.join("DigitalTime/empty.sdLayoutEx")).unwrap();
         let all = list_layouts(Some(&root), "DigitalTime");
         let ids: Vec<&str> = all.iter().map(|(id, _)| id.as_str()).collect();
-        assert_eq!(ids, ["custom", "digital_time_01", "digital_time_02", "digital_time_03", "digital_time_04"]);
+        assert_eq!(ids, ["custom", "digital_time_01", "digital_time_02", "digital_time_03", "digital_time_04", "elgato:digital_time_01"]);
         assert_eq!(all[0].1, ["red", "blue"]);
         assert_eq!(all[1].1, themes);
+        assert_eq!(all[5].1, ["red", "blue"]);
+        // The built-in id renders the built-in layout, the imported one under its own id.
+        let clock = |layout: &str| InfoContent::Clock { settings: json!({"layout": layout, "theme": "night"}) };
+        assert_eq!(
+            render_info_bar(Some(&root), &clock("digital_time_01"), 248, 58).as_raw(),
+            render_info_bar(None, &clock("digital_time_01"), 248, 58).as_raw()
+        );
+        assert_eq!(
+            render_info_bar(Some(&root), &clock("elgato:digital_time_01"), 248, 58).as_raw(),
+            render_info_bar(Some(&root), &clock("custom"), 248, 58).as_raw()
+        );
         assert_eq!(list_layouts(Some(&root.join("missing")), "DigitalTime").len(), 4);
         std::fs::remove_dir_all(&root).unwrap();
     }

@@ -26,6 +26,92 @@
 - Programs started from keys get their own systemd scope and keep running when the
   service restarts.
 - Hyprland 0.54 and older: hotkeys and text work again (fallback to the old syntax).
+- **Converting profiles from Windows/macOS:**
+  - Only imported profiles (and keys with Windows/macOS paths or Elgato's own plugins) are
+    offered the conversion; profiles made here never see it. Profiles imported before this
+    version are checked once at the first start.
+  - Without the plugin catalogue, or when a plugin can't be installed, the affected keys
+    stay as they are and the conversion is offered again later.
+  - A program on the Windows desktop or in Downloads is converted as the program, not as
+    that folder; similar program names count only as whole words, and sample profiles use
+    known names only ("Steam" no longer opens Steam Link).
+  - Keys without a counterpart get the action's name as title and a note in the editor.
+  - Smart profiles of imported profiles also work for OBS, Chrome, Edge and Teams.
+- **Profiles:**
+  - A profile for a model that isn't connected says so when it is imported.
+  - Profiles a plugin brings along are installed once; deleted ones stay deleted.
+  - The profile a deck shows can be deleted when another fitting profile exists (MK.2 and
+    Original share theirs).
+  - Sample profiles fit the deck: everything on one page on big decks, page keys on the
+    Mini, three keys of their own on the Pedal.
+  - Ptyxis and WezTerm are recognised as terminals.
+- **Devices and several decks:**
+  - Keys and dials held while a deck disconnects are released (no stuck modifiers, plugins
+    get their keyUp) without running the key's action; plugins get willAppear only for
+    connected decks, and again when a deck comes back.
+  - Switch Profile can switch another deck (new "Deck" field; the device of profiles from
+    the official app is recognised by its serial number).
+  - A smart profile can be meant for one deck only; profiles from the official app keep
+    their deck.
+  - A second deck of the same model gets its own profile; decks with the same name are
+    told apart by the end of their serial number.
+  - After a system suspend the decks get their brightness again.
+  - `tuxdeck probe` refuses to run while the service uses the deck and works on the Pedal;
+    `tuxdeck list` writes nothing to the decks and also lists Elgato devices TuxDeck
+    doesn't support.
+- **Keyboard input:**
+  - Hotkeys are recorded and shown with your keyboard layout (QWERTZ Ctrl+Z is "Ctrl + Z",
+    not "Ctrl + Y"), and tools that send characters (wtype, xdotool) get the right one.
+  - "Type instead of paste" types over uinput with your keyboard layout, also on GNOME
+    and KDE (Wayland). Where nothing can type, the key reports it instead of quietly using
+    the clipboard; characters the layout lacks are reported too.
+  - wtype is no longer chosen on GNOME/KDE Wayland, xdotool only in X11 sessions, xclip
+    only with an X server.
+  - When the clipboard tool fails, nothing is pasted (it used to paste what was on the
+    clipboard before).
+  - On Hyprland without uinput, the hotkey editor and the handbook say that Hyprland's own
+    key bindings don't react.
+  - Ptyxis, Yakuake, Guake and Tilda paste with Ctrl+Shift+V like other terminals.
+  - Input error messages are translated.
+- **Plugins and SDK:**
+  - Every installation unpacks into a folder of its own and replaces the old version only
+    when complete; installs running at the same time no longer break each other. Plugin
+    folders spelled `.sdplugin` are accepted.
+  - Node.js is checked before a plugin starts; a missing or too old one is reported with
+    what to do (handbook: "Node.js"). The .deb suggests Node.js 20 or newer.
+  - SDK: `applicationDidLaunch`/`applicationDidTerminate` for monitored applications,
+    answers to `getSecrets`, `getResources`/`setResources`, request ids in settings
+    answers; a property inspector opened while the deck is unplugged works.
+  - Backups keep file modes: restored plugin programs stay executable.
+  - `tuxdeck import-profile` and `install-plugin` hand the file to the running service,
+    which shows it at once.
+  - Catalogue: certificates installed on the system are trusted; slow downloads are no
+    longer cut off after two minutes; the size limit applies while downloading; a removed
+    GitHub repository and a refused token are reported clearly (a bad token is dropped).
+  - Plugin logs are kept small while plugins run.
+- **Images and editor:**
+  - Pictures inside SVG images (plugin images, uploads, icons) show again.
+  - WebP and BMP images are stored as PNG and no longer show as a black key; animated GIFs
+    stay animated when picked in the editor, whatever their size.
+  - Plugin images are decoded and scaled without blocking the rest of TuxDeck, and the
+    touch strip no longer decodes its images on every refresh.
+  - An imported info bar layout with the name of a built-in one is listed as its own
+    entry ("(Elgato)"), so the colour schemes offered are the ones that are drawn.
+  - Fonts of info bar layouts imported while the service runs are used without a restart.
+  - Multi Actions and Key Logic offer only built-in actions (a nested plugin action could
+    not be set up).
+  - A plugin updating a key while you drag one no longer leaves the editor in drag mode.
+  - Pedal: no image, title or brightness controls, and no info bar actions.
+- **Actions:**
+  - Open Application's long press quits exactly the program the key started (its scope or
+    process group). Otherwise it goes by the program's name, but never by an interpreter
+    or launcher name (`python3`, `sh`, …); Flatpaks are quit with `flatpak kill`.
+  - Keys show the warning sign when their program fails right away (command not found,
+    no application for a link) and when an entry of a Multi Action or Key Logic fails.
+  - The Open key accepts a quoted program path followed by arguments.
+  - `.desktop` entries also start without `gtk-launch` (`gio launch` or the entry's command).
+  - Stopped soundboard sounds no longer leave zombie processes behind.
+  - Web links in the UI (Marketplace, plugin sources) open in your default browser.
 - `tuxdeck list`/`probe` show only the end of the serial number.
 - The handbook explains autostart on desktops without `graphical-session.target`
   (Hyprland without uwsm, Sway, i3) and which network connections TuxDeck makes.
