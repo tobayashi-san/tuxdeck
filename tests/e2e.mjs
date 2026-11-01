@@ -3221,6 +3221,66 @@ async function inspector(d, ctx, action, controller, coord) {
   };
 }
 
+/** Plugins built on Elgato's own @elgato/streamdeck library (1.x, 2.x, 3.x): what real
+ * plugins rely on (version gating, request ids, settings, resources, secrets). */
+const SDK_FIXTURES = path.join(ROOT, 'tests/fixtures/elgato-sdk');
+function libPlugin(major) {
+  const id = `com.e2e.lib${major}`;
+  return zip({
+    [`${id}.sdPlugin/manifest.json`]: JSON.stringify({
+      Name: `E2E Library ${major}`, UUID: id, Version: '1.0', Author: 'e2e', SDKVersion: major === 1 ? 2 : 3, CodePath: 'plugin.mjs',
+      Category: 'E2E', Icon: 'img', Nodejs: { Version: '20' }, OS: [{ Platform: 'mac', MinimumVersion: '10.15' }],
+      Software: { MinimumVersion: major === 1 ? '6.5' : '7.1' },
+      Actions: [{ UUID: `${id}.count`, Name: 'Library counter', Icon: 'img', States: [{ Image: 'img' }], Controllers: ['Keypad'] }],
+    }),
+    [`${id}.sdPlugin/plugin.mjs`]: fs.readFileSync(path.join(SDK_FIXTURES, `plugin-v${major}.mjs`)),
+    [`${id}.sdPlugin/img.svg`]: SVG('#884400'),
+  });
+}
+
+async function suiteElgatoLibrary(d) {
+  const dev = await d.device();
+  const log = (major) => {
+    const f = path.join(d.data, 'logs', `com.e2e.lib${major}.log`);
+    return fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '';
+  };
+  const waitLine = (major, re, ms = 8000) => waitFor(() => log(major).split('\n').find((l) => re.test(l)), ms, `lib${major}: ${re}`);
+  for (const [major, coord] of [[1, '0,0'], [2, '1,0'], [3, '2,0']]) {
+    await test(`@elgato/streamdeck ${major}.x: connects, gets settings, keys, global settings${major > 1 ? ', resources' : ''}${major === 2 ? ', secrets' : ''}`, async () => {
+      await d.req('POST', '/api/import', libPlugin(major), { 'x-filename': `lib${major}.streamDeckPlugin` });
+      await waitLine(major, /connected /);
+      eq(JSON.parse(/global (.*)$/.exec(await waitLine(major, / global /))[1]), {});
+      if (major === 2) {
+        // Answered at once (it used to hang forever). Library 3 no longer has it.
+        const secrets = await waitLine(major, / secrets/);
+        assert(!/failed/.test(secrets), secrets);
+      }
+      await d.slot('Keypad', coord, `com.e2e.lib${major}.count`);
+      await waitLine(major, / willAppear \S+ Keypad \{\}/);
+      const before = await d.render('Keypad', coord);
+      await d.press('Keypad', coord);
+      const down = await waitLine(major, / keyDown 1 /);
+      eq(JSON.parse(/keyDown 1 (.*)$/.exec(down)[1]), { count: 1 }, 'getSettings after setSettings');
+      eq((await d.action(coord)).Settings, { count: 1 }, 'stored');
+      if (major > 1) {
+        const res = await waitLine(major, / resources/);
+        assert(!/failed/.test(res), res);
+        const [, ms, json] = / resources (\d+) (.*)$/.exec(res);
+        assert(Number(ms) < 2000, `answered in ${ms} ms`);
+        eq(JSON.parse(json), {});
+        // The answer to its own getSettings is not reported as a change made in the
+        // property inspector (request ids, SDK 7.1).
+        eq(log(major).split('\n').filter((l) => / didReceiveSettings /.test(l)), [], 'no settings-changed event for own requests');
+      }
+      await d.waitRender('Keypad', coord, (png) => !png.equals(before), 3000, 'setTitle shows');
+      // A change made in the editor is reported as such.
+      await d.settings('Keypad', coord, { count: 5 });
+      await waitLine(major, / didReceiveSettings \{"count":5\}/);
+      await d.del(`/api/pages/${dev.profile}/${dev.page}/slot?controller=Keypad&coord=${coord}`);
+    });
+  }
+}
+
 /** Plugin SDK: lifecycle, events in both directions, settings, crashes, uninstall. */
 async function suiteSdk(d) {
   const st0 = await d.state();
@@ -3959,6 +4019,7 @@ const GROUPS = [
   { model: 'neo', name: 'neo: profiles', run: suiteProfiles },
   { model: 'neo', name: 'neo: builtins', run: suiteBuiltins },
   // The crash-looping test plugin is given up on purpose.
+  { model: 'neo', name: 'neo: elgato-library', run: suiteElgatoLibrary },
   { model: 'neo', name: 'neo: sdk', run: suiteSdk, allow: /Plugin com\.e2e\.crashloop exited \(exit status: 7\) and is no longer restarted/ },
   // Only the desktop entries made by prepareDesktop (plus system-wide Flatpaks) are found.
   // No catalogue: nothing listens on port 9.

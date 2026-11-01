@@ -91,6 +91,9 @@
     soon as it is back.
   - The Smart Profile dialog says when the desktop can't tell which window is active
     (GNOME/KDE Wayland) and lists X11 windows properly.
+- **Tests:** plugins built on Elgato's own `@elgato/streamdeck` library (1.x, 2.x, 3.x)
+  and a property inspector made of `sdpi-components` run against TuxDeck in the test
+  suites.
 - **API and documentation:** every API error is JSON; API.md documents all routes; the
   README's images and links also work in the packages; it names the supported models;
   `TUXDECK_VIRTUAL_DEVICE` accepts model numbers (Original v2 is simulated too) and

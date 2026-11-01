@@ -57,6 +57,11 @@ Chromium-based browser (Chrome, Chromium or Brave) over the DevTools protocol: e
 keyboard use, drag & drop, pages, settings, offline edits. It fails on JS errors of the UI;
 failing tests save a screenshot.
 
+The group `neo:elgato-library` and one UI test run plugins built on Elgato's own
+`@elgato/streamdeck` library (1.x, 2.x, 3.x) and an inspector made of `sdpi-components`
+(`tests/fixtures/elgato-sdk/`, rebuilt with its `build.sh`): what real plugins rely on,
+not only our reading of the protocol.
+
 `sh tests/install-check.sh [BINARY]` installs and uninstalls with `install.sh` in a
 temporary home folder (stand-ins for sudo, systemctl and udev); CI also builds the .deb
 and .rpm.

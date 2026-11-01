@@ -180,6 +180,33 @@ ws.onopen = () => ws.send(JSON.stringify({ event: arg('-registerEvent'), uuid: a
     + ' ws.send(JSON.stringify({ event: "setSettings", context: uuid, payload: { probe, own } })); }; document.title = "connected"; }</script>',
 });
 
+// A plugin built on Elgato's @elgato/streamdeck 3 with a property inspector made of
+// sdpi-components, whose list is filled by the plugin (tests/fixtures/elgato-sdk).
+const SDK_FIXTURES = path.join(ROOT, 'tests/fixtures/elgato-sdk');
+const SDPI_PLUGIN = () => zip({
+  'com.e2e.lib3.sdPlugin/manifest.json': J({
+    Name: 'Library Plugin', UUID: 'com.e2e.lib3', Version: '1.0', Author: 'ui-test', SDKVersion: 3, CodePath: 'plugin.mjs', Category: 'UI Test',
+    Icon: 'img', OS: [{ Platform: 'mac', MinimumVersion: '10.15' }], Nodejs: { Version: '20' }, Software: { MinimumVersion: '7.1' },
+    Actions: [{ UUID: 'com.e2e.lib3.count', Name: 'Library counter', Icon: 'img', States: [{ Image: 'img' }], PropertyInspectorPath: 'pi.html', Controllers: ['Keypad'] }],
+  }),
+  'com.e2e.lib3.sdPlugin/plugin.mjs': fs.readFileSync(path.join(SDK_FIXTURES, 'plugin-v3.mjs')),
+  'com.e2e.lib3.sdPlugin/sdpi-components.js': fs.readFileSync(path.join(SDK_FIXTURES, 'sdpi-components.js')),
+  'com.e2e.lib3.sdPlugin/img.svg': SVG('#884400'),
+  // Picks "Beta" as soon as the plugin has delivered the list (a user would click it).
+  'com.e2e.lib3.sdPlugin/pi.html': `<!doctype html><html><head><script src="sdpi-components.js"></script></head><body>
+<sdpi-item label="Pick"><sdpi-select setting="pick" datasource="getItems" hot-reload></sdpi-select></sdpi-item>
+<script>
+const timer = setInterval(() => {
+  const sel = document.querySelector('sdpi-select')?.shadowRoot?.querySelector('select');
+  const opt = sel && [...sel.options].find((o) => o.textContent.trim() === 'Beta');
+  if (!opt) return;
+  clearInterval(timer);
+  sel.value = opt.value;
+  sel.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+}, 100);
+</script></body></html>`,
+});
+
 const iconPack = (id, name, icons) => zip({
   [`${id}.sdIconPack/manifest.json`]: J({ Name: name, Author: 'ui-test', Version: '1.0.0', Icon: 'icon.svg', Description: 'Test pack' }),
   [`${id}.sdIconPack/icon.svg`]: SVG('#00aa00'),
@@ -1791,6 +1818,24 @@ async function suiteMarket(d, b) {
     const { probe, own } = (await d.action('Keypad', '3,1')).Settings;
     eq([probe, own], ['blocked', 404]);
     await until(async () => Object.keys((await d.api('/api/plugins/com.ui.counter/diagnostics')).stats?.inspectors || {}).length > 0, 'counted as connected');
+    b.quiet = false;
+  });
+
+  await test('editor: an inspector made of sdpi-components gets its list from a library plugin and saves the pick', async () => {
+    // The other test inspector (key 3,1) loads again on the way and logs its refused API probe.
+    b.quiet = true;
+    await d.api('/api/import', 'POST', SDPI_PLUGIN(), { 'x-filename': 'lib3.streamDeckPlugin', 'content-type': 'application/octet-stream' });
+    await b.waitFor(`!!document.querySelector('.action-item[data-uuid="com.e2e.lib3.count"]')`, 'library action listed', 10000);
+    await placeAndEdit(b, d, 'Keypad', '2,1', 'com.e2e.lib3.count');
+    await b.waitFor(`document.querySelector('#editor iframe.pi-frame')?.dataset.state === 'connected'`, 'inspector connected', 10000);
+    // Data source round trip (sendToPlugin → sendToPropertyInspector), then setSettings.
+    await until(async () => (await d.action('Keypad', '2,1'))?.Settings?.pick === 'b', 'the inspector listed the plugin\'s items and saved the pick', 15000);
+    await d.clear('Keypad', '2,1');
+    await d.api('/api/plugins/com.e2e.lib3', 'DELETE');
+    // Back to the key the next tests start from.
+    await selectSlot(b, 'Keypad', '3,1');
+    await b.waitFor(`document.querySelector('#editor iframe.pi-frame')?.dataset.state === 'connected'`, 'inspector of 3,1', 10000);
+    await sleep(500);
     b.quiet = false;
   });
 
