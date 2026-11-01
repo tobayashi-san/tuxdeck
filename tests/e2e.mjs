@@ -640,7 +640,7 @@ async function suiteNeoActions(d) {
     assert(theme.options_by && typeof theme.options_by === 'object', 'options_by');
   });
 
-  await test('info bar: digital time and pagination render 248x58 without SVG errors', async () => {
+  await test('info bar: digital time, pagination and text render 248x58 without SVG errors', async () => {
     const m = d.mark();
     eq(pngSize(await d.render('Neo', '1,0')), [248, 58]);
     await d.slot('Neo', '1,0', 'com.elgato.streamdeck.system.pagination');
@@ -649,6 +649,17 @@ async function suiteNeoActions(d) {
       await d.settings('Neo', '1,0', { layout: o.value, theme: '' });
       eq(pngSize(await d.render('Neo', '1,0')), [248, 58]);
     }
+    // TuxDeck's text action: placeholders, styles and gradients are drawn, changes are seen.
+    await d.slot('Neo', '1,0', 'dev.tuxdeck.infobar.text');
+    const shots = [];
+    for (const st of [{ text: 'A' }, { text: 'B' }, { text: '{profile}\n{page}/{pages}', align: 'left', bold: false, size: 16 },
+      { color: '#ff00ff', background: 'linear-gradient(90deg, #f97316 0%, #e11d48 100%)' }, { background: 'radial-gradient(circle, red, blue)' }]) {
+      await d.settings('Neo', '1,0', st);
+      const png = await d.render('Neo', '1,0');
+      eq(pngSize(png), [248, 58]);
+      shots.push(Buffer.from(png).toString('base64'));
+    }
+    eq(new Set(shots).size, shots.length, 'every change is drawn');
     eq(d.logsSince(m, /svg render failed|Failed to parse/), [], 'usvg warnings');
     await d.slot('Neo', '1,0', 'com.elgato.streamdeck.system.digitaltime');
     eq(pngSize(await d.render('Neo', '1,0')), [248, 58]);
@@ -2819,7 +2830,7 @@ async function suiteBuiltins(d) {
       'system.keybrightness', 'system.sleep', 'system.hotkey', 'system.hotkeyswitch', 'system.open', 'system.openapp', 'system.close',
       'system.website', 'system.multimedia', 'system.text', 'system.timer', 'multiactions.routine', 'multiactions.routine2',
       'multiactions.random', 'multiactions.delay', 'keys.logic', 'soundboard.playaudio', 'soundboard.stopaudioplay',
-      'system.digitaltime', 'system.pagination'].map((u) => B + u);
+      'system.digitaltime', 'system.pagination'].map((u) => B + u).concat('dev.tuxdeck.infobar.text');
     // A new built-in action needs tests here.
     eq(all.map((a) => a.uuid).sort(), [...want].sort(), 'built-in actions');
     for (const a of all) {

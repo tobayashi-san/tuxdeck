@@ -90,6 +90,8 @@ Action catalogue grouped by category (order matters; render in this order):
 - `pi` is a URL of an HTML property inspector (third-party plugins) or `null`.
 - `form` (built-in actions only, may be `[]`) describes the settings editor. Field types:
   - `text` / `textarea` / `number` (`min`,`max`,`step`) / `checkbox` / `color` (value `#rrggbb`)
+  - `background`: a colour (`#rrggbb`) or a CSS gradient (`linear-gradient(…)`,
+    `radial-gradient(…)`); no value means black
   - `select` with `options: [{"value": <json value>, "label": "..."}]`
   - `file` (text field + note that it is a local path), `page` (select of the profile's
     top-level pages; value = page uuid), `profile` (select of all profiles; value = profile id)

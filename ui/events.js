@@ -3,7 +3,8 @@
 import { markCompatDirty, updateCompatBanner } from './compat.js';
 import { S, slotKey } from './store.js';
 import { handleLinuxCheckEvent, handleMarketEvent } from './market.js';
-import { renderEditor, retryUnsaved } from './editor.js';
+import { refreshEditorPreview, renderEditor, retryUnsaved } from './editor.js';
+import { refreshSlotImage } from './canvas.js';
 import { t } from './i18n.js';
 import { toast } from './dialogs.js';
 import { loadCatalogue, loadPage, loadState, schedulePageReload } from './data.js';
@@ -84,12 +85,25 @@ function handleEvent(ev) {
         if (sameId(p, ev.profile) && sameId(pg, ev.page)) S.pageCache.delete(k);
       }
       if (sameId(ev.profile, S.view.profile)) markCompatDirty();
-      if (sameId(ev.profile, S.view.profile) && sameId(ev.page, S.view.page)) schedulePageReload();
+      if (sameId(ev.profile, S.view.profile) && sameId(ev.page, S.view.page)) {
+        // News for one key (a plugin's title or image): only that picture is loaded again.
+        if (ev.slot) {
+          const k = slotKey(ev.slot.controller, ev.slot.coord);
+          S.slotV.set(k, (S.slotV.get(k) || 0) + 1);
+        }
+        // A key that changes by itself (timer, clock): its picture only, the page is the same.
+        if (ev.live && ev.slot) {
+          refreshSlotImage(ev.slot.controller, ev.slot.coord);
+          if (S.selected?.controller === ev.slot.controller && S.selected?.coord === ev.slot.coord) refreshEditorPreview();
+        } else schedulePageReload();
+      }
       break;
     case 'input':
       onInput(ev);
       break;
     case 'actions':
+      // Plugins changed: their icons may have too.
+      S.v++;
       markCompatDirty();
       loadCatalogue();
       updateCompatBanner();

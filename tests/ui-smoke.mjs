@@ -1046,6 +1046,31 @@ async function suiteNeo(d, b) {
     await until(async () => !(await st0()).Background, 'background removed');
   });
 
+  await test('canvas: a running timer redraws only its own key; nothing flickers', async () => {
+    const dev = await d.dev();
+    await d.api(`/api/pages/${dev.profile}/${dev.page}/slot`, 'POST', { controller: 'Keypad', coord: '2,0', uuid: 'com.elgato.streamdeck.system.timer' });
+    await slotShows(b, 'Keypad', '2,0', true);
+    await selectSlot(b, 'Keypad', '0,0');
+    await sleep(500); // the page reload after placing the timer
+    // Watch for <img> elements that are removed or emptied (what the eye sees as flicker).
+    await b.eval(`(() => { window.__flicker = []; new MutationObserver((ms) => { for (const m of ms) {
+      for (const n of m.removedNodes) if (n.nodeName === 'IMG' || n.querySelector?.('img')) window.__flicker.push('removed ' + (n.dataset?.key || n.className));
+      if (m.type === 'attributes' && m.target.nodeName === 'IMG' && !m.target.getAttribute('src')) window.__flicker.push('emptied ' + m.target.dataset.key);
+    } }).observe(document.querySelector('#device'), { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] }); })()`);
+    await d.api(`/api/pages/${dev.profile}/${dev.page}/press`, 'POST', { controller: 'Keypad', coord: '2,0' });
+    const from = b.requests.length;
+    await sleep(3500);
+    const renders = b.requests.slice(from).filter((r) => r.includes('/api/render/'));
+    const mine = (r, c) => r.includes(`/${c.replace(',', '%2C')}.png`) || r.includes(`/${c}.png`);
+    const timer = renders.filter((r) => r.includes('/Keypad/') && mine(r, '2,0'));
+    assert(timer.length >= 2, `the timer key is redrawn every second (${J(renders)})`);
+    eq(renders.filter((r) => !(r.includes('/Keypad/') && mine(r, '2,0')) && !(r.includes('/Neo/') && mine(r, '1,0'))), [], 'no other key is reloaded');
+    eq(await b.eval('window.__flicker'), [], 'no picture was removed or emptied');
+    // Stop the timer again and clear the key.
+    await d.api(`/api/pages/${dev.profile}/${dev.page}/press`, 'POST', { controller: 'Keypad', coord: '2,0' });
+    await d.api(`/api/pages/${dev.profile}/${dev.page}/slot?controller=Keypad&coord=2,0`, 'DELETE');
+  });
+
   await test('editor: an uploaded image is used, "Default" restores the action image', async () => {
     await selectSlot(b, 'Keypad', '0,0');
     const before = (await d.action('Keypad', '0,0')).States[0].Image;
@@ -1161,6 +1186,43 @@ async function suiteNeo(d, b) {
     eq(await b.eval(`[...document.querySelectorAll('#device .slot.drop-denied')].length`), 10, 'keys and touch points refuse it');
     await b.eval(`document.dispatchEvent(new DragEvent('dragend', { bubbles: true }))`);
     eq(await b.count('#device .slot.drop-denied, #device .slot.drop-candidate'), 0, 'marks removed');
+  });
+
+  await test('Neo: the info bar shows a free text with placeholders, colours and a gradient', async () => {
+    const dev = await d.dev();
+    const clock = await d.action('Neo', '1,0');
+    await d.clear('Neo', '1,0');
+    await d.api(`/api/pages/${dev.profile}/${dev.page}/slot`, 'POST', { controller: 'Neo', coord: '1,0', uuid: 'dev.tuxdeck.infobar.text' });
+    await selectSlot(b, 'Neo', '1,0');
+    await b.waitFor(`!!document.querySelector('#editor .ed-settings textarea')`, 'text field');
+    assert(!(await b.exists('#editor .ed-titlecol')), 'the text is set in the settings, not as a title');
+    assert(await b.exists('#editor .ed-settings .bg-swatches'), 'background choices');
+    await b.set('#editor .ed-settings textarea', 'Hello {pagename}');
+    await until(async () => (await d.action('Neo', '1,0')).Settings.text === 'Hello {pagename}', 'text saved');
+    await b.set('#editor .ed-settings input[type=color]', '#ff0000');
+    await until(async () => (await d.action('Neo', '1,0')).Settings.color === '#ff0000', 'colour saved');
+    // A ready-made gradient as the background (the 10th swatch: none, 8 colours, gradients).
+    await b.eval(`document.querySelectorAll('#editor .ed-settings .bg-swatches .bg-swatch')[9].click()`);
+    await until(async () => /^linear-gradient/.test((await d.action('Neo', '1,0')).Settings.background || ''), 'gradient saved');
+    // The info bar picture: the gradient's first colour in the corner, red text in the middle.
+    const px = await b.eval(`(async () => {
+      const { renderUrl } = await import('/store.js');
+      const img = new Image(); img.src = renderUrl('Neo', '1,0', 248) + '&t=' + Date.now(); await img.decode();
+      const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+      const d = g.getImageData(0, 0, c.width, c.height).data;
+      let red = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 200 && d[i + 1] < 80 && d[i + 2] < 80) red++;
+      return { corner: [...g.getImageData(1, 1, 1, 1).data].slice(0, 3), red, w: img.width };
+    })()`);
+    eq(px.w, 248, 'info bar size');
+    assert(px.corner[2] > 180 && px.corner[0] < 120, `gradient in the corner: ${J(px.corner)}`);
+    assert(px.red > 50, `red text drawn: ${px.red} px`);
+    // The canvas shows the same.
+    await b.waitFor(`document.querySelector('${slotSel('Neo', '1,0')} img')?.complete`, 'canvas picture');
+    // Back to the clock for the following tests.
+    await d.clear('Neo', '1,0');
+    await d.api(`/api/pages/${dev.profile}/${dev.page}/slot`, 'POST', { controller: 'Neo', coord: '1,0', uuid: clock.UUID });
+    await d.api(`/api/pages/${dev.profile}/${dev.page}/slot`, 'PATCH', { controller: 'Neo', coord: '1,0', settings: clock.Settings });
   });
 
   await test('editor: every built-in action can be placed and opens its editor without errors', async () => {

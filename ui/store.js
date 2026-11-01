@@ -4,7 +4,7 @@ import { t } from './i18n.js';
 export const OPENCHILD = 'com.elgato.streamdeck.profile.openchild';
 export const BACKTOPARENT = 'com.elgato.streamdeck.profile.backtoparent';
 export const HOTKEY_SWITCH = 'com.elgato.streamdeck.system.hotkeyswitch';
-const INFOBAR_BUILTINS = ['com.elgato.streamdeck.system.digitaltime', 'com.elgato.streamdeck.system.pagination'];
+const INFOBAR_BUILTINS = ['com.elgato.streamdeck.system.digitaltime', 'com.elgato.streamdeck.system.pagination', 'dev.tuxdeck.infobar.text'];
 
 /** Fallback geometry when no (matching) device is known. */
 export const MODELS = {
@@ -43,7 +43,8 @@ export const S = {
   pageCache: new Map(), // "profile/page" -> page data (for parent lookup)
   selected: null, // {controller, coord}
   selectedState: 0,
-  v: Date.now() % 1000000, // render cache buster
+  v: Date.now() % 1000000, // render cache buster for everything (language, plugins changed)
+  slotV: new Map(), // per-key render version (the service reported news for that key)
   clipboard: null, // {profile, page, controller, coord, instance}
   drag: null, // {kind:'action', action} | {kind:'slot', controller, coord}
   wsConnected: false,
@@ -192,9 +193,40 @@ export function pagePath(profile = S.view.profile, page = S.view.page) {
   return `/api/pages/${enc(profile)}/${enc(page)}`;
 }
 
+/** Short hash of a string (FNV-1a), for cache-busting versions. */
+function hashStr(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 0x01000193);
+  return (h >>> 0).toString(36);
+}
+
+/** Version of a key's picture: changes when the key's content changes, when the service
+ * reports news for exactly this key (S.slotV) or for everything (S.v); unchanged keys
+ * keep their URL, so they are not loaded (and redrawn) again. */
+function slotVersion(controller, coord) {
+  let src = `${JSON.stringify(instanceAt(controller, coord) ?? null)}|${S.slotV.get(slotKey(controller, coord)) || 0}|${S.v}`;
+  // The info bar shows the page number and name, the touch points the LED colour.
+  if (controller !== 'Keypad') src += `|${JSON.stringify(profileById(S.view.profile)?.pages)}|${S.page?.name ?? ''}|${S.state.settings?.touch_color ?? ''}`;
+  return hashStr(src);
+}
+
 export function renderUrl(controller, coord, size = 144) {
   const dev = S.deviceId ? `&device=${enc(S.deviceId)}` : '';
-  return `/api/render/${enc(S.view.profile)}/${enc(S.view.page)}/${enc(controller)}/${enc(coord)}.png?size=${size}&v=${S.v}${dev}`;
+  return `/api/render/${enc(S.view.profile)}/${enc(S.view.page)}/${enc(controller)}/${enc(coord)}.png?size=${size}&v=${slotVersion(controller, coord)}${dev}`;
+}
+
+/** Show `url` in `img` without a blank moment: the new picture is loaded first. */
+export function swapImage(img, url) {
+  if (!img || img.dataset.want === url) return;
+  img.dataset.want = url;
+  if (!img.getAttribute('src')) {
+    img.src = url;
+    return;
+  }
+  const next = new Image();
+  next.onload = () => { if (img.dataset.want === url) img.src = url; };
+  next.onerror = () => { if (img.dataset.want === url) img.src = url; };
+  next.src = url;
 }
 
 export function slotKey(controller, coord) {

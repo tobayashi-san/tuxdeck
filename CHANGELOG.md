@@ -100,6 +100,13 @@
 - **Gradient key backgrounds:** besides colours, keys can have a linear or radial gradient:
   ready-made ones, an editor (type, angle, up to six colours) and CSS pasted from
   cssgradient.io (`linear-gradient(…)`, `radial-gradient(…)`).
+- **Neo info bar text:** a new info bar action "Text" shows your own text, up to three
+  lines, with placeholders for time, date, weekday, page, page name and profile, a size,
+  alignment, bold, a text colour and a background colour or gradient. TuxDeck's own
+  action (the official app doesn't know it).
+- **No more flickering in the configuration UI:** when a key changes (a plugin's title or
+  image, a running timer, the clock) only its picture is loaded again, and the new picture
+  replaces the old one only once it's loaded. Before, every change reloaded all pictures.
 - **Tests:** plugins built on Elgato's own `@elgato/streamdeck` library (1.x, 2.x, 3.x)
   and a property inspector made of `sdpi-components` run against TuxDeck in the test
   suites.

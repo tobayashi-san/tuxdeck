@@ -239,6 +239,8 @@ pub struct Engine {
     /// What each plugin did over the SDK (Linux check, diagnostics).
     pub plugin_stats: HashMap<String, PluginStats>,
     pub pis: HashMap<String, UnboundedSender<String>>,
+    /// Second and minute of the last live-key announcement (see `announce_live_keys`).
+    live_tick: (String, String),
     /// Keys are being released because their deck disconnected (see `trigger`).
     releasing: bool,
     /// (plugin, application) pairs of monitored applications that run now.
@@ -326,6 +328,7 @@ impl Engine {
             pi_shown: HashSet::new(),
             apps_running: HashSet::new(),
             releasing: false,
+            live_tick: Default::default(),
             pi_aliases: Vec::new(),
             pi_alias: HashMap::new(),
             self_ref: None,

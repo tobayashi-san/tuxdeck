@@ -31,6 +31,8 @@ pub const PLAY_AUDIO: &str = "com.elgato.streamdeck.soundboard.playaudio";
 pub const STOP_AUDIO: &str = "com.elgato.streamdeck.soundboard.stopaudioplay";
 pub const DIGITAL_TIME: &str = "com.elgato.streamdeck.system.digitaltime";
 pub const PAGINATION: &str = "com.elgato.streamdeck.system.pagination";
+/// TuxDeck's own: free text in the Neo info bar (the official app has no such action).
+pub const INFO_TEXT: &str = "dev.tuxdeck.infobar.text";
 
 pub struct BuiltinDef {
     pub uuid: &'static str,
@@ -211,6 +213,7 @@ pub static CATALOG: &[BuiltinDef] = &[
         true
     ),
     def!(PAGINATION, "com.elgato.streamdeck.system.pagination", "Pagination", "Current page in the info bar", CAT_NEO, "▤", "#204cfe", 1, NEO, false, true),
+    def!(INFO_TEXT, "dev.tuxdeck.infobar", "Text", "Your own text in the info bar", CAT_NEO, "T", "#204cfe", 1, NEO, false, true),
 ];
 
 pub fn def(uuid: &str) -> Option<&'static BuiltinDef> {
@@ -233,6 +236,7 @@ pub fn default_settings(uuid: &str) -> Value {
         BRIGHTNESS => json!({"actionIdx": 0}),
         DIGITAL_TIME => json!({"layout": "digital_time_01", "theme": "", "24HourFormat": true}),
         PAGINATION => json!({"layout": "pagination_01", "theme": ""}),
+        INFO_TEXT => json!({"text": "{weekday}\n{date}", "size": 0, "bold": true, "align": "center", "color": "#ffffff", "background": "#000000"}),
         PLAY_AUDIO => json!({"actionType": 0, "path": "", "volume": 100, "fadeLen": 0, "fadeType": 0, "outputType": ""}),
         MULTI_DELAY => json!({"delay": 500}),
         TIMER => json!({"seconds": 300}),
@@ -429,6 +433,18 @@ pub fn form(uuid: &str, ctx: &FormCtx) -> Value {
             v
         }
         PAGINATION => layout_fields(&ctx.pagination_layouts, "pagination_01"),
+        INFO_TEXT => vec![
+            json!({"key": "text", "type": "textarea", "label": "Text",
+                   "help": "Up to three lines. Placeholders: {time}, {date}, {weekday}, {page}, {pages}, {pagename}, {profile}"}),
+            json!({"key": "size", "type": "select", "label": "Text size", "default": 0,
+                   "options": opts([(json!(0), "Automatic".into()), (json!(12), "Small".into()), (json!(16), "Medium".into()), (json!(22), "Large".into()), (json!(30), "Very large".into())])}),
+            json!({"key": "align", "type": "select", "label": "Alignment", "default": "center",
+                   "options": opts([(json!("left"), "Left".into()), (json!("center"), "Centre".into()), (json!("right"), "Right".into())])}),
+            json!({"key": "bold", "type": "checkbox", "label": "Bold", "default": true}),
+            json!({"key": "24HourFormat", "type": "checkbox", "label": "24-hour format", "default": true}),
+            json!({"key": "color", "type": "color", "label": "Text colour", "default": "#ffffff"}),
+            json!({"key": "background", "type": "background", "label": "Background", "default": "#000000"}),
+        ],
         _ => vec![],
     };
     let mut v = Value::Array(f);

@@ -743,7 +743,7 @@ impl Engine {
                 });
             }
             (KEY_LOGIC, _) => self.key_logic_input(loc, down),
-            (DIGITAL_TIME | PAGINATION | PAGE_INDICATOR | MULTI_DELAY, _) => {}
+            (DIGITAL_TIME | PAGINATION | INFO_TEXT | PAGE_INDICATOR | MULTI_DELAY, _) => {}
             (u, true) if builtin::def(u).is_none() && self.registry.plugin_for_action(u).map(|p| p.runtime == PluginRuntime::Native).unwrap_or(false) => {
                 bail!(crate::tr!("this action of the official app is not available on Linux"));
             }

@@ -28,7 +28,9 @@ impl Engine {
             if self.devices.get(&loc.device).is_some_and(|d| d.profile == loc.profile && d.page == loc.page) {
                 self.refresh(&loc.device);
             }
-            self.emit(json!({"event": "page", "profile": loc.profile, "page": loc.page}));
+            // Which key: the UI redraws only that one (plugins update keys every second).
+            self.emit(json!({"event": "page", "profile": loc.profile, "page": loc.page,
+                             "slot": {"controller": loc.slot.controller, "coord": loc.slot.coord}}));
         }
     }
 
@@ -153,6 +155,12 @@ impl Engine {
                 let pi = page_info();
                 let key = spec_hash(&(a.settings.to_string(), pi.number, pi.count, pi.name.clone(), page));
                 (key, InfoContent::Pagination { settings: a.settings.clone(), page: pi })
+            }
+            Some(a) if a.uuid == INFO_TEXT => {
+                let profile_name = self.profiles.get(profile).map(|p| p.manifest.name.clone()).unwrap_or_default();
+                let text = crate::layout::info_text(a.settings.get("text").and_then(|v| v.as_str()).unwrap_or(""), &a.settings, &page_info(), &profile_name);
+                let key = spec_hash(&("infotext", a.settings.to_string(), &text));
+                (key, InfoContent::Styled { text, settings: a.settings.clone() })
             }
             Some(a) => {
                 let ctx = context_id(dev, &a.action_id);
@@ -519,5 +527,40 @@ impl Engine {
         }
         let _ = expired;
         self.refresh_all();
+        self.announce_live_keys();
+    }
+
+    /// Tell the UI about keys that change by themselves: running timers every second,
+    /// the info bar clock every minute (it then reloads just those pictures).
+    fn announce_live_keys(&mut self) {
+        let now = chrono::Local::now();
+        let (second, minute) = (now.format("%H%M%S").to_string(), now.format("%H%M").to_string());
+        if second == self.live_tick.0 {
+            return;
+        }
+        let new_minute = minute != self.live_tick.1;
+        self.live_tick = (second, minute);
+        let mut live: Vec<(String, String, String, String)> = self
+            .runtime
+            .iter()
+            .filter(|(_, r)| r.timer.as_ref().is_some_and(|t| t.started.is_some()))
+            .filter_map(|(ctx, _)| self.contexts.get(ctx))
+            .map(|l| (l.profile.clone(), l.page.clone(), l.slot.controller.clone(), l.slot.coord.clone()))
+            .collect();
+        if new_minute {
+            for d in self.devices.values() {
+                let clock = self.profiles.get(&d.profile).and_then(|p| p.pages.get(&d.page)).and_then(|p| p.action("Neo", NEO_INFOBAR)).is_some_and(|a| {
+                    a.uuid == DIGITAL_TIME || (a.uuid == INFO_TEXT && a.settings.get("text").and_then(|v| v.as_str()).is_some_and(|t| t.contains('{')))
+                });
+                if clock {
+                    live.push((d.profile.clone(), d.page.clone(), "Neo".into(), NEO_INFOBAR.into()));
+                }
+            }
+        }
+        live.sort();
+        live.dedup();
+        for (profile, page, controller, coord) in live {
+            self.emit(json!({"event": "page", "profile": profile, "page": page, "slot": {"controller": controller, "coord": coord}, "live": true}));
+        }
     }
 }

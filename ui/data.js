@@ -1,10 +1,10 @@
 // Loading state, catalogue and pages; deciding what the canvas shows.
 
 import { S, api, compatibleModel, currentDevice, debounce, liveDevice, pagePath, profileById } from './store.js';
-import { flushEditor, renderEditor } from './editor.js';
+import { flushEditor, refreshEditorPreview, renderEditor } from './editor.js';
 import { t } from './i18n.js';
 import { toast } from './dialogs.js';
-import { renderCanvas } from './canvas.js';
+import { refreshImages, renderCanvas } from './canvas.js';
 import { renderCatalogue } from './catalogue.js';
 import { renderCrumbs, renderPagebar, resolveFolderChain } from './navigation.js';
 import { renderTopbar } from './topbar.js';
@@ -71,7 +71,8 @@ export const loadCatalogue = coalesced(async () => {
 });
 
 let pageSeq = 0;
-export async function loadPage() {
+/** Load the shown page; `changed` (page events) skips redrawing when nothing changed. */
+export async function loadPage({ changed = false } = {}) {
   const seq = ++pageSeq;
   const { profile, page } = S.view;
   if (!profile || !page) {
@@ -82,6 +83,13 @@ export async function loadPage() {
   try {
     const data = await api(pagePath(profile, page));
     if (seq !== pageSeq) return;
+    // The same page as shown (a key was pressed, a plugin set a picture): only pictures
+    // that changed are loaded again; rebuilding the keys would make them flicker.
+    if (changed && data && S.page?.id === page && S.page?.profile === profile && JSON.stringify(data) === JSON.stringify(S.page) && !renderAfterDrag) {
+      refreshImages();
+      refreshEditorPreview();
+      return;
+    }
     S.page = data || { id: page, profile, controllers: [] };
     S.pageCache.set(`${profile}/${page}`, S.page);
     await resolveFolderChain(profile, page, S.page);
@@ -93,10 +101,10 @@ export async function loadPage() {
     S.page = known || { id: page, profile, controllers: [] };
     toast(t('Could not load the page: {msg}', { msg: e.message }), 'error');
   }
-  S.v++;
+  // Pictures change with their key (see renderUrl): no reload of every picture here.
   renderAll();
 }
-export const schedulePageReload = debounce(() => loadPage(), 120);
+export const schedulePageReload = debounce(() => loadPage({ changed: true }), 120);
 
 /** A drag ended: show what changed meanwhile. */
 export function dragEnded() {

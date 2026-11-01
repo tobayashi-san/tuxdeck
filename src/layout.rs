@@ -29,6 +29,11 @@ pub enum InfoContent {
     },
     /// Plain text (plugin title on the info bar).
     Text(String),
+    /// TuxDeck's text action: placeholders already filled in, style from its settings.
+    Styled {
+        text: String,
+        settings: Value,
+    },
     /// A complete SVG document (plugin feedback layout).
     Svg(String),
     Black,
@@ -215,6 +220,7 @@ pub fn render_info_bar(layouts_root: Option<&Path>, content: &InfoContent, w: u3
             ("Pagination", settings.get("layout").and_then(|v| v.as_str()).unwrap_or("pagination_01"), settings, Some(page))
         }
         InfoContent::Text(t) => return rasterize(&text_svg(t, w, h), w, h),
+        InfoContent::Styled { text, settings } => return rasterize(&styled_text_svg(text, settings, w, h), w, h),
     };
     // A built-in id always means the built-in layout (its themes are the ones offered);
     // an imported layout of the same name is listed as `elgato:<id>`.
@@ -252,6 +258,89 @@ fn text_svg(t: &str, w: u32, h: u32) -> String {
         h / 2,
         xml_escape(&text)
     )
+}
+
+/// The text of the info bar text action with its placeholders filled in (unknown ones stay).
+pub fn info_text(template: &str, settings: &Value, page: &PageInfo, profile: &str) -> String {
+    let mut out = String::new();
+    let mut rest = template;
+    while let Some((start, len)) = rest.find('{').and_then(|start| rest[start..].find('}').map(|len| (start, len))) {
+        out.push_str(&rest[..start]);
+        let name = &rest[start + 1..start + len];
+        let el = |ty: &str| serde_json::json!({"type": ty, "dateFormat": "Long"});
+        let value = match name {
+            "time" => {
+                let (h, m, ampm) = (
+                    element_text(&el("hours"), settings, None).0,
+                    element_text(&el("minutes"), settings, None).0,
+                    element_text(&el("am/pm"), settings, None).0,
+                );
+                Some(if ampm.is_empty() { format!("{h}:{m}") } else { format!("{h}:{m} {ampm}") })
+            }
+            "date" => Some(element_text(&el("date"), settings, None).0),
+            "weekday" => Some(element_text(&el("day"), settings, None).0),
+            "page" => Some(page.number.to_string()),
+            "pages" => Some(page.count.to_string()),
+            "pagename" => Some(if page.name.is_empty() { crate::tr!("Page {n}", n = page.number) } else { page.name.clone() }),
+            "profile" => Some(profile.to_string()),
+            _ => None,
+        };
+        match value {
+            Some(v) => out.push_str(&v),
+            None => out.push_str(&rest[start..=start + len]),
+        }
+        rest = &rest[start + len + 1..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// The info bar text action: up to three lines in the chosen size, weight, alignment,
+/// colour and background (colour or CSS gradient).
+fn styled_text_svg(text: &str, settings: &Value, w: u32, h: u32) -> String {
+    let lines: Vec<&str> = text.lines().map(str::trim_end).take(3).collect();
+    let lines = if lines.is_empty() { vec![""] } else { lines };
+    let n = lines.len() as f32;
+    let (wf, hf) = (w as f32, h as f32);
+    let pad = 10.0;
+    let bold = settings.get("bold").and_then(|v| v.as_bool()).unwrap_or(true);
+    let glyph = if bold { 0.62 } else { 0.56 };
+    let longest = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0).max(1) as f32;
+    // Automatic: as large as the longest line and the number of lines allow.
+    let fit = ((wf - 2.0 * pad) / (longest * glyph)).min((hf - 6.0) / (n * 1.15)).clamp(9.0, 44.0);
+    let size = match settings.get("size").and_then(|v| v.as_f64()) {
+        Some(s) if s > 0.0 => (s as f32).clamp(8.0, 48.0),
+        _ => fit,
+    };
+    let (x, anchor) = match settings.get("align").and_then(|v| v.as_str()) {
+        Some("left") => (pad, "start"),
+        Some("right") => (wf - pad, "end"),
+        _ => (wf / 2.0, "middle"),
+    };
+    let color = settings.get("color").and_then(|v| v.as_str()).filter(|c| !c.trim().is_empty()).unwrap_or("#ffffff");
+    let mut defs = String::new();
+    let bg = settings.get("background").and_then(|v| v.as_str()).filter(|c| !c.trim().is_empty()).unwrap_or("#000000");
+    let bg = crate::render::css_paint(bg, &mut defs, "infobg");
+    // Lines that do not fit are cut with an ellipsis.
+    let max_chars = ((wf - 2.0 * pad) / (size * glyph) + 1e-3) as usize;
+    let line_h = size * 1.15;
+    let top = hf / 2.0 - line_h * (n - 1.0) / 2.0;
+    let mut body = String::new();
+    for (i, l) in lines.iter().enumerate() {
+        let t = if l.chars().count() > max_chars {
+            format!("{}…", l.chars().take(max_chars.saturating_sub(1)).collect::<String>().trim_end())
+        } else {
+            l.to_string()
+        };
+        body.push_str(&format!(
+            r#"<text x="{x:.1}" y="{:.1}" font-family="sans-serif" font-size="{size:.1}" font-weight="{}" fill="{}" text-anchor="{anchor}" dominant-baseline="central">{}</text>"#,
+            top + i as f32 * line_h,
+            if bold { 700 } else { 400 },
+            xml_escape(color),
+            xml_escape(&t)
+        ));
+    }
+    format!(r#"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}"><defs>{defs}</defs><rect width="{w}" height="{h}" fill="{bg}"/>{body}</svg>"#)
 }
 
 fn template_background(manifest: &Value, settings: &Value) -> String {
@@ -624,6 +713,55 @@ mod tests {
     fn color_at(img: &RgbaImage, x: u32, y: u32) -> [u8; 3] {
         let p = img.get_pixel(x, y).0;
         [p[0], p[1], p[2]]
+    }
+
+    #[test]
+    fn info_text_placeholders() {
+        let now = Local::now();
+        let t = super::info_text("{profile}: {pagename} {page}/{pages} {unknown} {time", &json!({}), &page("Music", None), "Work");
+        assert_eq!(t, "Work: Music 3/5 {unknown} {time");
+        let t = super::info_text("{time}", &json!({"24HourFormat": true}), &page("", None), "");
+        let other = |n: chrono::DateTime<Local>| format!("{:02}:{:02}", n.hour(), n.minute());
+        assert!(t == other(now) || t == other(Local::now()), "{t}");
+        assert!(super::info_text("{time}", &json!({"24HourFormat": false}), &page("", None), "").ends_with('M'));
+        assert_eq!(super::info_text("{pagename}", &json!({}), &page("", None), ""), "Page 3");
+        assert!(!super::info_text("{weekday} {date}", &json!({}), &page("", None), "").contains('{'));
+    }
+
+    #[test]
+    fn info_bar_styled_text() {
+        let lit =
+            |img: &RgbaImage, x0: u32, x1: u32| (x0..x1).flat_map(|x| (0..58).map(move |y| (x, y))).filter(|&(x, y)| color_at(img, x, y)[0] > 200).count();
+        // Colour, background and alignment.
+        let left = render_info_bar(
+            None,
+            &InfoContent::Styled { text: "Hi".into(), settings: json!({"align": "left", "color": "#ff0000", "background": "#0000ff"}) },
+            248,
+            58,
+        );
+        assert_eq!(color_at(&left, 240, 2), [0, 0, 255]);
+        assert!(lit(&left, 0, 80) > 20 && lit(&left, 168, 248) == 0);
+        let right = render_info_bar(None, &InfoContent::Styled { text: "Hi".into(), settings: json!({"align": "right", "color": "#ff0000"}) }, 248, 58);
+        assert!(lit(&right, 168, 248) > 20 && lit(&right, 0, 80) == 0);
+        // A gradient background.
+        let g = render_info_bar(
+            None,
+            &InfoContent::Styled { text: String::new(), settings: json!({"background": "linear-gradient(90deg, #ff0000 0%, #0000ff 100%)"}) },
+            248,
+            58,
+        );
+        assert!(color_at(&g, 2, 29)[0] > 200 && color_at(&g, 245, 29)[2] > 200);
+        // Two lines: text above and below the middle; a fixed small size uses less space.
+        let two = render_info_bar(None, &InfoContent::Styled { text: "A\nB".into(), settings: json!({}) }, 248, 58);
+        let rows =
+            |img: &RgbaImage, y0: u32, y1: u32| (y0..y1).flat_map(|y| (0..248).map(move |x| (x, y))).filter(|&(x, y)| color_at(img, x, y)[0] > 200).count();
+        assert!(rows(&two, 0, 27) > 10 && rows(&two, 31, 58) > 10);
+        let small = render_info_bar(None, &InfoContent::Styled { text: "Hello".into(), settings: json!({"size": 12}) }, 248, 58);
+        let auto = render_info_bar(None, &InfoContent::Styled { text: "Hello".into(), settings: json!({}) }, 248, 58);
+        assert!(lit(&small, 0, 248) * 3 < lit(&auto, 0, 248));
+        // Too long for one line at that size: cut with an ellipsis, nothing drawn outside.
+        let long = render_info_bar(None, &InfoContent::Styled { text: "x".repeat(200), settings: json!({"size": 30}) }, 248, 58);
+        assert_eq!(lit(&long, 0, 4) + lit(&long, 244, 248), 0);
     }
 
     #[test]

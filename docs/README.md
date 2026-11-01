@@ -54,7 +54,7 @@ be installed. Plugins that only contain a macOS or Windows program do not run on
 | | |
 |---|---|
 | ✅ Built-in actions | Hotkey, Text, Open, Open/Close application, Website, Multimedia, Folders, Pages, Switch profile, Brightness, Sleep, Multi actions, Key Logic (press/double press/hold), Soundboard, Timer |
-| ✅ Neo info bar | clock and page indicator |
+| ✅ Neo info bar | clock, page indicator and your own text (placeholders, colours, gradients) |
 | ✅ Plugins | Node.js and HTML plugins from the catalogue or as `.streamDeckPlugin` |
 | ✅ Icon packs | as `.streamDeckIconPack`, picked in the image editor via "Icon…" |
 | ✅ Smart Profiles | on Hyprland and X11 |

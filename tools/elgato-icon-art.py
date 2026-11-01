@@ -62,6 +62,9 @@ ACTIONS = {
 }
 for uuid, name in ACTIONS.items():
     write(f'{REPO}/assets/action-icons/com.elgato.streamdeck.{uuid}.svg', glyph(name, '#e6e9ef', 92, 26, 26))
+# TuxDeck's own built-in actions
+for uuid, name in {'dev.tuxdeck.infobar.text': 'text-set'}.items():
+    write(f'{REPO}/assets/action-icons/{uuid}.svg', glyph(name, '#e6e9ef', 92, 26, 26))
 
 
 # ---- starter keys: white glyph on a coloured tile
@@ -162,4 +165,4 @@ json.dump({'Name': 'Elgato Icons', 'Author': 'Elgato (Corsair Memory Inc.)', 'Ve
 defs, body = tile('#4f8ff7', '#2563eb')
 write(f'{pack}/cover.svg', body + glyph('grid--filled' if os.path.exists(os.path.join(SVG_DIR, 'grid--filled.svg')) else 'grid', '#ffffff', 80, 32, 32), defs)
 shutil.copy(os.path.join(PKG, 'LICENSE'), f'{pack}/LICENSE')
-print(f'{len(ACTIONS)} action icons, {len(STARTER)} starter icons, {len(SAMPLES)} sample icons, {len(entries)} pack icons')
+print(f'{len(ACTIONS) + 1} action icons, {len(STARTER)} starter icons, {len(SAMPLES)} sample icons, {len(entries)} pack icons')

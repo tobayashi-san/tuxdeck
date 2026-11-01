@@ -1,7 +1,7 @@
 // Bottom panel: property editor for the selected slot (title, image, settings / property inspector).
 import {
   S, api, enc, h, debounce, instanceAt, actionInfo, renderUrl, pagePath, profileById,
-  slotLabel, modelName, deckLabel, uuidv4, compatibleModel, slotAppearance, HOTKEY_SWITCH, icon,
+  slotLabel, modelName, deckLabel, uuidv4, compatibleModel, slotAppearance, HOTKEY_SWITCH, icon, swapImage,
 } from './store.js';
 import { toast } from './dialogs.js';
 import { pickIcon } from './iconpacks.js';
@@ -78,7 +78,7 @@ function previewUrl(sel, size) {
 export function refreshEditorPreview() {
   const img = root?.querySelector('.ed-preview img');
   const sel = S.selected;
-  if (img && sel) img.src = previewUrl(sel, sel.controller === 'Neo' && sel.coord === '1,0' ? 248 : 144);
+  if (img && sel) swapImage(img, previewUrl(sel, sel.controller === 'Neo' && sel.coord === '1,0' ? 248 : 144));
 }
 
 /** Flush pending (debounced) writes, e.g. before page navigation. */
@@ -386,36 +386,42 @@ function formFields(action) {
 
 /** Key background: preset colours and gradients, a gradient editor, a custom colour and "none" (black). */
 function backgroundRow(st, setStyle) {
-  const presets = ['#1e1e1e', '#2563eb', '#059669', '#e11d48', '#d97706', '#7c3aed', '#0d9488', '#475569'];
-  const cur = (st.Background || '').toLowerCase();
   return h('div.ed-bg', null,
     h('span.field-label', null, t('Background')),
-    h('div.bg-swatches', null,
-      h('button.bg-swatch.bg-none', { class: cur ? null : 'active', title: t('No background (black)'), onclick: () => setStyle({ Background: null }, true) }),
-      presets.map((c) => h('button.bg-swatch', {
-        class: cur === c ? 'active' : null, style: { background: c }, title: c,
-        onclick: () => setStyle({ Background: c }, true),
-      })),
-      // Gradients: a few ready ones and an editor (also takes CSS from cssgradient.io).
-      GRADIENT_PRESETS.map((g) => h('button.bg-swatch', {
-        class: (st.Background || '') === g ? 'active' : null, style: { background: g }, title: t('Gradient'),
-        onclick: () => setStyle({ Background: g }, true),
-      })),
-      h('button.bg-swatch.bg-gradient', {
-        class: isGradient(st.Background) && !GRADIENT_PRESETS.includes(st.Background) ? 'active' : null,
-        style: isGradient(st.Background) ? { background: st.Background } : null,
-        title: t('Edit gradient…'), 'aria-label': t('Edit gradient…'),
-        onclick: async () => {
-          const g = await editGradient(isGradient(st.Background) ? st.Background : null);
-          if (g) setStyle({ Background: g }, true);
-        },
-      }),
-      h('input.color.bg-custom', {
-        type: 'color', title: t('Custom colour'), value: normColor(st.Background, '#1e1e1e'),
-        // While dragging: debounced; the final colour right away.
-        oninput: (e) => setStyle({ Background: e.target.value }, false),
-        onchange: (e) => setStyle({ Background: e.target.value }, true),
-      })));
+    bgSwatches(st.Background, (v, final) => setStyle({ Background: v }, final)));
+}
+
+/** Background choices (colours, gradients, gradient editor, custom colour); `set(value, final)`. */
+function bgSwatches(value, set, fallback = '#1e1e1e') {
+  const presets = ['#1e1e1e', '#2563eb', '#059669', '#e11d48', '#d97706', '#7c3aed', '#0d9488', '#475569'];
+  const cur = (value || '').toLowerCase();
+  return h('div.bg-swatches', null,
+    h('button.bg-swatch.bg-none', { type: 'button', class: cur && cur !== '#000000' ? null : 'active', title: t('No background (black)'), onclick: () => set(null, true) }),
+    presets.map((c) => h('button.bg-swatch', {
+      type: 'button', class: cur === c ? 'active' : null, style: { background: c }, title: c,
+      onclick: () => set(c, true),
+    })),
+    // Gradients: a few ready ones and an editor (also takes CSS from cssgradient.io).
+    GRADIENT_PRESETS.map((g) => h('button.bg-swatch', {
+      type: 'button', class: (value || '') === g ? 'active' : null, style: { background: g }, title: t('Gradient'),
+      onclick: () => set(g, true),
+    })),
+    h('button.bg-swatch.bg-gradient', {
+      type: 'button',
+      class: isGradient(value) && !GRADIENT_PRESETS.includes(value) ? 'active' : null,
+      style: isGradient(value) ? { background: value } : null,
+      title: t('Edit gradient…'), 'aria-label': t('Edit gradient…'),
+      onclick: async () => {
+        const g = await editGradient(isGradient(value) ? value : null);
+        if (g) set(g, true);
+      },
+    }),
+    h('input.color.bg-custom', {
+      type: 'color', title: t('Custom colour'), 'aria-label': t('Custom colour'), value: normColor(value, fallback),
+      // While dragging: debounced; the final colour right away.
+      oninput: (e) => set(e.target.value, false),
+      onchange: (e) => set(e.target.value, true),
+    }));
 }
 
 function normColor(c, fallback) {
@@ -592,6 +598,13 @@ function buildField(f, settings, changed, rebuild, allFields) {
         id, type: 'color', value: normColor(value, '#000000'),
         oninput: (e) => set(e.target.value),
       });
+      break;
+    case 'background':
+      wide = true;
+      control = bgSwatches(value, (v, final) => {
+        set(v ?? undefined);
+        if (final) rebuild();
+      }, '#000000');
       break;
     case 'select': {
       const opts = selectOptions(f, settings, allFields);

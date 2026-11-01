@@ -725,5 +725,16 @@
  "Colours": "Farben",
  "CSS (e.g. from cssgradient.io)": "CSS (z. B. von cssgradient.io)",
  "Background gradient": "Hintergrund-Verlauf",
- "Apply": "Übernehmen"
+ "Apply": "Übernehmen",
+ "Your own text in the info bar": "Eigener Text in der Infoleiste",
+ "Up to three lines. Placeholders: {time}, {date}, {weekday}, {page}, {pages}, {pagename}, {profile}": "Bis zu drei Zeilen. Platzhalter: {time}, {date}, {weekday}, {page}, {pages}, {pagename}, {profile}",
+ "Text size": "Textgröße",
+ "Text colour": "Textfarbe",
+ "Small": "Klein",
+ "Medium": "Mittel",
+ "Large": "Groß",
+ "Very large": "Sehr groß",
+ "Left": "Links",
+ "Centre": "Mitte",
+ "Right": "Rechts"
 }

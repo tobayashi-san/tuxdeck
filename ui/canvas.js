@@ -1,6 +1,6 @@
 // Device canvas: slots, selection, keyboard navigation, slot menu and operations.
 
-import { BACKTOPARENT, ICON, OPENCHILD, S, actionInfo, api, enc, geometryFor, h, instanceAccepts, instanceAt, isNeoGeometry, pagePath, profileById, renderUrl, slotKey, slotLabel } from './store.js';
+import { BACKTOPARENT, ICON, OPENCHILD, S, actionInfo, api, enc, geometryFor, h, instanceAccepts, instanceAt, isNeoGeometry, pagePath, profileById, renderUrl, slotKey, slotLabel, swapImage } from './store.js';
 import { canTestPress, flushEditor, renderEditor } from './editor.js';
 import { confirmDialog, contextMenu, toast } from './dialogs.js';
 import { t } from './i18n.js';
@@ -28,6 +28,9 @@ export function renderCanvas() {
   }
   const g = geometryFor(prof);
   S.geom = g;
+  // The pictures already shown are reused (and swapped once the new one has loaded):
+  // new <img> elements would be empty for a moment, the whole deck would flicker.
+  oldImgs = new Map([...dev.querySelectorAll('img[data-key]')].map((img) => [img.dataset.key, img]));
   const neo = isNeoGeometry(g);
   const encs = g.encoders > 0;
   dev.className = 'device' + (neo ? ' neo' : '') + (encs ? ' plus' : '');
@@ -68,6 +71,35 @@ function updateTabStop(prefer) {
   for (const s of slots) s.tabIndex = s === stop ? 0 : -1;
 }
 
+let oldImgs = new Map();
+
+/** The picture of a key: the one shown before if there is one, updated to `url`. */
+function keyImg(id, url, extra = {}) {
+  const old = oldImgs.get(id);
+  oldImgs.delete(id);
+  const img = old || h('img', { alt: '', draggable: false, dataset: { key: id }, ...extra });
+  img.style.visibility = '';
+  swapImage(img, url);
+  return img;
+}
+
+const imgSize = (controller, coord, part) => (part !== 'strip' && controller === 'Neo' && coord === '1,0' ? 248 : 144);
+
+/** Load the pictures of one key again (it changed by itself: a timer, the clock). */
+export function refreshSlotImage(controller, coord) {
+  refreshImages(slotKey(controller, coord));
+}
+
+/** Show the current picture of every key (or of `only`); unchanged ones stay as they are. */
+export function refreshImages(only = null) {
+  for (const img of el.device.querySelectorAll('img[data-key]')) {
+    const [key, part] = img.dataset.key.split('|');
+    if (only && key !== only) continue;
+    const slot = img.closest('.slot');
+    if (slot) swapImage(img, renderUrl(slot.dataset.controller, slot.dataset.coord, imgSize(slot.dataset.controller, slot.dataset.coord, part)));
+  }
+}
+
 function slotEl(controller, coord, kind) {
   const inst = instanceAt(controller, coord);
   const action = inst ? actionInfo(inst.UUID) : null;
@@ -96,12 +128,11 @@ function slotEl(controller, coord, kind) {
   if (kind === 'encoder') {
     const g = S.geom;
     if (g?.screen) {
-      s.append(h('div.strip-seg', null, h('img', { src: renderUrl(controller, coord, 144), alt: '', draggable: false })));
+      s.append(h('div.strip-seg', null, keyImg(`${key}|strip`, renderUrl(controller, coord, 144))));
     }
     s.append(h('div.dial', null, action?.icon ? h('img', { src: action.icon, alt: '', draggable: false }) : null));
   } else if (inst || controller === 'Neo') {
-    s.append(h('img', {
-      src: renderUrl(controller, coord, kind === 'infobar' ? 248 : 144), alt: '', draggable: false,
+    s.append(keyImg(`${key}|main`, renderUrl(controller, coord, imgSize(controller, coord, 'main')), {
       onerror: (e) => { e.target.style.visibility = 'hidden'; },
     }));
   }
