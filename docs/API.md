@@ -187,6 +187,7 @@ Download `.streamDeckProfile` (zip).
 | `POST /api/active-app` | `{"app": "firefox"}` | simulate a focus change (tests, desktops without focus tracking) |
 | `DELETE /api/profiles/{profile}` | – | delete |
 | `POST /api/profiles/{profile}/pages` | – | append a new empty page, returns `{"id"}` |
+| `POST /api/profiles/{profile}/pages/order` | `{"pages": [ids]}` | new order of the top-level pages (exactly the same pages, else 400); "Go to Page" keys of the profile are renumbered so they keep their target; returns `{"pages"}` |
 | `DELETE /api/pages/{profile}/{page}` | – | delete a top-level page (not the last one) |
 | `POST /api/devices/{id}` | `{"profile"?, "page"?, "brightness"?}` | switch profile / navigate to page (top-level page or folder) / brightness 0-100 |
 | `POST /api/import` | raw bytes, header `X-Filename: name.streamDeckProfile`, `.streamDeckPlugin` or `.streamDeckIconPack` | import profile, install plugin or icon pack; returns `{"kind":"profile"\|"plugin"\|"iconpack","id","name","runs_on_linux","reason"}` |

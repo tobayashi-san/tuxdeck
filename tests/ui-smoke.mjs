@@ -845,6 +845,55 @@ async function suiteNeo(d, b) {
     await b.waitFor(`document.querySelectorAll('#pagebar .page-tab').length === 1 && !document.querySelector('#pagebar .page-del')`, 'one tab, no delete button');
   });
 
+  await test('pages: move a page by dragging its tab, from its menu or with Alt+arrow; undo', async () => {
+    const prof = async () => { const st = await d.state(); return st.profiles.find((p) => p.id === st.devices[0].profile); };
+    const { id } = await prof();
+    await d.api(`/api/profiles/${id}/pages`, 'POST');
+    await d.api(`/api/profiles/${id}/pages`, 'POST');
+    const [A, B, C] = (await prof()).pages;
+    const order = async () => (await prof()).pages;
+    const tabsShow = (ids) => b.waitFor(`JSON.stringify([...document.querySelectorAll('#pagebar .page-tab-wrap')].map((w) => w.dataset.page)) === ${J(JSON.stringify(ids))}`, `tabs ${ids}`);
+    await tabsShow([A, B, C]);
+    const shown = (await d.dev()).page;
+    // Menu: "Move right" on page 1, then undo from the toast.
+    await b.eval(`document.querySelectorAll('#pagebar .page-tab')[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 600, clientY: 700 }))`);
+    eq(await b.eval(`[...document.querySelectorAll('.ctxmenu .ctx-item')].map((i) => [i.querySelector('span').textContent, i.disabled])`),
+      [['Open', false], ['Move left', true], ['Move right', false], ['Delete page…', false]]);
+    await b.menu('Move right');
+    await until(async () => J(await order()) === J([B, A, C]), 'moved right');
+    await tabsShow([B, A, C]);
+    eq((await d.dev()).page, shown, 'the deck stays on its page');
+    await b.waitFor(`!!document.querySelector('.toast-action')`, 'undo offered');
+    await b.click('.toast-action');
+    await until(async () => J(await order()) === J([A, B, C]), 'undone');
+    await tabsShow([A, B, C]);
+    // Keyboard: Alt+← on page 3 makes it page 2; the tab keeps the focus.
+    await b.eval(`document.querySelectorAll('#pagebar .page-tab')[2].focus()`);
+    await b.key('ArrowLeft', { keyCode: KEYS.ArrowLeft, modifiers: 1 });
+    await until(async () => J(await order()) === J([A, C, B]), 'Alt+ArrowLeft');
+    await tabsShow([A, C, B]);
+    await b.waitFor(`document.activeElement?.closest('.page-tab-wrap')?.dataset.page === ${J(C)}`, 'focus on the moved tab');
+    // Dragging: page 3 (B) onto the left half of page 1 → first.
+    await b.eval(`(() => {
+      const wraps = [...document.querySelectorAll('#pagebar .page-tab-wrap')];
+      const dt = new DataTransfer();
+      wraps[2].querySelector('.page-tab').dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+      const r = wraps[0].getBoundingClientRect();
+      const at = { bubbles: true, cancelable: true, dataTransfer: dt, clientX: r.left + 2, clientY: r.top + r.height / 2 };
+      wraps[0].dispatchEvent(new DragEvent('dragover', at));
+      window.__marked = wraps[0].classList.contains('drop-before');
+      wraps[0].dispatchEvent(new DragEvent('drop', at));
+      wraps[2].querySelector('.page-tab').dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: dt }));
+    })()`);
+    assert(await b.eval('window.__marked'), 'drop position marked');
+    await until(async () => J(await order()) === J([B, A, C]), 'dragged to the front');
+    await tabsShow([B, A, C]);
+    eq(await b.count('#pagebar .drop-before, #pagebar .drop-after, #pagebar .dragging'), 0, 'marks removed');
+    // Back to a single page for the following tests.
+    for (const p of (await order()).filter((x) => x !== shown)) await d.api(`/api/pages/${id}/${p}`, 'DELETE');
+    await tabsShow([shown]);
+  });
+
   await test('topbar: the device list and status show the connected deck', async () => {
     eq(await b.eval(`[...document.querySelectorAll('#device-select option')].map((o) => o.textContent)`), ['Stream Deck Neo']);
     assert(await b.eval(`document.getElementById('device-status').classList.contains('on')`), 'status dot on');

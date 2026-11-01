@@ -736,5 +736,12 @@
  "Very large": "Sehr groß",
  "Left": "Links",
  "Centre": "Mitte",
- "Right": "Rechts"
+ "Right": "Rechts",
+ "Drag to move the page (Alt+← / Alt+→)": "Ziehen verschiebt die Seite (Alt+← / Alt+→)",
+ "Move left": "Nach links verschieben",
+ "Move right": "Nach rechts verschieben",
+ "Alt+←": "Alt+←",
+ "Alt+→": "Alt+→",
+ "Page {from} is now page {to}": "Seite {from} ist jetzt Seite {to}",
+ "the new order must contain exactly the pages of the profile": "die neue Reihenfolge muss genau die Seiten des Profils enthalten"
 }

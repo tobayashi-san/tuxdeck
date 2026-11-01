@@ -210,6 +210,13 @@ input[type=range]:disabled { opacity: .35; }
 .page-tab-wrap:hover .page-del { opacity: 1; pointer-events: auto; }
 .page-del:hover { background: var(--danger); }
 .add-page { margin-left: 8px; }
+/* Moving a page: the dragged tab fades, a caret in the gap shows where it lands. */
+.page-tab-wrap.dragging { opacity: .4; }
+.page-tab-wrap.drop-before::before, .page-tab-wrap.drop-after::after {
+  content: ''; position: absolute; top: 2px; bottom: 2px; width: 2px; border-radius: 1px; background: var(--accent);
+}
+.page-tab-wrap.drop-before::before { left: -4px; }
+.page-tab-wrap.drop-after::after { right: -4px; }
 
 /* trash zone (visible while dragging a slot) */
 .trash {

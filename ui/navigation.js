@@ -149,15 +149,39 @@ export function renderPagebar() {
   const pages = prof.pages || [];
   let active = pages.indexOf(S.view.page);
   if (active < 0 && S.navStack.length) active = pages.indexOf(S.navStack[0]);
-  const tabs = pages.map((p, i) => h('div.page-tab-wrap', null,
+  const tabs = pages.map((p, i) => h('div.page-tab-wrap', {
+    dataset: { page: p },
+    // Pages are moved by dragging their tab (see pageDrop).
+    ondragover: (e) => pageDragOver(e, i),
+    ondragleave: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('drop-before', 'drop-after'); },
+    ondrop: (e) => pageDrop(e, i),
+  },
     h('button.page-tab', {
       class: i === active ? (S.view.folderDepth ? 'active inactive-folder' : 'active') : null,
-      title: t('Page {n}', { n: i + 1 }) + (i === active && S.view.folderDepth ? ' ' + t('(in folder)') : ''),
+      title: t('Page {n}', { n: i + 1 }) + (i === active && S.view.folderDepth ? ' ' + t('(in folder)') : '') + (pages.length > 1 ? '\n' + t('Drag to move the page (Alt+← / Alt+→)') : ''),
+      draggable: pages.length > 1,
+      ondragstart: (e) => {
+        pageDrag = i;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('application/x-tuxdeck-page', p);
+        e.currentTarget.closest('.page-tab-wrap').classList.add('dragging');
+      },
+      ondragend: () => {
+        pageDrag = null;
+        for (const w of el.pagebar.querySelectorAll('.page-tab-wrap')) w.classList.remove('dragging', 'drop-before', 'drop-after');
+      },
+      onkeydown: (e) => {
+        if (!e.altKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+        e.preventDefault();
+        movePage(i, e.key === 'ArrowLeft' ? i - 1 : i + 1, true);
+      },
       onclick: () => (S.view.page === p ? null : goToPage(p, { reset: true })),
       oncontextmenu: (e) => {
         e.preventDefault();
         contextMenu(e.clientX, e.clientY, [
           { label: t('Open'), action: () => goToPage(p, { reset: true }) },
+          { label: t('Move left'), hint: t('Alt+←'), action: () => movePage(i, i - 1), disabled: i === 0 },
+          { label: t('Move right'), hint: t('Alt+→'), action: () => movePage(i, i + 1), disabled: i === pages.length - 1 },
           { label: t('Delete page…'), action: () => deletePage(p, i), disabled: pages.length <= 1, danger: true },
         ]);
       },
@@ -171,6 +195,70 @@ export function renderPagebar() {
     h('button.icon-btn', { title: t('Next page'), disabled: !next, onclick: () => goToPage(next, { reset: true }) }, icon('right')),
     h('button.btn.small.add-page', { title: t('Add a new page'), onclick: addPage }, '+ ' + t('Page')));
   el.pagebar.querySelector('.page-tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+// ---- moving pages ----------------------------------------------------------------------------
+
+let pageDrag = null; // index of the page tab being dragged
+
+/** Before or after the tab under the pointer (left or right half). */
+function pageDragOver(e, i) {
+  if (pageDrag === null) return;
+  e.preventDefault();
+  e.stopPropagation();
+  e.dataTransfer.dropEffect = 'move';
+  const r = e.currentTarget.getBoundingClientRect();
+  const after = e.clientX > r.left + r.width / 2;
+  for (const w of el.pagebar.querySelectorAll('.page-tab-wrap')) w.classList.remove('drop-before', 'drop-after');
+  if (i !== pageDrag) e.currentTarget.classList.add(after ? 'drop-after' : 'drop-before');
+}
+
+function pageDrop(e, i) {
+  if (pageDrag === null) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const r = e.currentTarget.getBoundingClientRect();
+  const after = e.clientX > r.left + r.width / 2;
+  const from = pageDrag;
+  pageDrag = null;
+  // Position in the list without the dragged page.
+  let to = i + (after ? 1 : 0);
+  if (from < to) to--;
+  movePage(from, to);
+}
+
+/** Move the page at `from` to position `to`; offers to undo it. */
+export async function movePage(from, to, keepFocus = false) {
+  const prof = profileById(S.view.profile);
+  const pages = [...(prof?.pages || [])];
+  if (!prof || to < 0 || to >= pages.length || from === to) {
+    renderPagebar();
+    return;
+  }
+  const before = [...pages];
+  const [moved] = pages.splice(from, 1);
+  pages.splice(to, 0, moved);
+  if (!(await setPageOrder(prof.id, pages))) return;
+  if (keepFocus) el.pagebar.querySelector(`.page-tab-wrap[data-page="${CSS.escape(moved)}"] .page-tab`)?.focus();
+  toast(t('Page {from} is now page {to}', { from: from + 1, to: to + 1 }), 'info', 6000, {
+    label: t('Undo'),
+    run: () => setPageOrder(prof.id, before),
+  });
+}
+
+async function setPageOrder(profile, pages) {
+  try {
+    await api(`/api/profiles/${enc(profile)}/pages/order`, { method: 'POST', body: { pages } });
+  } catch (e) {
+    toast(e.message, 'error');
+    return false;
+  }
+  // Show the new order right away (the service also sends a state event).
+  const prof = profileById(profile);
+  if (prof) prof.pages = pages;
+  renderPagebar();
+  await loadState();
+  return true;
 }
 
 async function addPage() {

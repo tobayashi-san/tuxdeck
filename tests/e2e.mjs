@@ -2461,6 +2461,51 @@ async function suiteProfiles(d) {
     await d.del(`/api/profiles/${imp.id}`);
   });
 
+  await test('pages: reorder; the deck stays on its page, "Go to Page" keys follow their pages', async () => {
+    const G = `${B}page.goto`;
+    const imp = await importZip(profileZip({
+      name: 'Order',
+      pages: [
+        { keys: { Keypad: {
+          '0,0': inst(G, { PageIndex: 3 }, 'to C'),
+          '1,0': inst(`${B}multiactions.routine`, {}, '', { Actions: [{ Actions: [inst(G, { PageIndex: 1 }), inst(W, { path: 'x.example', PageIndex: 1 })] }] }),
+          '2,0': inst(`${B}keys.logic`, {}, '', { Actions: [{ Actions: [inst(G, { PageIndex: 9 })] }, { Actions: [] }, { Actions: [] }] }),
+        } } },
+        { keys: { Keypad: { '0,0': inst(W, { path: 'b.example' }, 'B') } } },
+        { keys: { Keypad: { '0,0': inst(W, { path: 'c.example' }, 'C') } } },
+      ],
+    }));
+    const [A, Bp, C] = (await d.state()).profiles.find((p) => p.id === imp.id).pages;
+    await d.post(`/api/devices/${dev}`, { profile: imp.id });
+    await d.post(`/api/devices/${dev}`, { page: Bp });
+    // C A B
+    eq((await d.post(`/api/profiles/${imp.id}/pages/order`, { pages: [C, A, Bp] })).pages, [C, A, Bp]);
+    eq((await d.state()).profiles.find((p) => p.id === imp.id).pages, [C, A, Bp], 'new order');
+    eq((await d.device()).page, Bp, 'the deck stays on its page');
+    const keys = (await d.page(imp.id, A)).controllers.find((c) => c.Type === 'Keypad').Actions;
+    eq(keys['0,0'].Settings.PageIndex, 1, 'C is page 1 now');
+    eq(keys['1,0'].Actions[0].Actions.map((a) => a.Settings.PageIndex), [2, 1], 'in a multi action (other actions untouched)');
+    eq(keys['2,0'].Actions[0].Actions[0].Settings.PageIndex, 1, '"past the last page" meant C, now page 1');
+    // Pressing the key goes to the same page as before.
+    await d.post(`/api/devices/${dev}`, { page: A });
+    await d.press('Keypad', '0,0');
+    await d.waitState((st) => st.devices[0].page === C, 2000, 'went to C');
+    // Only the same pages in a new order are accepted.
+    for (const bad of [[C, A], [C, A, Bp, Bp], [C, A, randomUUID()], []]) {
+      eq(await d.status('POST', `/api/profiles/${imp.id}/pages/order`, { pages: bad }), 400, JSON.stringify(bad));
+    }
+    eq(await d.status('POST', `/api/profiles/${randomUUID()}/pages/order`, { pages: [A] }), 404);
+    // Undo: the old order, the numbers come back.
+    await d.post(`/api/profiles/${imp.id}/pages/order`, { pages: [A, Bp, C] });
+    const back = (await d.page(imp.id, A)).controllers.find((c) => c.Type === 'Keypad').Actions;
+    eq([back['0,0'].Settings.PageIndex, back['1,0'].Actions[0].Actions[0].Settings.PageIndex], [3, 1]);
+    // Stored in the profile's manifest (the official format).
+    const man = JSON.parse(fs.readFileSync(path.join(profilesDir, `${imp.id}.sdProfile`, 'manifest.json'), 'utf8'));
+    eq(man.Pages.Pages.map((x) => x.toLowerCase()), [A, Bp, C].map((x) => x.toLowerCase()));
+    await d.post(`/api/devices/${dev}`, { profile: P });
+    await d.del(`/api/profiles/${imp.id}`);
+  });
+
   await test('export → import keeps keys, titles, settings, custom images, multi actions and folders', async () => {
     const pg = (await d.post(`/api/profiles/${P}/pages`)).id;
     const base = `/api/pages/${P}/${pg}`;

@@ -254,3 +254,124 @@ impl Engine {
         }
     }
 }
+
+impl Engine {
+    /// Put the top-level pages of a profile in a new order (the same pages, no more, no
+    /// less). "Go to Page" keys keep pointing at the same page: their page numbers follow.
+    pub fn reorder_pages(&mut self, profile: &str, order: &[String]) -> Result<()> {
+        let p = self.profiles.get_mut(profile).ok_or_else(|| anyhow!(crate::tr!("profile not found")))?;
+        let old = p.manifest.pages.pages.clone();
+        let mut a = old.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>();
+        let mut b = order.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>();
+        a.sort();
+        b.sort();
+        if a != b {
+            bail!(crate::tr!("the new order must contain exactly the pages of the profile"));
+        }
+        // The stored ids (their spelling) in the new order.
+        let new: Vec<String> = order.iter().map(|o| old.iter().find(|x| x.eq_ignore_ascii_case(o)).cloned().unwrap_or_else(|| o.clone())).collect();
+        if new == old {
+            return Ok(());
+        }
+        let renumber: Vec<usize> = old.iter().map(|id| new.iter().position(|x| x == id).unwrap_or(0) + 1).collect();
+        let mut changed = Vec::new();
+        for (page_id, page) in p.pages.iter_mut() {
+            let mut any = false;
+            for c in page.controllers.iter_mut() {
+                for inst in c.actions.values_mut() {
+                    let Ok(mut v) = serde_json::to_value(&*inst) else { continue };
+                    if renumber_goto(&mut v, &renumber) {
+                        if let Ok(back) = serde_json::from_value(v) {
+                            *inst = back;
+                            any = true;
+                        }
+                    }
+                }
+            }
+            if any {
+                changed.push(page_id.clone());
+            }
+        }
+        p.manifest.pages.pages = new;
+        p.save_manifest()?;
+        for page in &changed {
+            if let Err(e) = p.save_page(page) {
+                tracing::warn!("saving page {page}: {e:#}");
+            }
+        }
+        // The decks stay on their pages; page numbers (info bar) change.
+        let devs: Vec<String> = self.devices.values().filter(|d| d.profile == profile).map(|d| d.id.clone()).collect();
+        for d in devs {
+            self.refresh(&d);
+        }
+        for page in &changed {
+            self.emit(json!({"event": "page", "profile": profile, "page": page}));
+        }
+        self.emit(json!({"event": "state"}));
+        Ok(())
+    }
+}
+
+/// Renumber the "Go to Page" actions in an action instance (also inside multi actions and
+/// Key Logic): `renumber[n - 1]` is the new number of the page that had number `n`. A
+/// number past the last page meant the last page. Returns whether something changed.
+fn renumber_goto(v: &mut Value, renumber: &[usize]) -> bool {
+    let mut changed = false;
+    match v {
+        Value::Object(o) => {
+            if o.get("UUID").and_then(|u| u.as_str()) == Some(PAGE_GOTO) && !renumber.is_empty() {
+                let n = o.get("Settings").and_then(|s| s.get("PageIndex")).and_then(|v| v.as_u64()).unwrap_or(1).max(1) as usize;
+                let to = renumber[n.min(renumber.len()) - 1];
+                if to != n {
+                    if let Some(s) = o.entry("Settings").or_insert_with(|| json!({})).as_object_mut() {
+                        s.insert("PageIndex".into(), json!(to));
+                        changed = true;
+                    }
+                }
+            }
+            for x in o.values_mut() {
+                changed |= renumber_goto(x, renumber);
+            }
+        }
+        Value::Array(a) => {
+            for x in a {
+                changed |= renumber_goto(x, renumber);
+            }
+        }
+        _ => {}
+    }
+    changed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn goto_page_numbers_follow_their_page() {
+        // Pages A B C become C A B: A 1→2, B 2→3, C 3→1.
+        let renumber = [2, 3, 1];
+        let mut key = json!({"UUID": PAGE_GOTO, "Settings": {"PageIndex": 3}});
+        assert!(renumber_goto(&mut key, &renumber));
+        assert_eq!(key["Settings"]["PageIndex"], 1);
+        // Inside a multi action / Key Logic, next to other actions.
+        let mut multi = json!({"UUID": MULTI, "Settings": {}, "Actions": [{"Actions": [
+            {"UUID": PAGE_GOTO, "Settings": {"PageIndex": 1}},
+            {"UUID": HOTKEY, "Settings": {"PageIndex": 1}},
+            {"UUID": PAGE_GOTO, "Settings": {}}
+        ]}]});
+        assert!(renumber_goto(&mut multi, &renumber));
+        let list = &multi["Actions"][0]["Actions"];
+        assert_eq!(
+            (list[0]["Settings"]["PageIndex"].clone(), list[1]["Settings"]["PageIndex"].clone(), list[2]["Settings"]["PageIndex"].clone()),
+            (json!(2), json!(1), json!(2))
+        );
+        // Past the last page meant the last page (C).
+        let mut far = json!({"UUID": PAGE_GOTO, "Settings": {"PageIndex": 9}});
+        assert!(renumber_goto(&mut far, &renumber));
+        assert_eq!(far["Settings"]["PageIndex"], 1);
+        // Unchanged numbers: nothing to save.
+        let mut same = json!({"UUID": PAGE_GOTO, "Settings": {"PageIndex": 2}});
+        assert!(!renumber_goto(&mut same, &[1, 2]));
+    }
+}

@@ -200,6 +200,7 @@ pub fn router(sh: Shared) -> Router {
         .route("/api/profiles", post(create_profile))
         .route("/api/profiles/{profile}", axum::routing::patch(rename_profile).delete(delete_profile))
         .route("/api/profiles/{profile}/pages", post(add_page))
+        .route("/api/profiles/{profile}/pages/order", post(reorder_pages))
         .route("/api/profiles/{profile}/export", get(export_profile))
         .route("/api/devices/{id}", post(update_device))
         .route("/api/import", post(import).layer(axum::extract::DefaultBodyLimit::max(MAX_IMPORT_BYTES)))
@@ -1150,6 +1151,21 @@ async fn add_page(State(sh): State<Shared>, Path(profile): Path<String>) -> ApiR
     }
     e.emit(json!({"event": "state"}));
     Ok(Json(json!({"id": id})))
+}
+
+#[derive(Deserialize)]
+struct PageOrder {
+    pages: Vec<String>,
+}
+
+async fn reorder_pages(State(sh): State<Shared>, Path(profile): Path<String>, Json(req): Json<PageOrder>) -> ApiResult<Json<Value>> {
+    let mut e = sh.lock();
+    if !e.profiles.contains_key(&profile) {
+        return Err(not_found("Profile"));
+    }
+    e.reorder_pages(&profile, &req.pages)?;
+    let pages = e.profiles.get(&profile).map(|p| p.manifest.pages.pages.clone()).unwrap_or_default();
+    Ok(Json(json!({"pages": pages})))
 }
 
 async fn delete_page(State(sh): State<Shared>, Path((profile, page)): Path<(String, String)>) -> ApiResult<Json<Value>> {
