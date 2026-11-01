@@ -1212,6 +1212,38 @@ async function suiteNeo(d, b) {
     await until(async () => (await d.action('Keypad', '3,0'))?.Settings?.Hotkeys?.[0]?.QTKeyCode === 33554431, 'hotkey removed');
   });
 
+  await test('editor: Super combinations the desktop keeps: switch on Super, record just the key', async () => {
+    await selectSlot(b, 'Keypad', '3,0');
+    await b.waitFor(`!!document.querySelector('#editor .hotkey .hk-mods')`, 'modifier switches');
+    const hk0 = async () => (await d.action('Keypad', '3,0'))?.Settings?.Hotkeys?.[0];
+    // What arrives when the desktop takes Super+E: Super alone.
+    await b.clickText('#editor .hotkey button.btn', 'Record');
+    await b.keyEvent('keyDown', 'Meta', { code: 'MetaLeft', keyCode: 91, modifiers: 4 });
+    await b.keyEvent('keyUp', 'Meta', { code: 'MetaLeft', keyCode: 91 });
+    await until(async () => (await hk0())?.LinuxCode === 125, 'only Super saved');
+    await b.waitFor(`!!document.querySelector('#editor .hk-hint')`, 'hint shown');
+    // Switch on Super, then record E.
+    await b.click(`#editor .hotkey .hk-mod[data-mod="meta"]`);
+    await b.waitFor(`document.querySelector('#editor .hotkey .hk-mod[data-mod="meta"]').getAttribute('aria-pressed') === 'true'`, 'Super on');
+    await b.clickText('#editor .hotkey button.btn', 'Record');
+    await b.keyEvent('keyDown', 'e', { code: 'KeyE', keyCode: 69 });
+    await b.keyEvent('keyUp', 'e', { code: 'KeyE', keyCode: 69 });
+    await until(async () => (await hk0())?.LinuxCode === 18, 'Super+E saved');
+    const hk = await hk0();
+    eq([hk.KeyCmd, hk.KeyCtrl, hk.KeyShift, hk.KeyOption, hk.KeyModifiers], [true, false, false, false, 8]);
+    assert(/^(Super|⌘) \+ E$/.test(await b.text('#editor .hk-display')), 'shows Super + E (⌘ on the mac platform)');
+    assert(!(await b.exists('#editor .hk-hint')), 'hint gone');
+    // The switches change a recorded combination: Ctrl on and off again.
+    await b.click(`#editor .hotkey .hk-mod[data-mod="ctrl"]`);
+    await until(async () => (await hk0())?.KeyModifiers === 10, 'Ctrl added');
+    assert(/^Ctrl \+ (Super|⌘) \+ E$/.test(await b.text('#editor .hk-display')), 'shows Ctrl + Super + E');
+    await b.click(`#editor .hotkey .hk-mod[data-mod="ctrl"]`);
+    await until(async () => (await hk0())?.KeyModifiers === 8 && !(await hk0()).KeyCtrl, 'Ctrl removed');
+    await b.click('#editor .hotkey .icon-btn.danger:not([disabled])');
+    await until(async () => (await hk0())?.QTKeyCode === 33554431, 'removed');
+    eq(await b.eval(`[...document.querySelectorAll('#editor .hotkey:first-child .hk-mod')].map((m) => m.getAttribute('aria-pressed'))`), ['false', 'false', 'false', 'false'], 'switches off after removing');
+  });
+
   await test('editor: on a QWERTZ layout Ctrl+Z is recorded and shown as Z (the key where US has Y)', async () => {
     // The layout the browser reports for the keys (Chromium: navigator.keyboard).
     await b.eval(`(() => { window.__layout = navigator.keyboard?.getLayoutMap; const kb = navigator.keyboard || {};

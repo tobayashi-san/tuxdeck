@@ -743,5 +743,9 @@
  "Alt+←": "Alt+←",
  "Alt+→": "Alt+→",
  "Page {from} is now page {to}": "Seite {from} ist jetzt Seite {to}",
- "the new order must contain exactly the pages of the profile": "die neue Reihenfolge muss genau die Seiten des Profils enthalten"
+ "the new order must contain exactly the pages of the profile": "die neue Reihenfolge muss genau die Seiten des Profils enthalten",
+ "Modifier keys of combination {n}": "Zusatztasten von Kombination {n}",
+ "Add or remove {key}": "{key} hinzufügen oder entfernen",
+ "Added to the key you record next": "Wird zur nächsten aufgenommenen Taste hinzugefügt",
+ "Only {key} was recorded? The desktop keeps many combinations with it to itself. Switch on {key} below the combination and record just the other key.": "Nur {key} aufgenommen? Viele Kombinationen damit behält die Arbeitsfläche für sich. Schalte {key} unter der Kombination ein und nimm nur die andere Taste auf."
 }

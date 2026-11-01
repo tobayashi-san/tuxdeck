@@ -99,6 +99,11 @@ without uinput the keys only reach the focused window: Hyprland's own key bindin
 `wl-copy` (`wl-clipboard`) or `xclip`. The settings (gear icon) show which method is
 active.
 
+**Recording a combination with Super:** the desktop keeps many Super combinations to
+itself, so the recorder only sees "Super". Switch on **Super** (or Ctrl, Alt, Shift)
+below the combination and record just the other key; the switches also change a
+combination recorded before.
+
 "Type instead of paste" types over uinput with your keyboard layout (read from Hyprland,
 GNOME, KDE or X11; `libxkbcommon` must be installed). Characters the layout has no key
 for are reported instead of typed; set the layout yourself with

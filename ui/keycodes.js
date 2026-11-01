@@ -142,6 +142,28 @@ export const MODIFIER_CODES = new Set([
   'MetaLeft', 'MetaRight', 'OSLeft', 'OSRight',
 ]);
 
+const MODIFIER_EV = new Set([...MODIFIER_CODES].map((c) => KEYMAP.get(c)?.ev).filter((x) => x != null));
+
+/** The modifiers of a hotkey: {ctrl, alt, shift, meta}. */
+export function hotkeyMods(hk) {
+  const m = hk?.KeyModifiers ?? 0;
+  return { ctrl: !!(hk?.KeyCtrl || m & 2), alt: !!(hk?.KeyOption || m & 4), shift: !!(hk?.KeyShift || m & 1), meta: !!(hk?.KeyCmd || m & 8) };
+}
+
+/** `hk` with other modifiers (the key stays). */
+export function withMods(hk, mods) {
+  return {
+    ...hk, KeyCtrl: !!mods.ctrl, KeyOption: !!mods.alt, KeyShift: !!mods.shift, KeyCmd: !!mods.meta,
+    KeyModifiers: (mods.shift ? 1 : 0) | (mods.ctrl ? 2 : 0) | (mods.alt ? 4 : 0) | (mods.meta ? 8 : 0),
+  };
+}
+
+/** Just a modifier key on its own (e.g. only "Super": the desktop kept the rest). */
+export function isModifierOnly(hk) {
+  const m = hotkeyMods(hk);
+  return !isUnusedHotkey(hk) && MODIFIER_EV.has(hk.LinuxCode) && !m.ctrl && !m.alt && !m.shift && !m.meta;
+}
+
 export function unusedHotkey() {
   return {
     KeyCmd: false, KeyCtrl: false, KeyOption: false, KeyShift: false, KeyModifiers: 0,

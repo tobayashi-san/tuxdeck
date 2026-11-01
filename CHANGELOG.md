@@ -100,6 +100,10 @@
 - **Gradient key backgrounds:** besides colours, keys can have a linear or radial gradient:
   ready-made ones, an editor (type, angle, up to six colours) and CSS pasted from
   cssgradient.io (`linear-gradient(…)`, `radial-gradient(…)`).
+- **Hotkeys with Super:** the desktop keeps many Super combinations, so the recorder
+  only saw "Super". Below each combination there are now switches for Ctrl, Alt, Shift
+  and Super: switch on Super and record just the key; they also change a recorded
+  combination. A hint explains it when only a modifier was recorded.
 - **Colour pickers:** the colour and position controls of the gradient editor no longer
   close while picking; the title colour follows the picker live. A setting still waiting
   to be saved (e.g. text typed just before selecting another key) is no longer lost.

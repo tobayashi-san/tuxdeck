@@ -8,7 +8,7 @@ import { pickIcon } from './iconpacks.js';
 import { GRADIENT_PRESETS, editGradient, isGradient } from './gradient.js';
 import { t, tn } from './i18n.js';
 import {
-  makeHotkey, unusedHotkey, isUnusedHotkey, hotkeyLabel, loadLayoutMap, layoutLoaded, MODIFIER_CODES,
+  makeHotkey, unusedHotkey, isUnusedHotkey, hotkeyLabel, loadLayoutMap, layoutLoaded, MODIFIER_CODES, hotkeyMods, withMods, isModifierOnly,
 } from './keycodes.js';
 
 let root = null;
@@ -728,6 +728,9 @@ function hotkeyField(id, value, set, rows = 0) {
   let pressedMods = new Set();
   let multi = false;
   let shown = [];
+  // Modifiers switched on below a combination: they are added to the recorded key. The
+  // desktop keeps most Super combinations to itself, so the browser never sees them.
+  const armed = list.map(() => ({}));
 
   const save = () => set(list.map((x) => ({ ...x })));
   const lastUsed = () => {
@@ -768,7 +771,8 @@ function hotkeyField(id, value, set, rows = 0) {
       shown[recIdx]?.show(hotkeyLabel(makeHotkey(e.code, modsOf(e, '')), mac) + ' + …');
       return;
     }
-    const mods = { shift: e.shiftKey, ctrl: e.ctrlKey, alt: e.altKey, meta: e.metaKey };
+    const on = armed[recIdx] || {};
+    const mods = { shift: e.shiftKey || !!on.shift, ctrl: e.ctrlKey || !!on.ctrl, alt: e.altKey || !!on.alt, meta: e.metaKey || !!on.meta };
     const at = recIdx;
     // The character the layout puts on the key may still be loading.
     layoutLoaded().then(() => {
@@ -834,14 +838,38 @@ function hotkeyField(id, value, set, rows = 0) {
         id: i === 0 ? id : null, type: 'button', class: recording ? 'recording' : null,
         onclick: () => { if (recording) done(); else start(i); },
       }, recording ? t('Cancel') : t('Record'));
+      // Modifier switches: change a recorded combination, or are added to the next recording.
+      const used = !isUnusedHotkey(list[i]) && !isModifierOnly(list[i]);
+      const on = used ? hotkeyMods(list[i]) : armed[i];
+      const modBtns = h('div.hk-mods', { role: 'group', 'aria-label': t('Modifier keys of combination {n}', { n: i + 1 }) },
+        [['ctrl', t('Ctrl')], ['alt', 'Alt'], ['shift', t('Shift')], ['meta', mac ? '⌘' : 'Super']].map(([k, label]) => h('button.hk-mod', {
+          type: 'button', 'aria-pressed': String(!!on[k]), dataset: { mod: k },
+          title: used ? t('Add or remove {key}', { key: label }) : t('Added to the key you record next'),
+          onclick: () => {
+            if (used) {
+              list[i] = withMods(list[i], { ...hotkeyMods(list[i]), [k]: !hotkeyMods(list[i])[k] });
+              save();
+            } else {
+              armed[i] = { ...armed[i], [k]: !armed[i][k] };
+            }
+            focusIdx = -1;
+            render();
+            box.querySelectorAll('.hotkey')[i]?.querySelector(`.hk-mod[data-mod="${k}"]`)?.focus({ preventScroll: true });
+          },
+        }, label)));
       box.append(h('div.hotkey', null,
         h('span.hk-num', { class: rows ? 'state' : null }, rows ? t('State {n}', { n: i + 1 }) : `${i + 1}.`),
         display,
         btn,
         h('button.icon-btn.danger', {
           type: 'button', title: t('Remove combination'), disabled: isUnusedHotkey(list[i]),
-          onclick: () => { stop(); list[i] = unusedHotkey(); save(); focusIdx = i; render(); },
-        }, icon('close'))));
+          onclick: () => { stop(); list[i] = unusedHotkey(); armed[i] = {}; save(); focusIdx = i; render(); },
+        }, icon('close')),
+        modBtns));
+      // Only "Super" arrived: the desktop took the combination before the browser saw it.
+      if (isModifierOnly(list[i]) && !recording) {
+        box.append(h('p.field-help.hk-hint', null, t('Only {key} was recorded? The desktop keeps many combinations with it to itself. Switch on {key} below the combination and record just the other key.', { key: hotkeyLabel(list[i], mac) })));
+      }
       if (i === focus) btn.focus({ preventScroll: true });
     }
     // Hyprland's own way of sending keys reaches only the focused window.
