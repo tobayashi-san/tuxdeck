@@ -502,12 +502,9 @@ fn split_top(s: &str) -> Vec<&str> {
 fn parse_css_gradient(c: &str) -> Option<CssGradient> {
     let c = c.trim().trim_end_matches(';');
     let c = c.strip_prefix("background:").or_else(|| c.strip_prefix("background-image:")).map(str::trim).unwrap_or(c);
-    let (kind, inner) = if let Some(r) = c.strip_prefix("linear-gradient(") {
-        (GradientKind::Linear(180.0), r)
-    } else if let Some(r) = c.strip_prefix("radial-gradient(") {
-        (GradientKind::Radial, r)
-    } else {
-        return None;
+    let (kind, inner) = match c.strip_prefix("linear-gradient(") {
+        Some(r) => (GradientKind::Linear(180.0), r),
+        None => (GradientKind::Radial, c.strip_prefix("radial-gradient(")?),
     };
     let inner = inner.strip_suffix(')')?;
     let mut parts = split_top(inner);

@@ -50,14 +50,18 @@ grep -q "^ExecStart=\"$home/.local/bin/tuxdeck\" run --no-browser" "$home/.confi
 grep -q '^RestartPreventExitStatus=3' "$home/.config/systemd/user/tuxdeck.service" || fail "RestartPreventExitStatus"
 [ -f "$share/icons/hicolor/scalable/apps/tuxdeck.svg" ] || fail "icon"
 [ ! -e "$share/icons/hicolor/icon-theme.cache" ] || fail "no icon cache of our own"
-[ -f "$tmp/udev/70-tuxdeck.rules" ] && [ -f "$tmp/udev/71-tuxdeck-uinput.rules" ] || fail "udev rules"
+[ -f "$tmp/udev/70-tuxdeck.rules" ] || fail "udev rule"
+[ -f "$tmp/udev/71-tuxdeck-uinput.rules" ] || fail "uinput udev rule"
 [ -f "$tmp/modules/tuxdeck-uinput.conf" ] || fail "uinput module listed for loading"
 grep -q '^modprobe uinput' "$tmp/calls" || fail "uinput module loaded"
 
 run --uninstall
-[ ! -e "$home/.local/bin/tuxdeck" ] && [ ! -e "$share/applications/tuxdeck.desktop" ] && [ ! -e "$home/.config/systemd/user/tuxdeck.service" ] || fail "uninstall"
+for f in "$home/.local/bin/tuxdeck" "$share/applications/tuxdeck.desktop" "$home/.config/systemd/user/tuxdeck.service"; do
+    [ ! -e "$f" ] || fail "uninstall: $f left"
+done
 [ ! -e "$share/doc/tuxdeck" ] || fail "docs removed"
-[ ! -e "$tmp/udev/70-tuxdeck.rules" ] && [ ! -e "$tmp/modules/tuxdeck-uinput.conf" ] || fail "rules removed"
+[ ! -e "$tmp/udev/70-tuxdeck.rules" ] || fail "udev rule removed"
+[ ! -e "$tmp/modules/tuxdeck-uinput.conf" ] || fail "uinput module list removed"
 grep -q '^text/html=firefox.desktop' "$home/.config/mimeapps.list" || fail "other default applications kept"
 ! grep -q streamdeck "$home/.config/mimeapps.list" || fail "streamdeck:// handler removed"
 echo "install.sh: ok"
