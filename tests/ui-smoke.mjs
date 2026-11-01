@@ -874,8 +874,10 @@ async function suiteNeo(d, b) {
     await until(async () => J(await order()) === J([A, B, C]), 'undone');
     await tabsShow([A, B, C]);
     // Keyboard: Alt+← on page 3 makes it page 2; the tab keeps the focus.
-    await b.eval(`document.querySelectorAll('#pagebar .page-tab')[2].focus()`);
-    await b.key('ArrowLeft', { keyCode: KEYS.ArrowLeft, modifiers: 1 });
+    // Sent to the focused tab itself: in a headless Chrome without window focus, Alt+←
+    // would otherwise reach the browser (its "Back" shortcut).
+    await b.eval(`(() => { const tab = document.querySelectorAll('#pagebar .page-tab')[2]; tab.focus();
+      tab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', code: 'ArrowLeft', altKey: true, bubbles: true, cancelable: true })); })()`);
     await until(async () => J(await order()) === J([A, C, B]), 'Alt+ArrowLeft');
     await tabsShow([A, C, B]);
     await b.waitFor(`document.activeElement?.closest('.page-tab-wrap')?.dataset.page === ${J(C)}`, 'focus on the moved tab');
