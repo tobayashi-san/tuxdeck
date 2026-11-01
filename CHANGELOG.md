@@ -100,6 +100,8 @@
 - **Gradient key backgrounds:** besides colours, keys can have a linear or radial gradient:
   ready-made ones, an editor (type, angle, up to six colours) and CSS pasted from
   cssgradient.io (`linear-gradient(…)`, `radial-gradient(…)`).
+- The built-in action categories (Deck, System, Multi Action, Soundboard, Neo Info Bar)
+  have icons in the action list, like the plugins' categories.
 - **New profiles:** the starter profile ("Standard") and the samples Work, Play and
   Streaming were redone in one calm look: dark keys with a light line icon, the title
   below and a small dot in the colour of the key's group (media, voice, programs, tools,

@@ -651,6 +651,10 @@ async function suiteNeoActions(d) {
       assert(a, `missing ${u}`);
       assert(a.icon, `icon of ${u}`);
     }
+    // Every built-in category has an icon (a symbol on a coloured tile).
+    const builtinCats = cats.filter((c) => c.actions.every((a) => a.builtin));
+    eq(builtinCats.length, 5, 'five built-in categories');
+    for (const c of builtinCats) assert(/^data:image\/svg\+xml;base64,/.test(c.icon || '') && Buffer.from(c.icon.split(',')[1], 'base64').toString().includes('<path'), `icon of ${c.category}`);
     const pag = all.find((x) => x.uuid === 'com.elgato.streamdeck.system.pagination');
     const theme = pag.form.find((f) => f.key === 'theme');
     eq(theme.depends_on, 'layout');

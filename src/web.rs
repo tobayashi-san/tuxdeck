@@ -483,6 +483,25 @@ fn icon_url(plugin: &plugins::Plugin, rel: Option<&String>) -> Option<String> {
     Some(format!("/plugin-files/{}/{}", plugin.uuid, r))
 }
 
+/// Icon of a built-in category: a white symbol of the bundled Elgato set on a coloured
+/// tile, like the icons plugins bring for theirs.
+fn builtin_category_icon(category: &str) -> Option<String> {
+    use base64::Engine as _;
+    let (icon, color) = match category {
+        builtin::CAT_NAV => ("stream-deck-mk2", "#3b82f6"),
+        builtin::CAT_SYSTEM => ("settings", "#64748b"),
+        builtin::CAT_MULTI => ("multi-action", "#8b5cf6"),
+        builtin::CAT_SOUND => ("sound-effect", "#e84393"),
+        builtin::CAT_NEO => ("infobar", "#0ea5e9"),
+        _ => return None,
+    };
+    let glyph = crate::resources::pack_glyph(icon)?;
+    let svg = format!(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"><rect width="48" height="48" rx="10" fill="{color}"/><g transform="translate(9,9) scale(1.25)" fill="#ffffff">{glyph}</g></svg>"##
+    );
+    Some(format!("data:image/svg+xml;base64,{}", base64::engine::general_purpose::STANDARD.encode(svg)))
+}
+
 async fn actions(State(sh): State<Shared>) -> Json<Value> {
     let e = sh.lock();
     let layouts = e.paths.layouts();
@@ -493,7 +512,7 @@ async fn actions(State(sh): State<Shared>) -> Json<Value> {
     let mut cats: Vec<(String, Option<String>, Vec<Value>)> = Vec::new();
     let order = [builtin::CAT_NAV, builtin::CAT_SYSTEM, builtin::CAT_MULTI, builtin::CAT_SOUND, builtin::CAT_NEO];
     for c in order {
-        cats.push((c.to_string(), None, vec![]));
+        cats.push((c.to_string(), builtin_category_icon(c), vec![]));
     }
     for p in &e.registry.plugins {
         for a in &p.manifest.actions {
