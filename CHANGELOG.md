@@ -100,6 +100,10 @@
 - **Gradient key backgrounds:** besides colours, keys can have a linear or radial gradient:
   ready-made ones, an editor (type, angle, up to six colours) and CSS pasted from
   cssgradient.io (`linear-gradient(…)`, `radial-gradient(…)`).
+- **Hyprland without uinput:** a hotkey that is one of Hyprland's own key bindings
+  (e.g. Super+T for a terminal, workspaces, a screenshot bind) now runs that binding;
+  before, the keys only reached the focused window and Hyprland didn't react. Works
+  with Lua configs (0.55+) and older configs.
 - **Hotkeys with Super:** the desktop keeps many Super combinations, so the recorder
   only saw "Super". Below each combination there are now switches for Ctrl, Alt, Shift
   and Super: switch on Super and record just the key; they also change a recorded

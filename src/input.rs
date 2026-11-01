@@ -314,6 +314,8 @@ pub struct Injector {
     backend: Backend,
     /// Hyprland >= 0.55 uses a Lua dispatcher API (`hl.dsp.*`); `None` = not probed yet.
     hypr_lua: Option<bool>,
+    /// A combo held down that ran one of Hyprland's own key bindings (see `hypr_bind`).
+    hypr_bound: Option<Combo>,
     /// Window class of the focused application (terminals paste with Ctrl+Shift+V).
     pub focused_class: String,
 }
@@ -675,6 +677,66 @@ fn hypr_legacy_expr(c: &Combo) -> String {
     format!("sendshortcut {}, {},", hypr_mods(c), hypr_key(c))
 }
 
+/// One of Hyprland's key bindings (`hyprctl binds -j`).
+#[derive(Debug, PartialEq)]
+struct HyprBind {
+    dispatcher: String,
+    arg: String,
+}
+
+impl HyprBind {
+    /// The `hyprctl dispatch` argument that runs it. Lua configs (0.55+) bind Lua functions
+    /// kept in the registry under the number in `arg`; `dispatch` evaluates
+    /// `hl.dispatch(<expr>)`, which calls a function. Older configs name a dispatcher.
+    fn dispatch_expr(&self) -> String {
+        if self.dispatcher == "__lua" {
+            format!("debug.getregistry()[{}]", self.arg.trim().parse::<i64>().unwrap_or(0))
+        } else if self.arg.is_empty() {
+            self.dispatcher.clone()
+        } else {
+            format!("{} {}", self.dispatcher, self.arg)
+        }
+    }
+}
+
+/// `hyprctl binds -j` of the running Hyprland.
+#[cfg(not(test))]
+fn hypr_binds() -> Option<String> {
+    if dry_run() {
+        return None;
+    }
+    let out = hyprctl_command().args(["binds", "-j"]).stderr(Stdio::null()).output().ok().filter(|o| o.status.success())?;
+    Some(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+#[cfg(test)]
+fn hypr_binds() -> Option<String> {
+    tests::FAKE_BINDS.with(|b| b.borrow().clone())
+}
+
+/// The binding of the main key map that a real press of `c` would trigger. Hyprland's
+/// modmask: Shift 1, Ctrl 4, Alt 8, Super 64 (Caps Lock and Num Lock are ignored, as by
+/// Hyprland). The key matches by keysym name (case-insensitive) or by key code.
+fn find_hypr_bind(json: &str, c: &Combo) -> Option<HyprBind> {
+    let binds: Vec<Value> = serde_json::from_str(json).ok()?;
+    let mask = (if c.mods & MOD_SHIFT != 0 { 1 } else { 0 })
+        | (if c.mods & MOD_CTRL != 0 { 4 } else { 0 })
+        | (if c.mods & MOD_ALT != 0 { 8 } else { 0 })
+        | (if c.mods & MOD_SUPER != 0 { 64 } else { 0 });
+    let sym = c.keysym.as_deref().unwrap_or("");
+    let xkb_code = c.code.map(|k| k as i64 + 8).or_else(|| c.key.map(|k| k.code() as i64 + 8));
+    binds.iter().find_map(|b| {
+        let s = |k: &str| b.get(k).and_then(|v| v.as_str()).unwrap_or("");
+        let flag = |k: &str| b.get(k).and_then(|v| v.as_bool()).unwrap_or(false);
+        let modmask = b.get("modmask").and_then(|v| v.as_i64()).unwrap_or(0) & !(2 | 16);
+        let keycode = b.get("keycode").and_then(|v| v.as_i64()).unwrap_or(0);
+        let key = s("key");
+        let same_key = if keycode > 0 { Some(keycode) == xkb_code } else { !key.is_empty() && !sym.is_empty() && key.eq_ignore_ascii_case(sym) };
+        let usable = s("submap").is_empty() && !flag("mouse") && !flag("catch_all") && !flag("release") && !s("dispatcher").is_empty();
+        (usable && same_key && modmask == mask).then(|| HyprBind { dispatcher: s("dispatcher").to_string(), arg: s("arg").to_string() })
+    })
+}
+
 fn wtype_args(c: &Combo) -> Vec<String> {
     let names: Vec<&str> = mod_names(c.mods).into_iter().map(|n| if n == "super" { "logo" } else { n }).collect();
     let mut args: Vec<String> = Vec::new();
@@ -718,13 +780,13 @@ impl Injector {
     pub fn with_preference(pref: &str) -> Injector {
         if dry_run() {
             // Exercise the command line path; every call is logged, nothing is sent.
-            return Injector { dev: None, backend: Backend::Hyprland, hypr_lua: Some(true), focused_class: String::new() };
+            return Injector { dev: None, backend: Backend::Hyprland, hypr_lua: Some(true), hypr_bound: None, focused_class: String::new() };
         }
         let desktop = Desktop::detect();
         match preferred_backend(pref, &desktop) {
             Some(backend) => {
                 tracing::info!("key injection backend: {backend:?} (setting)");
-                return Injector { dev: None, backend, hypr_lua: None, focused_class: String::new() };
+                return Injector { dev: None, backend, hypr_lua: None, hypr_bound: None, focused_class: String::new() };
             }
             None if matches!(pref, "hyprctl" | "wtype" | "xdotool") => tracing::warn!("input backend {pref} is not available, choosing automatically"),
             None => {}
@@ -744,7 +806,7 @@ impl Injector {
             }
         };
         tracing::info!("key injection backend: {backend:?}");
-        Injector { dev: dev.ok(), backend, hypr_lua: None, focused_class: String::new() }
+        Injector { dev: dev.ok(), backend, hypr_lua: None, hypr_bound: None, focused_class: String::new() }
     }
 
     pub fn backend_name(&self) -> &'static str {
@@ -781,8 +843,24 @@ impl Injector {
         Ok(())
     }
 
-    /// Hyprland: Lua API first, legacy `sendshortcut` syntax as fallback.
+    /// Hyprland: a combo that is one of Hyprland's own key bindings runs that binding (keys
+    /// sent with `sendshortcut` only reach the focused window, so Hyprland itself would not
+    /// react: workspaces, launchers, screenshots). Other combos go to the focused window:
+    /// Lua API first, legacy `sendshortcut` syntax as fallback.
     fn hypr_shortcut(&mut self, c: &Combo, state: Option<&str>) -> Result<()> {
+        if state == Some("up") && self.hypr_bound.as_ref() == Some(c) {
+            self.hypr_bound = None;
+            return Ok(());
+        }
+        if state != Some("up") {
+            if let Some(b) = hypr_binds().and_then(|j| find_hypr_bind(&j, c)) {
+                tracing::debug!("{c:?} is Hyprland's binding {} {}", b.dispatcher, b.arg);
+                if state == Some("down") {
+                    self.hypr_bound = Some(c.clone());
+                }
+                return hyprctl(&b.dispatch_expr());
+            }
+        }
         if self.hypr_lua != Some(false) {
             match hyprctl(&hypr_lua_expr(c, state)) {
                 Ok(()) => {
@@ -1027,6 +1105,8 @@ mod tests {
     thread_local! {
         /// Commands "run" on this test thread and the fake that answers them.
         static FAKE: RefCell<(Vec<Vec<String>>, Option<Responder>)> = RefCell::new((Vec::new(), None));
+        /// What `hyprctl binds -j` answers on this test thread.
+        pub(super) static FAKE_BINDS: RefCell<Option<String>> = const { RefCell::new(None) };
     }
 
     pub(super) fn fake_exec(cmd: &str, args: &[&str], input: Option<&str>) -> Result<()> {
@@ -1057,7 +1137,7 @@ mod tests {
     }
 
     fn inj(backend: Backend) -> Injector {
-        Injector { dev: None, backend, hypr_lua: None, focused_class: String::new() }
+        Injector { dev: None, backend, hypr_lua: None, hypr_bound: None, focused_class: String::new() }
     }
 
     fn combo(mods: u32, key: Option<KeyCode>, keysym: &str, code: Option<u16>) -> Combo {
@@ -1140,6 +1220,51 @@ mod tests {
         let c = combo(MOD_SUPER | MOD_ALT | MOD_SHIFT | MOD_CTRL, Some(KeyCode::KEY_T), "t", None);
         assert_eq!(uinput_keys(&c), vec![KeyCode::KEY_LEFTCTRL, KeyCode::KEY_LEFTSHIFT, KeyCode::KEY_LEFTALT, KeyCode::KEY_LEFTMETA, KeyCode::KEY_T]);
         assert_eq!(uinput_keys(&combo(0, None, "", None)), vec![]);
+    }
+
+    #[test]
+    fn hyprland_own_bindings() {
+        // As `hyprctl binds -j` of a Lua config (0.55) and of an older config.
+        let binds = r#"[
+            {"modmask": 64, "submap": "", "key": "T", "keycode": 0, "mouse": false, "release": false, "catch_all": false, "dispatcher": "__lua", "arg": "36"},
+            {"modmask": 66, "submap": "", "key": "Return", "keycode": 0, "mouse": false, "release": false, "catch_all": false, "dispatcher": "exec", "arg": "kitty"},
+            {"modmask": 64, "submap": "resize", "key": "R", "keycode": 0, "mouse": false, "release": false, "catch_all": false, "dispatcher": "exec", "arg": "x"},
+            {"modmask": 64, "submap": "", "key": "", "keycode": 18, "mouse": false, "release": false, "catch_all": false, "dispatcher": "exec", "arg": "files"},
+            {"modmask": 64, "submap": "", "key": "mouse:272", "keycode": 0, "mouse": true, "release": false, "catch_all": false, "dispatcher": "movewindow", "arg": ""}
+        ]"#;
+        // Super+T recorded here (QWERTZ etc.: keysym from the layout, code of the key).
+        let super_t = Combo::from_elgato(&json!({"KeyCmd": true, "KeyModifiers": 8, "QTKeyCode": 84, "LinuxCode": 20}), true).unwrap();
+        let b = find_hypr_bind(binds, &super_t).unwrap();
+        assert_eq!(b.dispatch_expr(), "debug.getregistry()[36]");
+        // Caps Lock in the mask is ignored; a dispatcher of an older config is named.
+        assert_eq!(find_hypr_bind(binds, &combo(MOD_SUPER, None, "Return", None)).unwrap().dispatch_expr(), "exec kitty");
+        // By key code (xkb code = evdev + 8).
+        assert_eq!(find_hypr_bind(binds, &combo(MOD_SUPER, Some(KeyCode::new(10)), "9", Some(10))).unwrap().arg, "files");
+        // Other submaps, other modifiers and mouse bindings don't count.
+        assert_eq!(find_hypr_bind(binds, &combo(MOD_SUPER, None, "r", None)), None);
+        assert_eq!(find_hypr_bind(binds, &combo(MOD_SUPER | MOD_SHIFT, None, "t", None)), None);
+        assert_eq!(find_hypr_bind(binds, &combo(0, None, "t", None)), None);
+        assert_eq!(find_hypr_bind("not json", &super_t), None);
+
+        // The injector runs the binding instead of sending keys to the window; held keys
+        // run it once on press, the release sends nothing.
+        FAKE_BINDS.with(|f| *f.borrow_mut() = Some(binds.to_string()));
+        let mut i = inj(Backend::Hyprland);
+        let log = record(ok, || {
+            i.tap(&super_t).unwrap();
+            i.combo_down(&super_t).unwrap();
+            i.combo_up(&super_t).unwrap();
+            i.tap(&combo(MOD_CTRL, Some(KeyCode::KEY_C), "c", Some(46))).unwrap();
+        });
+        assert_eq!(
+            log,
+            vec![
+                "hyprctl dispatch debug.getregistry()[36]",
+                "hyprctl dispatch debug.getregistry()[36]",
+                r#"hyprctl dispatch hl.dsp.send_shortcut({ mods = "CTRL", key = "code:54" })"#,
+            ]
+        );
+        FAKE_BINDS.with(|f| *f.borrow_mut() = None);
     }
 
     #[test]

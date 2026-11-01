@@ -94,8 +94,9 @@ be used, reboot once. To disable it again, delete `71-tuxdeck-uinput.rules` from
 
 Without uinput the program falls back to Hyprland, `wtype` (Sway and other wlroots
 desktops) or `xdotool` (X11 sessions). GNOME and KDE on Wayland need uinput. On Hyprland
-without uinput the keys only reach the focused window: Hyprland's own key bindings
-(workspaces, a screenshot bind) don't react to them. Pasting text additionally needs
+without uinput the keys only reach the focused window; a combination that is one of
+Hyprland's own key bindings (workspaces, launchers, a screenshot bind) runs that binding
+directly. Global shortcuts of other programs (e.g. push-to-talk) need uinput. Pasting text additionally needs
 `wl-copy` (`wl-clipboard`) or `xclip`. The settings (gear icon) show which method is
 active.
 

@@ -698,7 +698,6 @@
  "The download stalled – please try again": "Der Download ist stehen geblieben – bitte noch einmal versuchen",
  "{name} can't start: Node.js {need} or newer is not installed, or not on the service's PATH (see \"Node.js\" in the handbook).": "{name} kann nicht starten: Node.js {need} oder neuer ist nicht installiert oder nicht im PATH des Dienstes (siehe „Node.js“ im Handbuch).",
  "{name} can't start: it needs Node.js {need} or newer, but {found} is installed (see \"Node.js\" in the handbook).": "{name} kann nicht starten: Es braucht Node.js {need} oder neuer, installiert ist {found} (siehe „Node.js“ im Handbuch).",
- "Without /dev/uinput, Hyprland gives the keys to the focused window only: Hyprland's own key bindings (workspaces, screenshots) don't react. See \"Hotkeys or text do not arrive\" in the handbook.": "Ohne /dev/uinput gibt Hyprland die Tasten nur an das aktive Fenster: Hyprlands eigene Tastenbelegungen (Arbeitsflächen, Screenshots) reagieren nicht. Siehe „Hotkeys oder Text kommen nicht an“ im Handbuch.",
  "no way to send keys here: enable /dev/uinput (see the handbook) or install wtype (wlroots) or xdotool (X11)": "Tasten können hier nicht gesendet werden: /dev/uinput einschalten (siehe Handbuch) oder wtype (wlroots) bzw. xdotool (X11) installieren",
  "text can't be typed here: enable /dev/uinput (see the handbook) or turn off \"Type instead of paste\"": "Text kann hier nicht getippt werden: /dev/uinput einschalten (siehe Handbuch) oder „Tippen statt Einfügen“ ausschalten",
  "{chars} can't be typed with the keyboard layout {layout}: turn off \"Type instead of paste\"": "{chars} lässt sich mit dem Tastaturlayout {layout} nicht tippen: „Tippen statt Einfügen“ ausschalten",
@@ -747,5 +746,6 @@
  "Modifier keys of combination {n}": "Zusatztasten von Kombination {n}",
  "Add or remove {key}": "{key} hinzufügen oder entfernen",
  "Added to the key you record next": "Wird zur nächsten aufgenommenen Taste hinzugefügt",
- "Only {key} was recorded? The desktop keeps many combinations with it to itself. Switch on {key} below the combination and record just the other key.": "Nur {key} aufgenommen? Viele Kombinationen damit behält die Arbeitsfläche für sich. Schalte {key} unter der Kombination ein und nimm nur die andere Taste auf."
+ "Only {key} was recorded? The desktop keeps many combinations with it to itself. Switch on {key} below the combination and record just the other key.": "Nur {key} aufgenommen? Viele Kombinationen damit behält die Arbeitsfläche für sich. Schalte {key} unter der Kombination ein und nimm nur die andere Taste auf.",
+ "Without /dev/uinput the keys reach only the focused window. Combinations that are Hyprland key bindings (workspaces, launchers, screenshots) run that binding directly; global shortcuts of other programs don't react. See \"Hotkeys or text do not arrive\" in the handbook.": "Ohne /dev/uinput kommen die Tasten nur im aktiven Fenster an. Kombinationen, die eine Hyprland-Tastenbelegung sind (Arbeitsflächen, Starter, Screenshots), führen diese Belegung direkt aus; globale Tastenkürzel anderer Programme reagieren nicht. Siehe „Hotkeys oder Text kommen nicht an“ im Handbuch."
 }

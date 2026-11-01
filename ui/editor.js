@@ -874,7 +874,7 @@ function hotkeyField(id, value, set, rows = 0) {
     }
     // Hyprland's own way of sending keys reaches only the focused window.
     if (S.state.settings?.injector_active === 'hyprctl') {
-      box.append(h('p.field-help', null, t('Without /dev/uinput, Hyprland gives the keys to the focused window only: Hyprland\'s own key bindings (workspaces, screenshots) don\'t react. See "Hotkeys or text do not arrive" in the handbook.')));
+      box.append(h('p.field-help', null, t('Without /dev/uinput the keys reach only the focused window. Combinations that are Hyprland key bindings (workspaces, launchers, screenshots) run that binding directly; global shortcuts of other programs don\'t react. See "Hotkeys or text do not arrive" in the handbook.')));
     }
   }
   cur.teardown.push(stop);
