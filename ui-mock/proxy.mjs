@@ -22,7 +22,14 @@ function serveUi(req, res) {
   return true;
 }
 
-// The daemon checks Origin (CSRF protection) → present ourselves as same-origin.
+// The daemon checks Host and Origin (CSRF protection). The proxy passes on only requests
+// from its own page and presents them as same-origin; other web pages are refused here.
+const OWN = [`127.0.0.1:${PORT}`, `localhost:${PORT}`];
+function own(headers) {
+  if (headers.host && !OWN.includes(headers.host)) return false;
+  return !headers.origin || OWN.some((h) => headers.origin === `http://${h}`);
+}
+
 function rewrite(headers) {
   const out = { ...headers, host: UP.host };
   if (out.origin) out.origin = UP.origin;
@@ -31,6 +38,10 @@ function rewrite(headers) {
 }
 
 const server = http.createServer((req, res) => {
+  if (!own(req.headers)) {
+    res.writeHead(403).end('forbidden');
+    return;
+  }
   const p = req.url.split('?')[0];
   if (!/^\/(api|plugin-files|plugins|iconpack-files)\//.test(p) && serveUi(req, res)) return;
   const up = http.request({
@@ -48,6 +59,10 @@ const server = http.createServer((req, res) => {
 });
 
 server.on('upgrade', (req, socket, head) => {
+  if (!own(req.headers)) {
+    socket.end('HTTP/1.1 403 Forbidden\r\n\r\n');
+    return;
+  }
   const up = net.connect(Number(UP.port), UP.hostname, () => {
     const lines = [`${req.method} ${req.url} HTTP/1.1`];
     for (let i = 0; i < req.rawHeaders.length; i += 2) {

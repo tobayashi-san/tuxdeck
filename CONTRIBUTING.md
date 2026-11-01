@@ -20,7 +20,11 @@ The UI (`ui/`) is embedded into the binary with `rust-embed` in release builds. 
 changing `ui/`, rebuild, or serve the UI straight from the checkout:
 
 ```sh
-node ui-mock/proxy.mjs 8080 http://127.0.0.1:47800    # UI from ui/, everything else from the daemon
+# a test instance (see below) on its own ports, not your real one:
+mkdir -p /tmp/td/config && echo '{"ui_port": 47830, "sdk_port": 47831}' > /tmp/td/config/settings.json
+TUXDECK_VIRTUAL_DEVICE=neo TUXDECK_DRY_RUN=1 TUXDECK_DATA_DIR=/tmp/td/data TUXDECK_CONFIG_DIR=/tmp/td/config \
+  target/release/tuxdeck run --no-browser &
+node ui-mock/proxy.mjs 47899 http://127.0.0.1:47830   # UI from ui/, everything else from the test instance
 ```
 
 ## Testing without hardware and without side effects
