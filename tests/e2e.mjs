@@ -627,7 +627,8 @@ async function suiteCommon(d, { keys }) {
     const before = await d.device();
     for (const c of coords) await d.press('Keypad', c);
     assert(d.logsSince(m, /DRYRUN/).length >= 1, 'some dry-run side effect');
-    eq(d.logsSince(m, /WARN|ERROR/), [], 'no warnings');
+    // Program keys stay empty where the program isn't installed (and say so when pressed).
+    eq(d.logsSince(m, /WARN|ERROR/).filter((l) => !/Open: no path set/.test(l)), [], 'no warnings');
     // The starter profile has a Sleep key (and page keys): back to how it was.
     const after = await d.device();
     if (after.sleeping) await d.post(`/api/devices/${after.id}`, { brightness: before.brightness });
@@ -1666,6 +1667,9 @@ async function suiteSmall(d, model, keys) {
 
 /** Converting keys from a Windows/macOS profile into Linux actions (no network needed). */
 async function suiteCompat(d) {
+  // Only this test's keys: the starter's second page has program keys that depend on the
+  // programs installed on the machine.
+  await onePage(d);
   const st = await d.state();
   let P = st.devices[0].profile;
   const pg = st.devices[0].page;
@@ -3027,7 +3031,8 @@ async function suiteBuiltins(d) {
       await pressLog('3,0', re, hold);
     };
     await app({ app_name: 'e2e-fallback' }, /DRYRUN exec "sh" "-c" "e2e-fallback ?"/);
-    await app({ exec: 'firefox.desktop' }, /DRYRUN exec "gtk-launch" "firefox\.desktop"/);
+    // gtk-launch where it exists, else gio (the desktop file is found by name).
+    await app({ exec: 'firefox.desktop' }, /DRYRUN exec ("gtk-launch" "firefox\.desktop"|"gio" "launch" ".*\/firefox\.desktop")/);
     await app({ exec: '~/e2e.sh', args: '--a "b c"' }, new RegExp(`DRYRUN exec "sh" "-c" "exec \\\\"\\$0\\\\" --a \\\\"b c\\\\"" "${esc(path.join(home, 'e2e.sh'))}"`));
     await app({ exec: '~/e2e.sh', long_press: 'quit' }, /DRYRUN kill -15 e2e\.sh/, 800);
     // Interpreters and launchers are not quit by name; Flatpaks through flatpak.
