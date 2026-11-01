@@ -322,14 +322,9 @@ impl Engine {
 
     /// Preview for the UI. Expensive rasterization happens in `PreviewJob::render`
     /// so the engine lock is not held while rendering.
-    pub fn preview_job(&self, profile: &str, page: &str, slot: &Slot, size: u32, state: Option<usize>) -> PreviewJob {
-        let dev = self
-            .devices
-            .values()
-            .find(|d| d.profile == profile && d.page == page)
-            .or_else(|| self.devices.values().find(|d| d.profile == profile))
-            .map(|d| d.id.clone())
-            .unwrap_or_default();
+    /// `wanted`: the deck selected in the UI (its titles, images and timers are shown).
+    pub fn preview_job(&self, profile: &str, page: &str, slot: &Slot, size: u32, state: Option<usize>, wanted: Option<&str>) -> PreviewJob {
+        let dev = self.deck_for_page(profile, page, wanted).filter(|d| self.devices[d].profile == profile).unwrap_or_default();
         if slot.controller == "Neo" {
             if slot.coord == NEO_INFOBAR {
                 let (_, content) = self.info_bar(&dev, profile, page);

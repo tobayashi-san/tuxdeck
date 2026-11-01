@@ -267,7 +267,8 @@ class Daemon {
     fs.mkdirSync(config, { recursive: true });
     if (fs.existsSync(ELGATO)) fs.symlinkSync(ELGATO, path.join(data, 'elgato'));
     this.port = await freePort();
-    this.sdk = await freePort();
+    // Two free ports, not the same one twice.
+    do this.sdk = await freePort(); while (this.sdk === this.port);
     fs.writeFileSync(path.join(config, 'settings.json'), JSON.stringify({ ui_port: this.port, sdk_port: this.sdk, checks_repo: '' }));
     // Own HOME: nothing a test instance or its plugins do may touch the user's files.
     const home = path.join(this.dir, 'home');
@@ -2746,6 +2747,33 @@ async function suiteMultiDeck(d) {
       eq((await deck(A)).profile, aBase, 'deck A stays');
     }
     await d.post(`/api/devices/${B}`, { profile: bBase });
+  });
+
+  await test('one page on two decks: test press, settings and previews reach the chosen deck', async () => {
+    const a = await deck(A);
+    await d.post(`/api/devices/${B}`, { profile: a.profile });
+    await d.post(`/api/devices/${B}`, { page: a.page });
+    m = d.mark();
+    await put(A, '1,1', C);
+    await waitFor(async () => d.logsSince(m, /\[com\.e2e\.counter\] appear Keypad 1,1 /).length >= 2, 4000, 'willAppear on both decks');
+    const base = `/api/pages/${a.profile}/${a.page}`;
+    const png = (dev) => d.get(`/api/render/${a.profile}/${a.page}/Keypad/1,1.png?size=96&v=${Date.now()}&device=${dev}`);
+    await sleep(1600); // no OK overlay left from anything before
+    const [beforeA, beforeB] = [await png(A), await png(B)];
+    // A test press from the UI with deck B selected: deck B's key counts (title n=1).
+    m = d.mark();
+    await d.post(`${base}/press`, { controller: 'Keypad', coord: '1,1', device: B });
+    const pressed = /ev keyDown (\S+) /.exec(await d.waitLog(ev('keyDown'), m))[1];
+    await sleep(1600);
+    assert(!(await png(B)).equals(beforeB), 'deck B shows the press');
+    assert((await png(A)).equals(beforeA), 'deck A does not');
+    // A settings change reaches the plugin for both decks' contexts.
+    m = d.mark();
+    await d.patch(`${base}/slot`, { controller: 'Keypad', coord: '1,1', settings: { both: 1 }, device: B });
+    await waitFor(async () => d.logsSince(m, /ev didReceiveSettings \S+ .*"both":1/).length >= 2, 3000, 'both contexts');
+    const got = d.logsSince(m, /ev didReceiveSettings \S+ .*"both":1/).map((l) => /ev didReceiveSettings (\S+) /.exec(l)[1]);
+    eq(new Set(got).size, 2, 'two different contexts');
+    assert(got.includes(pressed), 'the pressed deck is one of them');
   });
 
   await test('smart profiles meant for one deck switch only that deck', async () => {

@@ -558,6 +558,9 @@ struct SlotReq {
     /// `/press`: how long the key is held (default 80 ms).
     #[serde(default)]
     hold_ms: Option<u64>,
+    /// The deck the UI has selected (several decks may show the page).
+    #[serde(default)]
+    device: Option<String>,
 }
 
 /// Controllers and coordinates as stored in Elgato page manifests ("Keypad" + "col,row").
@@ -610,6 +613,9 @@ async fn delete_slot(
 struct PatchReq {
     controller: String,
     coord: String,
+    /// The deck the UI has selected (whose plugin context the change is reported to first).
+    #[serde(default)]
+    device: Option<String>,
     #[serde(default)]
     state: Option<usize>,
     #[serde(default)]
@@ -746,7 +752,7 @@ async fn patch_slot(State(sh): State<Shared>, Path((profile, page)): Path<(Strin
         inst.settings = settings;
     }
     let inst = inst.clone();
-    let ctx = e.ensure_context(&profile, &page, &Slot::new(&req.controller, &req.coord)).map(|c| c.0);
+    let ctx = e.ensure_context(&profile, &page, &Slot::new(&req.controller, &req.coord), req.device.as_deref()).map(|c| c.0);
     if let (Some(ctx), Some(_)) = (&ctx, &req.settings) {
         // Let a running plugin know (same as a PI setSettings).
         let s = inst.settings.clone();
@@ -868,7 +874,10 @@ async fn press_slot(State(sh): State<Shared>, Path((profile, page)): Path<(Strin
     let sh2 = sh.clone();
     tokio::task::spawn_blocking(move || {
         let mut e = sh2.lock();
-        let dev = e.devices.values().find(|d| d.profile == profile && d.page == page).map(|d| d.id.clone());
+        // The deck selected in the UI, if it shows the page; else the first that does.
+        let wanted = req.device.as_deref();
+        let showing = |d: &&crate::engine::DevState| d.profile == profile && d.page == page;
+        let dev = e.devices.values().find(|d| showing(d) && wanted == Some(d.id.as_str())).or_else(|| e.devices.values().find(showing)).map(|d| d.id.clone());
         let hold = std::time::Duration::from_millis(req.hold_ms.unwrap_or(80).min(10_000));
         match dev {
             Some(d) if slot.controller == "Encoder" => {
@@ -963,7 +972,7 @@ async fn render(
     let size: u32 = q.get("size").and_then(|s| s.parse().ok()).unwrap_or(144).clamp(16, 512);
     let state: Option<usize> = q.get("state").and_then(|s| s.parse().ok());
     let png = tokio::task::spawn_blocking(move || {
-        let job = sh.lock().preview_job(&profile, &page, &Slot::new(&controller, &coord), size, state);
+        let job = sh.lock().preview_job(&profile, &page, &Slot::new(&controller, &coord), size, state, q.get("device").map(String::as_str));
         job.render()
     })
     .await
@@ -974,7 +983,7 @@ async fn render(
 async fn pi_info(State(sh): State<Shared>, Path((profile, page)): Path<(String, String)>, Query(q): Query<HashMap<String, String>>) -> ApiResult<Json<Value>> {
     let mut e = sh.lock();
     let slot = Slot::new(q.get("controller").map(String::as_str).unwrap_or("Keypad"), q.get("coord").map(String::as_str).unwrap_or("0,0"));
-    let (ctx, loc, inst) = e.ensure_context(&profile, &page, &slot).ok_or_else(|| not_found("Action"))?;
+    let (ctx, loc, inst) = e.ensure_context(&profile, &page, &slot, q.get("device").map(String::as_str)).ok_or_else(|| not_found("Action"))?;
     let pl = e.registry.plugin_for_action(&inst.uuid).cloned().ok_or_else(|| not_found("Plugin"))?;
     let a = pl.action(&inst.uuid).cloned().ok_or_else(|| not_found("Action"))?;
     let rel = pl.pi_path(&a).ok_or_else(|| not_found("Property Inspector"))?;

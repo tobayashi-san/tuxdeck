@@ -315,7 +315,7 @@ export async function deleteSlot(s) {
 
 export async function pressSlot(s) {
   try {
-    await api(`${pagePath()}/press`, { method: 'POST', body: { controller: s.controller, coord: s.coord } });
+    await api(`${pagePath()}/press`, { method: 'POST', body: { controller: s.controller, coord: s.coord, device: S.deviceId || undefined } });
   } catch (e) {
     toast(e.message, 'error');
   }

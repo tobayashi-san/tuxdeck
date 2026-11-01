@@ -193,7 +193,8 @@ export function pagePath(profile = S.view.profile, page = S.view.page) {
 }
 
 export function renderUrl(controller, coord, size = 144) {
-  return `/api/render/${enc(S.view.profile)}/${enc(S.view.page)}/${enc(controller)}/${enc(coord)}.png?size=${size}&v=${S.v}`;
+  const dev = S.deviceId ? `&device=${enc(S.deviceId)}` : '';
+  return `/api/render/${enc(S.view.profile)}/${enc(S.view.page)}/${enc(controller)}/${enc(coord)}.png?size=${size}&v=${S.v}${dev}`;
 }
 
 export function slotKey(controller, coord) {

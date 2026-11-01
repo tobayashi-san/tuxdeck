@@ -56,6 +56,9 @@
   - A second deck of the same model gets its own profile; decks with the same name are
     told apart by the end of their serial number.
   - After a system suspend the decks get their brightness again.
+  - When several decks show the same page, the deck selected in the UI gets the test
+    press, the property inspector and the preview; a settings change reaches the plugin
+    for every deck.
   - `tuxdeck probe` refuses to run while the service uses the deck and works on the Pedal;
     `tuxdeck list` writes nothing to the decks and also lists Elgato devices TuxDeck
     doesn't support.

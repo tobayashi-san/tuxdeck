@@ -120,7 +120,8 @@ function writeSlot(target, body) {
 async function writeSlotNow(target, body) {
   const w = {
     target, path: pagePath(target.profile, target.page) + '/slot',
-    body: { controller: target.controller, coord: target.coord, ...body },
+    // The selected deck: several may show the page.
+    body: { controller: target.controller, coord: target.coord, device: S.deviceId || undefined, ...body },
   };
   // Older unsaved changes go first, otherwise they would overwrite this one later.
   if (unsaved.length) {
@@ -458,7 +459,7 @@ async function buildPI(box, target, myKey) {
   box.replaceChildren(h('div.muted.center', null, t('Loading properties…')));
   let info;
   try {
-    info = await api(`/api/pi/${enc(target.profile)}/${enc(target.page)}?controller=${enc(target.controller)}&coord=${enc(target.coord)}`);
+    info = await api(`/api/pi/${enc(target.profile)}/${enc(target.page)}?controller=${enc(target.controller)}&coord=${enc(target.coord)}${S.deviceId ? `&device=${enc(S.deviceId)}` : ''}`);
   } catch (e) {
     if (cur.key !== myKey) return;
     box.replaceChildren(h('div.muted.center', null, e.status === 404 ? t('This action has no settings.') : t('Could not load the properties: {msg}', { msg: e.message })));

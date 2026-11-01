@@ -290,16 +290,24 @@ impl Engine {
     }
 
     /// Context for a slot (used by the UI to open a property inspector).
-    pub fn ensure_context(&mut self, profile: &str, page: &str, slot: &Slot) -> Option<(String, Loc, ActionInstance)> {
-        let inst = self.profiles.get(profile)?.pages.get(page)?.action(&slot.controller, &slot.coord)?.clone();
-        let dev = self
-            .devices
-            .values()
-            .find(|d| d.profile == profile && d.page == page)
-            .or_else(|| self.devices.values().find(|d| d.profile == profile))
-            .or_else(|| self.devices.values().next())
+    /// The deck a page of the UI belongs to: the one the UI has selected (`wanted`) if it
+    /// shows the page or at least the profile, else the first that does, else any.
+    pub fn deck_for_page(&self, profile: &str, page: &str, wanted: Option<&str>) -> Option<String> {
+        let mine = |d: &&DevState| wanted.is_some_and(|w| w == d.id);
+        let all = || self.devices.values();
+        all()
+            .find(|d| mine(d) && d.profile == profile && d.page == page)
+            .or_else(|| all().find(|d| mine(d) && d.profile == profile))
+            .or_else(|| all().find(|d| d.profile == profile && d.page == page))
+            .or_else(|| all().find(|d| d.profile == profile))
+            .or_else(|| all().find(mine))
+            .or_else(|| all().next())
             .map(|d| d.id.clone())
-            .unwrap_or_else(|| "virtual".into());
+    }
+
+    pub fn ensure_context(&mut self, profile: &str, page: &str, slot: &Slot, wanted: Option<&str>) -> Option<(String, Loc, ActionInstance)> {
+        let inst = self.profiles.get(profile)?.pages.get(page)?.action(&slot.controller, &slot.coord)?.clone();
+        let dev = self.deck_for_page(profile, page, wanted).unwrap_or_else(|| "virtual".into());
         let ctx = context_id(&dev, &inst.action_id);
         let loc = Loc { device: dev, profile: profile.into(), page: page.into(), slot: slot.clone(), nested: None };
         self.contexts.insert(ctx.clone(), loc.clone());
@@ -344,6 +352,27 @@ impl Engine {
         }
         if let Some(d) = self.devices.get_mut(&loc.device) {
             if let Some(v) = d.visible.get_mut(ctx) {
+                v.2 = payload;
+            }
+        }
+        // The same key on other decks showing this page: their contexts hear it too.
+        let others: Vec<(String, String)> = self
+            .devices
+            .values()
+            .filter(|d| d.id != loc.device)
+            .map(|d| (d.id.clone(), context_id(&d.id, &inst.action_id)))
+            .filter(|(id, c)| self.devices[id].visible.contains_key(c))
+            .collect();
+        let plugin = self.plugin_of(&inst.uuid).map(|p| p.uuid.clone());
+        for (dev, other) in others {
+            let Some(oloc) = self.contexts.get(&other).cloned() else { continue };
+            let payload = self.action_payload(&oloc.slot, &inst, oloc.nested.is_some());
+            let msg = json!({"event": "didReceiveSettings", "action": inst.uuid, "context": other, "device": dev, "payload": payload});
+            if let Some(pl) = &plugin {
+                self.send_plugin(pl, msg.clone());
+            }
+            self.send_pi(&other, msg);
+            if let Some(v) = self.devices.get_mut(&dev).and_then(|d| d.visible.get_mut(&other)) {
                 v.2 = payload;
             }
         }
