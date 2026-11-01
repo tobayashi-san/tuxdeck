@@ -85,12 +85,12 @@ into other applications. Enable it only if you need it:
 |---|---|
 | `./install.sh` | `./install.sh --with-uinput` |
 | `make` | `sudo make install-uinput` |
-| `.deb` / `.rpm` | `sudo cp /usr/share/tuxdeck/udev/71-tuxdeck-uinput.rules /etc/udev/rules.d/`<br>`sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=misc --sysname-match=uinput` |
-| NixOS | add the uinput line from `packaging/70-tuxdeck.rules` to `services.udev.extraRules` |
+| `.deb` / `.rpm` | `sudo cp /usr/share/tuxdeck/udev/71-tuxdeck-uinput.rules /etc/udev/rules.d/`<br>`echo uinput \| sudo tee /etc/modules-load.d/tuxdeck-uinput.conf && sudo modprobe uinput`<br>`sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=misc --sysname-match=uinput` |
+| NixOS | `hardware.uinput.enable = true;` and the uinput line from `packaging/71-tuxdeck-uinput.rules` in `services.udev.extraRules` |
 
-Then restart the app (`systemctl --user restart tuxdeck`). To disable it again, delete
-`71-tuxdeck-uinput.rules` from `/etc/udev/rules.d/` (or `sudo make uninstall-uinput`)
-and reboot.
+Then restart the app (`systemctl --user restart tuxdeck`); if `/dev/uinput` still can't
+be used, reboot once. To disable it again, delete `71-tuxdeck-uinput.rules` from
+`/etc/udev/rules.d/` (or `sudo make uninstall-uinput`) and reboot.
 
 Without uinput the program falls back to Hyprland, `wtype` (Sway and other wlroots
 desktops) or `xdotool` (X11 sessions). GNOME and KDE on Wayland need uinput. On Hyprland
@@ -185,10 +185,19 @@ uninstall` removes the system-wide files only, so each user should run `make
 uninstall-user` (or `./install.sh --uninstall --no-udev`) as well. Profiles and settings
 are kept when uninstalling. `XDG_DATA_HOME` and `XDG_CONFIG_HOME` are respected.
 
-**NixOS:** `nix-build` (see `default.nix`) builds a package with the program, udev rule,
-desktop file and user service. Add the udev rule to your system configuration via
-`services.udev.packages` or the snippet in `packaging/70-tuxdeck.rules` (the
-`/dev/uinput` line there is optional, see above). For development: `nix-shell`.
+**NixOS:** `default.nix` builds a package with the program, udev rule, desktop entry,
+user service and documentation. Make it part of your system in `configuration.nix`:
+
+```nix
+let tuxdeck = pkgs.callPackage /path/to/tuxdeck/default.nix { }; in {
+  environment.systemPackages = [ tuxdeck ];  # program, menu entry, icons
+  services.udev.packages = [ tuxdeck ];      # device access
+  systemd.packages = [ tuxdeck ];            # the user service
+}
+```
+
+After `nixos-rebuild switch`: `systemctl --user enable --now tuxdeck`. The optional
+`/dev/uinput` access is described above. For development: `nix-shell`.
 </details>
 
 <details>

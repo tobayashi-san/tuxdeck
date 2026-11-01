@@ -79,6 +79,7 @@ overrides:
   rpm:
     depends:
       - libudev.so.1()(64bit)
+      - libc.so.6(GLIBC_2.34)(64bit)
     recommends:
       - libxkbcommon
       - playerctl

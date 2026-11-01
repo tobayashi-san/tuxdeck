@@ -1,8 +1,9 @@
 # Contributing
 
 Thanks for your interest! Bug reports, device tests and pull requests are welcome. The most
-helpful thing right now is someone trying the support for a Stream Deck +, Mini, XL, MK.2,
-Pedal or an original first-generation device (issue template "Test a device").
+helpful thing right now is someone trying the support for a Stream Deck +, Mini, XL, Pedal
+or an original first-generation device (issue template "Test a device"); the Neo and the
+MK.2 are tested on real hardware.
 
 ## Building
 
@@ -10,7 +11,8 @@ Prerequisites: see the [handbook](docs/README.md#build-from-source). Then:
 
 ```sh
 make            # cargo build --release
-make check      # unit tests, Clippy (-D warnings) and end-to-end tests (Node.js ≥ 22)
+make check      # unit tests, Clippy (-D warnings), translations, end-to-end tests and the
+                # browser UI tests (Node.js ≥ 22 and Chrome, Chromium or Brave)
 ```
 
 The minimum Rust version is 1.85 (`rust-version` in `Cargo.toml`). `.cargo/config.toml`
@@ -31,12 +33,13 @@ node ui-mock/proxy.mjs 47899 http://127.0.0.1:47830   # UI from ui/, everything 
 
 | Variable | Effect |
 |---|---|
-| `TUXDECK_VIRTUAL_DEVICE=neo\|mk2\|xl\|plus\|pedal\|original\|mini` | simulated device, several separated by commas (`neo,neo`); real devices are left alone (unless `TUXDECK_ALLOW_HARDWARE=1`) |
+| `TUXDECK_VIRTUAL_DEVICE=neo\|mk2\|xl\|plus\|pedal\|original\|original2\|mini` | simulated device (also a model number like `20GAA9902` or a USB product id like `0x006d`; anything else is an error), several separated by commas (`neo,neo`); real devices are left alone (unless `TUXDECK_ALLOW_HARDWARE=1`) |
 | `TUXDECK_DRY_RUN=1` | actions (processes, hotkeys, clipboard, media, audio) are only logged as `DRYRUN …` |
 | `TUXDECK_DATA_DIR`, `TUXDECK_CONFIG_DIR` | separate data and config directories |
 | `TUXDECK_NO_URL_HANDLER=1` | do not register the `streamdeck://` handler |
 | `TUXDECK_NO_WINDOW_WATCH=1` | Smart Profiles do not follow the real window focus |
 | `TUXDECK_NO_PLATFORM_SHIM=1` | do not override `process.platform` for Node plugins |
+| `TUXDECK_NO_SANDBOX=1` | run Linux checks without bubblewrap (the e2e tests set it unless `TUXDECK_BWRAP` names a `bwrap`) |
 
 Set the ports of a test instance in `settings.json` (`ui_port`, `sdk_port`) so it can run
 next to a regular installation (47800/47801). Press keys with
@@ -44,7 +47,7 @@ next to a regular installation (47800/47801). Press keys with
 `POST /api/devices/{id}/input`, and change focus with `POST /api/active-app` (see
 [docs/API.md](docs/API.md)).
 
-`node tests/e2e.mjs [--bin PATH] [--only neo,plus,mini,original,mk2,xl,pedal,neo:plugins,cli,...] [-v] [--keep]`
+`node tests/e2e.mjs [--bin PATH] [--only neo,plus,mini,original,original2,mk2,xl,pedal,twodecks,neo:plugins,cli,...] [-v] [--keep]`
 does exactly that automatically: test groups with a fresh daemon each and a simulated device
 in dry-run mode, checked through the `DRYRUN` log lines and the API. Please cover new
 built-in actions there.
@@ -53,6 +56,10 @@ built-in actions there.
 Chromium-based browser (Chrome, Chromium or Brave) over the DevTools protocol: editing,
 keyboard use, drag & drop, pages, settings, offline edits. It fails on JS errors of the UI;
 failing tests save a screenshot.
+
+`sh tests/install-check.sh [BINARY]` installs and uninstalls with `install.sh` in a
+temporary home folder (stand-ins for sudo, systemctl and udev); CI also builds the .deb
+and .rpm.
 
 Tip: if a test instance is running, build into a separate directory
 (`cargo build --release --target-dir target/dev`), otherwise its binary gets replaced.
@@ -65,7 +72,7 @@ Tip: if a test instance is running, build into a separate directory
 | `device.rs` | HID protocol gen 2 (Neo, MK.2, XL, +, Pedal) and gen 1 (Mini, Original); report building as pure functions with unit tests |
 | `engine/` | central state behind `Arc<Mutex<Engine>>`, one `impl Engine` per topic: `devices.rs` (connect, profiles, pages), `keys.rs` (input), `actions.rs` (built-in actions, Key Logic, multi actions), `protocol.rs` (SDK contexts and events), `display.rs` (key images, info bar, touch strip, refresh), `editing.rs` (web UI edits), `system.rs` (processes) |
 | `builtin.rs` | catalogue and forms of the built-in actions (settings keys as in the original) |
-| `input.rs` | keyboard, text, media: uinput → Hyprland → wtype → xdotool; dry run |
+| `input.rs`, `keymap.rs` | keyboard, text, media: uinput → Hyprland → wtype → xdotool; dry run; the session's keyboard layout for typing (libxkbcommon, loaded at runtime) |
 | `render.rs`, `layout.rs` | key images via SVG and resvg; Neo info bar from `.sdLayoutEx` layouts |
 | `strip.rs` | Stream Deck +: touch strip layouts (`$X1`, `$A0`, `$A1`, `$B1`, `$B2`, `$C1`, custom) and `setFeedback` |
 | `profile.rs` | Elgato profile format 2.0/3.0, import/export |
@@ -76,6 +83,9 @@ Tip: if a test instance is running, build into a separate directory
 | `backup.rs` | backups and restore (also of the official app's backups) |
 | `smart.rs`, `iconpacks.rs`, `resources.rs` | Smart Profiles, icon packs, built-in plugin manifests and `import-elgato` |
 | `net.rs`, `urlhandler.rs`, `paths.rs` | HTTP client, `streamdeck://` handler for plugin deep links, folders and settings |
+| `apps.rs`, `compat.rs`, `engine/compat.rs` | converting profiles from Windows/macOS: installed programs, web versions, replacement rules |
+| `engine/templates.rs` | sample profiles (Stream, Work, Play) |
+| `i18n.rs` | translations of the daemon's messages |
 
 The UI in `ui/` deliberately has no build step (ES modules, no framework).
 

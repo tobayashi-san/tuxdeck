@@ -579,7 +579,9 @@ dialog.modal h3 { margin: 16px 0 6px; font-size: 13px; color: var(--muted); font
 .backup-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .backup-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
 .backup-list li { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-.backup-list .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.backup-list .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.backup-list .backup-kind { font-size: 11px; }
+a.btn { color: inherit; text-decoration: none; }
 
 /* ---------- spinner ---------- */
 .spinner {
@@ -832,3 +834,4 @@ dialog.modal:has(.samples) { max-width: min(760px, 94vw); }
 .sample-keys img, .sample-keys span { width: 100%; aspect-ratio: 1; border-radius: 6px; display: block; background: #16181d; }
 .sample-name { font-weight: 600; font-size: 14px; margin-top: 2px; }
 .sample-desc { color: var(--muted); font-size: 12px; }
+.warn-text { color: var(--warn); }

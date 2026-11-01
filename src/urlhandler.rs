@@ -15,7 +15,12 @@ const SCHEME: &str = "x-scheme-handler/streamdeck";
 
 /// Add `<mime>=<desktop>` to the `[Default Applications]` group of a mimeapps.list.
 fn set_default_in(path: &Path) -> Result<()> {
-    let text = std::fs::read_to_string(path).unwrap_or_default();
+    // A file that can't be read as text is the user's: leave it alone.
+    let text = match std::fs::read_to_string(path) {
+        Ok(t) => t,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(e).with_context(|| format!("not changing {}", path.display())),
+    };
     let line = format!("{SCHEME}={HANDLER}");
     // Already the default (the same line in e.g. `[Added Associations]` doesn't count).
     let mut group = "";
@@ -49,7 +54,15 @@ fn set_default_in(path: &Path) -> Result<()> {
         }
         out.push(line);
     }
-    std::fs::write(path, out.join("\n") + "\n")?;
+    // A link (home-manager) or a read-only file is managed elsewhere: replacing it would
+    // break that.
+    if let Ok(m) = std::fs::symlink_metadata(path) {
+        if m.file_type().is_symlink() || m.permissions().readonly() {
+            anyhow::bail!("{} is read-only or a link", path.display());
+        }
+    }
+    // Written whole or not at all (the file holds all default applications).
+    crate::profile::write_atomic(path, (out.join("\n") + "\n").as_bytes())?;
     Ok(())
 }
 
@@ -207,6 +220,11 @@ mod tests {
         std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o444)).unwrap();
         assert!(set_default_in(&p).is_err());
         assert_eq!(std::fs::read_to_string(&p).unwrap(), "[Default Applications]\n");
+        // Not text: left as it is.
+        let bin = d.join("latin1-mimeapps.list");
+        std::fs::write(&bin, b"[Default Applications]\ntext/plain=caf\xe9.desktop\n").unwrap();
+        assert!(set_default_in(&bin).is_err());
+        assert_eq!(std::fs::read(&bin).unwrap(), b"[Default Applications]\ntext/plain=caf\xe9.desktop\n");
         let _ = std::fs::remove_dir_all(&d);
     }
 

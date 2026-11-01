@@ -10,7 +10,8 @@
 #                                of the logged-in user inject keystrokes
 #   ./install.sh --uninstall     remove again (profiles and settings are kept)
 #
-# UDEVRULESDIR=… overrides where the udev rules go (default /etc/udev/rules.d).
+# UDEVRULESDIR=… overrides where the udev rules go (default /etc/udev/rules.d),
+# MODULESLOADDIR=… where the uinput module is listed for loading (/etc/modules-load.d).
 set -eu
 
 here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
@@ -61,6 +62,7 @@ else
     unitdir=$configdir/systemd/user
 fi
 udevdir=${UDEVRULESDIR:-/etc/udev/rules.d}
+modulesdir=${MODULESLOADDIR:-/etc/modules-load.d}
 rules=70-tuxdeck.rules
 uinput_rules=71-tuxdeck-uinput.rules
 
@@ -87,7 +89,7 @@ if [ "$action" = uninstall ]; then
     fi
     if [ "$udev" = yes ]; then
         removed=no
-        for f in "$udevdir/$rules" "$udevdir/$uinput_rules"; do
+        for f in "$udevdir/$rules" "$udevdir/$uinput_rules" "$modulesdir/tuxdeck-uinput.conf"; do
             if [ -e "$f" ]; then
                 echo "Removing $f (needs root) …"
                 if as_root rm -f "$f"; then
@@ -121,7 +123,9 @@ sh "$helper" service "$here/packaging/tuxdeck.service" "$bindir/tuxdeck" "$datad
 install -Dm755 "$here/tuxdeck" "$bindir/tuxdeck"
 install -Dm644 "$here/README.md" "$datadir/doc/tuxdeck/README.md"
 [ -f "$here/HANDBOOK.md" ] && install -Dm644 "$here/HANDBOOK.md" "$datadir/doc/tuxdeck/HANDBOOK.md"
-[ -f "$here/THIRD-PARTY-LICENSES.md" ] && install -Dm644 "$here/THIRD-PARTY-LICENSES.md" "$datadir/doc/tuxdeck/THIRD-PARTY-LICENSES.md"
+for f in THIRD-PARTY-LICENSES.md LICENSE LICENSE-DejaVu.txt; do
+    if [ -f "$here/$f" ]; then install -Dm644 "$here/$f" "$datadir/doc/tuxdeck/$f"; fi
+done
 install -Dm644 "$tmp/tuxdeck.desktop" "$datadir/applications/tuxdeck.desktop"
 install -Dm644 "$tmp/tuxdeck.service" "$unitdir/tuxdeck.service"
 if [ -f "$here/packaging/icon/tuxdeck.svg" ]; then
@@ -129,7 +133,10 @@ if [ -f "$here/packaging/icon/tuxdeck.svg" ]; then
     for s in 16 24 32 48 64 128 256; do
         install -Dm644 "$here/packaging/icon/tuxdeck-$s.png" "$datadir/icons/hicolor/${s}x${s}/apps/tuxdeck.png"
     done
-    have gtk-update-icon-cache && gtk-update-icon-cache -qtf "$datadir/icons/hicolor" 2>/dev/null || true
+    # Only refresh a cache that exists: a new one would hide icons other programs add later.
+    if [ -f "$datadir/icons/hicolor/icon-theme.cache" ] && have gtk-update-icon-cache; then
+        gtk-update-icon-cache -qf "$datadir/icons/hicolor" 2>/dev/null || true
+    fi
 fi
 if have update-desktop-database; then
     update-desktop-database "$datadir/applications" 2>/dev/null || true
@@ -166,7 +173,12 @@ if [ "$udev" = yes ]; then
         as_root udevadm trigger --subsystem-match=hidraw || true
         as_root udevadm trigger --subsystem-match=usb --attr-match=idVendor=0fd9 || true
         if [ "$uinput" = yes ]; then
+            # The module may not be loaded yet (then the rule only applies after a reboot).
+            as_root modprobe uinput 2>/dev/null || true
             as_root udevadm trigger --subsystem-match=misc --sysname-match=uinput || true
+            if [ -f "$here/packaging/tuxdeck-uinput.conf" ]; then
+                as_root install -Dm644 "$here/packaging/tuxdeck-uinput.conf" "$modulesdir/tuxdeck-uinput.conf" || true
+            fi
         fi
         echo "If the Stream Deck is not detected, unplug it and plug it back in."
     fi

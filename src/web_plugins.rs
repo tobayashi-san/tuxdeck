@@ -256,7 +256,13 @@ async fn create_from_template(State(sh): State<Shared>, Path(id): Path<String>, 
             .await;
             if let Err(e) = res {
                 tracing::warn!("installing {plugin} for a sample profile: {e:#}");
-                failed.push(plugin.to_string());
+                // By name, like the conversion does.
+                let known = crate::compat::RULES.iter().filter_map(|r| r.plugin).find(|(id, _)| id == plugin).map(|(_, n)| n.to_string());
+                let name = match known {
+                    Some(n) => n,
+                    None => catalogue::entry(plugin).await.map(|e| e.name).unwrap_or_else(|_| plugin.to_string()),
+                };
+                failed.push(name);
             }
         }
         let sh2 = sh.clone();

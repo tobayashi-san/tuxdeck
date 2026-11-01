@@ -59,6 +59,39 @@
   - `tuxdeck probe` refuses to run while the service uses the deck and works on the Pedal;
     `tuxdeck list` writes nothing to the decks and also lists Elgato devices TuxDeck
     doesn't support.
+- **Installation:**
+  - `make install-user` builds first; `sudo make install` refuses an outdated binary.
+  - When another TuxDeck holds the port, the service stops instead of restarting every
+    3 s; `tuxdeck ui` starts the installed service instead of a daemon of its own.
+  - Enabling `/dev/uinput` also loads the module (and at every boot), so no reboot is needed.
+  - `install.sh` no longer creates an icon cache in your home folder; all install routes
+    (Makefile, install.sh, Nix) install the licence notices; the .rpm requires glibc 2.34.
+  - NixOS: the handbook shows the `configuration.nix` lines for program, udev rule and
+    service; the Nix package installs its documentation.
+  - CI tests `install.sh` (install and uninstall) and builds the .deb and .rpm.
+- **Robustness:** a page whose file can't be read stays in the profile (shown empty, the
+  file is kept as `manifest.json.broken-…` before it is overwritten); files are flushed to
+  disk before they replace the old ones; the `streamdeck://` registration never rewrites a
+  `mimeapps.list` it can't read, a link or a read-only file, and writes it atomically.
+- **Interface:**
+  - Dates follow the chosen language; German wording is consistent ("Infoleiste",
+    "Zustand", "Linux-Prüfung"); the "Amber" colour scheme is translated.
+  - One failure shows one message; plugin names instead of ids in messages; icon pack
+    import shows the pack's name and survives a cancelled file chooser.
+  - Backups list shows date, kind and size in full; "Download" looks like a button.
+  - Keyboard: arrow keys in "Add action…" no longer add an action (Enter does), focus
+    stays in place when the settings form is rebuilt, and closing the plugins view returns
+    focus to where it was.
+  - Dragging the custom key colour no longer sends a request per step; edits of a key are
+    saved in order.
+  - When the first load fails because the service was restarting, the UI loads again as
+    soon as it is back.
+  - The Smart Profile dialog says when the desktop can't tell which window is active
+    (GNOME/KDE Wayland) and lists X11 windows properly.
+- **API and documentation:** every API error is JSON; API.md documents all routes; the
+  README's images and links also work in the packages; it names the supported models;
+  `TUXDECK_VIRTUAL_DEVICE` accepts model numbers (Original v2 is simulated too) and
+  rejects unknown values.
 - **Keyboard input:**
   - Hotkeys are recorded and shown with your keyboard layout (QWERTZ Ctrl+Z is "Ctrl + Z",
     not "Ctrl + Y"), and tools that send characters (wtype, xdotool) get the right one.

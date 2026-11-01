@@ -1,7 +1,9 @@
 # TuxDeck HTTP API (UI <-> daemon)
 
 The daemon serves the web UI and this API on `http://127.0.0.1:47800` (default).
-All bodies are JSON unless noted. Errors: non-2xx with `{"error": "..."}`.
+All bodies are JSON unless noted. Errors: every non-2xx answer of `/api/*` is
+`{"error": "..."}` (also 403, 405, 413, 415 and 422; the message is translated into the
+UI language where TuxDeck wrote it).
 
 Access: every `/api/*` request needs the secret from `~/.config/tuxdeck/api-token`
 (created on first start, readable only by the user) as `X-Tuxdeck-Token: <token>`
@@ -50,10 +52,11 @@ Terminology
   "profiles": [{
     "id": "47A10A36-...", "name": "Default Profile", "model": "20GBJ9901",
     "pages": ["9a3bd784-...", "4c1be6c6-..."], "default_page": "10decedc-...",
-    "folders": ["5211d3c8-..."], "app": null
+    "folders": ["5211d3c8-..."], "app": null, "device": null
   }],
   "active_app": "firefox",
-  "settings": {"cmd_as_ctrl": true, "platform": "mac", "language": "de", "touch_color": "#ffffff",
+  "settings": {"cmd_as_ctrl": true, "platform": "mac", "language": "de", "ui_language": "de",
+               "ui_languages": ["en", "de"], "plugin_port": 47802, "touch_color": "#ffffff",
                "injector": "auto", "injector_active": "hyprctl",
                "injector_choices": ["auto", "uinput", "hyprctl", "wtype", "xdotool"]}
 }
@@ -170,12 +173,14 @@ Download `.streamDeckProfile` (zip).
 |---|---|---|
 | `POST /api/pages/{profile}/{page}/slot` | `{"controller","coord","uuid"}` | create instance of action `uuid` in an empty slot (replaces an existing one). Returns the instance. For `openchild` a folder page is created automatically. |
 | `DELETE /api/pages/{profile}/{page}/slot?controller=..&coord=..` | – | remove instance (folders are deleted too) |
-| `PATCH /api/pages/{profile}/{page}/slot` | `{"controller","coord", "state": 0, "style": {Title, ShowTitle, TitleAlignment, TitleColor, FontSize, FontStyle, FontUnderline}, "image": "data:image/png;base64,..." , "settings": {...}}` | every key except controller/coord is optional. `style` patches `States[state]` (fields set to `null` are removed). `image`: data URL sets custom image for that state, `""` resets to default. `settings` replaces `Settings`. |
+| `PATCH /api/pages/{profile}/{page}/slot` | `{"controller","coord", "state": 0, "style": {Title, ShowTitle, TitleAlignment, TitleColor, FontSize, FontStyle, FontUnderline, Background}, "image": "data:image/png;base64,..." , "settings": {...}, "settings_merge": {...}, "settings_remove": [keys]}` | every key except controller/coord is optional. `style` patches `States[state]` (fields set to `null` are removed). `image`: data URL sets custom image for that state (WebP and BMP are stored as PNG), `""` resets to default. `settings` replaces `Settings`; `settings_merge`/`settings_remove` change only those keys (a stale editor doesn't overwrite changes made elsewhere). |
+| `POST /api/pages/{profile}/{page}/paste` | `{"controller","coord","instance","from_profile","from_page"}` | paste a copied action instance (as returned by the page view) into the slot: new ids, its custom images are copied from the page it came from |
 | `POST /api/pages/{profile}/{page}/move` | `{"from":{"controller","coord"},"to":{"controller","coord"},"copy":false}` | move (swap if target occupied) or copy |
 | `POST /api/pages/{profile}/{page}/press` | `{"controller","coord","hold_ms"?}` | simulate key press+release on the device showing that page (`hold_ms` default 80, max 10000; long press e.g. for "Open App → quit"). `controller:"Encoder"` presses that dial. |
-| `POST /api/devices/{id}/input` | `{"type":"dial","index",ticks}` / `{"type":"dial_press","index","down"}` / `{"type":"touch","kind":1\|2\|3,"x","y","x2"?,"y2"?}` | simulated Stream Deck + input: dial rotation, dial press/release, touch strip tap (1), long touch (2) or swipe (3, from x/y to x2/y2; swipes change pages). Coordinates are strip pixels (0–799, 0–99). |
+| `POST /api/devices/{id}/input` | `{"type":"key","index","down"}` / `{"type":"dial","index",ticks}` / `{"type":"dial_press","index","down"}` / `{"type":"touch","kind":1\|2\|3,"x","y","x2"?,"y2"?}` | simulated input: key press or release (keys, then touch points), dial rotation, dial press/release, touch strip tap (1), long touch (2) or swipe (3, from x/y to x2/y2; swipes change pages). Coordinates are strip pixels (0–799, 0–99). |
+| `POST /api/devices/{id}/virtual` | `{"connected": bool}` | unplug a simulated deck or plug it in again (test instances, `TUXDECK_VIRTUAL_DEVICE`) |
 | `POST /api/profiles` | `{"name","model"}` | new empty profile, returns profile summary |
-| `PATCH /api/profiles/{profile}` | `{"name"?, "app"?}` | rename (non-empty) and/or link to an application (smart profile; `""` removes the link) |
+| `PATCH /api/profiles/{profile}` | `{"name"?, "app"?, "device"?}` | rename (non-empty), link to an application (smart profile; `""` removes the link), and/or the deck a smart profile is meant for (`""` = every deck of the model; `state.profiles[].device` shows it) |
 | `GET /api/windows` | – | `{"active": "firefox", "windows": [{"class","title"}]}` open windows (Hyprland) for picking a smart profile app |
 | `POST /api/active-app` | `{"app": "firefox"}` | simulate a focus change (tests, desktops without focus tracking) |
 | `DELETE /api/profiles/{profile}` | – | delete |
@@ -183,7 +188,36 @@ Download `.streamDeckProfile` (zip).
 | `DELETE /api/pages/{profile}/{page}` | – | delete a top-level page (not the last one) |
 | `POST /api/devices/{id}` | `{"profile"?, "page"?, "brightness"?}` | switch profile / navigate to page (top-level page or folder) / brightness 0-100 |
 | `POST /api/import` | raw bytes, header `X-Filename: name.streamDeckProfile`, `.streamDeckPlugin` or `.streamDeckIconPack` | import profile, install plugin or icon pack; returns `{"kind":"profile"\|"plugin"\|"iconpack","id","name","runs_on_linux","reason"}` |
-| `POST /api/settings` | partial settings object (`cmd_as_ctrl`, `platform`, `language`, `touch_color` `#rrggbb`, `injector` one of `injector_choices`) | update global settings; invalid values → 400 |
+| `POST /api/settings` | partial settings object (`cmd_as_ctrl` bool, `platform` `mac`/`windows`/`linux`, `language`, `touch_color` `#rrggbb`, `injector` one of `injector_choices`, `checks_publish` bool, `checks_repo` `owner/repo`) | update global settings; any invalid value → 400 and nothing is changed |
+| `POST /api/open-url` | `{"url"}` | open an http(s) link to another computer in the user's default browser (the UI's external links); anything else → 400 |
+
+## Backups
+
+| Method & path | Body / query | Result |
+|---|---|---|
+| `GET /api/backup` | `plugins=0` (default 1), `iconpacks=1` (default 0) | download a backup now (zip: profiles, settings, plugin data, optionally plugins and icon packs) |
+| `GET /api/backups` | – | stored backups `[{"name","kind":"daily"\|"before"\|"convert"\|…,"size","created"}]` (automatic daily ones and safety copies) |
+| `GET /api/backups/{name}` | – | download a stored backup |
+| `POST /api/backups/{name}/restore` | – | restore a stored backup |
+| `POST /api/restore` | raw zip bytes | restore an uploaded backup, ours or a `.streamDeckProfilesBackup` of the official app |
+
+A restore replaces all profiles; plugins, icon packs and plugin data in the backup replace
+the installed ones; settings are taken over except the ports. A safety copy is made
+first: `{"ok", "message", "profiles", "plugins", "icon_packs", "elgato", "safety_backup"}`.
+
+## Sample profiles and converting profiles from Windows/macOS
+
+| Method & path | Body | Result |
+|---|---|---|
+| `GET /api/templates` | – | `[{"id","name","description","icons":[data URLs of the first page]}]` |
+| `POST /api/templates/{id}` | `{"model"}` | create the sample profile for a device model (its catalogue plugins are installed first): `{"id", "failed": [plugin names that could not be installed]}` |
+| `GET /api/profiles/{profile}/conversion` | – | what converting would do: `{"needed", "programs", "web", "folders": [{"title","target"}], "replaced": [{"key","name","keys"}], "manual": [names], "installs": [{"id","name"}], "waiting": n}` |
+| `POST /api/profiles/{profile}/conversion` | – | back up, install the plugins it needs, convert: `{"changed", "manual", "left", "failed": [names]}` |
+
+Only imported profiles (manifest field `TuxDeckImported`) are offered the conversion, plus
+keys with Windows/macOS paths or Elgato's own plugins. `waiting`/`left`: keys of missing
+plugins that stay as they are because the catalogue could not be reached or a plugin
+could not be installed; they are offered again later.
 
 ## Icon packs
 
@@ -196,6 +230,10 @@ Download `.streamDeckProfile` (zip).
 
 To put an icon on a key the UI downloads it and sends it as `image` data URL with `PATCH …/slot`
 (the profile then contains the image, as with the official app).
+
+### `GET /plugin-host?k=<key>` (plugin file server)
+Page that hosts the HTML plugins in the background browser; the key is new for every
+start of the service.
 
 ## Live events: `GET /api/events` (WebSocket, server → client JSON)
 - `{"event":"state"}`: something in `/api/state` changed → refetch.

@@ -338,6 +338,8 @@ fn theme_label(id: &str) -> String {
             "autumn" => crate::tr!("Autumn"),
             "city" => crate::tr!("City"),
             "default" => crate::tr!("Default"),
+            "amber" => crate::tr!("Amber"),
+            "mono" => crate::tr!("Mono"),
             other => {
                 let mut c = other.chars();
                 c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()

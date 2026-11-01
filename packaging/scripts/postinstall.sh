@@ -12,5 +12,6 @@ fi
 echo "tuxdeck installed. Start it with your session: systemctl --user enable --now tuxdeck"
 echo "Optional, for hotkeys/text on GNOME/KDE Wayland (lets the user's programs inject keystrokes):"
 echo "  sudo cp /usr/share/tuxdeck/udev/71-tuxdeck-uinput.rules /etc/udev/rules.d/"
+echo "  echo uinput | sudo tee /etc/modules-load.d/tuxdeck-uinput.conf && sudo modprobe uinput"
 echo "  (then reload udev as described in that file)"
 exit 0

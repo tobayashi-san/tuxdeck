@@ -44,3 +44,27 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.85.0
       - run: cargo build --locked
       - run: cargo test --locked
+
+  packaging:
+    name: Install script and packages
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: shellcheck
+        run: shellcheck packaging/install.sh packaging/install-helper.sh packaging/scripts/*.sh tests/install-check.sh
+      - name: install.sh (temporary HOME)
+        run: sh tests/install-check.sh
+      - name: .deb and .rpm build
+        run: |
+          curl -sSfL -o /tmp/nfpm.deb https://github.com/goreleaser/nfpm/releases/download/v2.48.0/nfpm_2.48.0_amd64.deb
+          sudo dpkg -i /tmp/nfpm.deb
+          mkdir -p build dist
+          printf '#!/bin/sh\n' > build/tuxdeck
+          sed -e 's|%h/.local/bin/tuxdeck|/usr/bin/tuxdeck|' -e 's|%h/.local/share/doc|/usr/share/doc|' \
+            packaging/tuxdeck.service > build/tuxdeck.service
+          export VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          nfpm package -f packaging/nfpm.yaml -p deb -t dist/
+          nfpm package -f packaging/nfpm.yaml -p rpm -t dist/
+          dpkg-deb -c dist/*.deb | grep -q './usr/bin/tuxdeck'
+          dpkg-deb -I dist/*.deb | grep -q 'libc6 (>= 2.35)'
+          rpm -qpR dist/*.rpm | grep -q 'GLIBC_2.34'

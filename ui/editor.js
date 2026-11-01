@@ -110,7 +110,14 @@ let retrying = null;
 const sameTarget = (a, b) => !!a && !!b && a.profile === b.profile && a.page === b.page
   && a.controller === b.controller && a.coord === b.coord;
 
-async function writeSlot(target, body) {
+// Writes go out one after the other: a later one must not be overtaken by an earlier.
+let writeChain = Promise.resolve();
+function writeSlot(target, body) {
+  writeChain = writeChain.catch(() => {}).then(() => writeSlotNow(target, body));
+  return writeChain;
+}
+
+async function writeSlotNow(target, body) {
   const w = {
     target, path: pagePath(target.profile, target.page) + '/slot',
     body: { controller: target.controller, coord: target.coord, ...body },
@@ -348,11 +355,17 @@ function buildEditor(sel, inst) {
   } else if (form.length) {
     const settings = structuredClone(inst.Settings || {});
     const rebuild = () => {
+      // Keep the keyboard focus on the same control (or the list it was in).
+      const keep = settingsBox.contains(document.activeElement) ? document.activeElement.dataset?.focus : null;
       // A key converted from Windows/macOS that had no Linux counterpart.
       const from = settings._from && !settings.path
         ? h('p.field-help', null, t('Converted from "{name}", which has no Linux counterpart: set a command of your own.', { name: settings._from })) : null;
       settingsBox.replaceChildren(...[from, h('div.form', null,
         form.map((f) => buildField(f, settings, () => setSettings(settings), rebuild, form)))].filter(Boolean));
+      if (keep) {
+        const find = (k) => settingsBox.querySelector(`[data-focus="${CSS.escape(k)}"]:not([disabled])`);
+        (find(keep) || find(`${keep.split(':')[0]}:add`))?.focus({ preventScroll: true });
+      }
     };
     rebuild();
   } else {
@@ -383,7 +396,9 @@ function backgroundRow(st, setStyle) {
       })),
       h('input.color.bg-custom', {
         type: 'color', title: t('Custom colour'), value: normColor(st.Background, '#1e1e1e'),
-        oninput: (e) => setStyle({ Background: e.target.value }, true),
+        // While dragging: debounced; the final colour right away.
+        oninput: (e) => setStyle({ Background: e.target.value }, false),
+        onchange: (e) => setStyle({ Background: e.target.value }, true),
       })));
 }
 
@@ -661,6 +676,7 @@ function buildField(f, settings, changed, rebuild, allFields) {
         oninput: (e) => set(e.target.value),
       });
   }
+  if (control instanceof HTMLElement && /^(INPUT|SELECT|TEXTAREA)$/.test(control.tagName) && !control.dataset.focus) control.dataset.focus = f.key;
   return h('div.form-row', { class: wide ? 'wide' : null },
     h('label.field-label', { for: id }, f.label || f.key),
     h('div.form-control', null, control, f.help ? h('div.field-help', null, f.help) : null));
@@ -834,18 +850,19 @@ function actionsField(id, value, set, rebuild, f = {}) {
         form.length ? h('button.icon-btn', {
           type: 'button', title: open ? t('Hide settings') : t('Edit settings'),
           class: open ? 'active' : null,
+          'data-focus': `${f.key}:${key}:gear`,
           onclick: () => { if (open) expandedNested.delete(key); else expandedNested.add(key); rebuild(); },
         }, '⚙') : null,
         max > 1 ? h('button.icon-btn', {
-          type: 'button', title: t('Move up'), disabled: i === 0,
+          type: 'button', title: t('Move up'), disabled: i === 0, 'data-focus': `${f.key}:${key}:up`,
           onclick: () => { [list[i - 1], list[i]] = [list[i], list[i - 1]]; save(); rebuild(); },
         }, '↑') : null,
         max > 1 ? h('button.icon-btn', {
-          type: 'button', title: t('Move down'), disabled: i === list.length - 1,
+          type: 'button', title: t('Move down'), disabled: i === list.length - 1, 'data-focus': `${f.key}:${key}:down`,
           onclick: () => { [list[i + 1], list[i]] = [list[i], list[i + 1]]; save(); rebuild(); },
         }, '↓') : null,
         h('button.icon-btn.danger', {
-          type: 'button', title: t('Remove'),
+          type: 'button', title: t('Remove'), 'data-focus': `${f.key}:${key}:remove`,
           onclick: () => { list.splice(i, 1); expandedNested.delete(key); save(); rebuild(); },
         }, '×')));
     if (open) {
@@ -856,9 +873,22 @@ function actionsField(id, value, set, rebuild, f = {}) {
     return row;
   });
   const groups = S.catalogue.map((g) => ({ g, acts: g.actions.filter(allowed) })).filter((x) => x.acts.length);
+  // Arrow keys on a closed select change its value at once (Linux Chromium): with the
+  // keyboard an action is added with Enter, with the mouse by picking it.
+  let browsing = false;
   const add = h('select.select', {
     id,
+    'data-focus': `${f.key}:add`,
+    onmousedown: () => { browsing = false; },
+    onkeydown: (e) => {
+      if (e.key === 'Enter' && add.value) {
+        e.preventDefault();
+        browsing = false;
+        add.dispatchEvent(new Event('change'));
+      } else if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End' || e.key.length === 1) browsing = true;
+    },
     onchange: (e) => {
+      if (browsing) return;
       const a = actionInfo(e.target.value);
       if (!a) return;
       const inst = {

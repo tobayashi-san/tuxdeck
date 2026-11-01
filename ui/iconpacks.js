@@ -101,6 +101,8 @@ export async function pickIcon(toDataUrl) {
 export function importIconPack() {
   return new Promise((resolve) => {
     const input = h('input', { type: 'file', accept: '.streamDeckIconPack', hidden: true });
+    // Closing the file chooser without a file.
+    input.addEventListener('cancel', () => { input.remove(); resolve(false); });
     input.addEventListener('change', async () => {
       const f = input.files[0];
       input.remove();
@@ -110,7 +112,7 @@ export function importIconPack() {
           method: 'POST', raw: true, body: await f.arrayBuffer(),
           headers: { 'X-Filename': f.name.replace(/[^\x20-\x7e]/g, '_'), 'Content-Type': 'application/octet-stream' },
         });
-        toast(t('Icon pack "{name}" installed', { name: r?.id }), 'info', 3000);
+        toast(t('Icon pack "{name}" installed', { name: r?.name || r?.id }), 'info', 3000);
         resolve(true);
       } catch (e) {
         toast(t('Import failed: {msg}', { msg: e.message }), 'error');

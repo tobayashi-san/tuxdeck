@@ -98,6 +98,7 @@ el.conn.className = 'conn';
     const st = await api('/api/state');
     await initI18n(st?.settings?.ui_language || 'en');
   } catch {
+    S.bootFailed = true;
     await initI18n('en');
   }
   translateDom();
@@ -118,6 +119,8 @@ el.conn.className = 'conn';
   renderEditor();
   try {
     await Promise.all([loadCatalogue(), loadState()]);
+  } catch {
+    S.bootFailed = true;
   } finally {
     connectEvents();
   }

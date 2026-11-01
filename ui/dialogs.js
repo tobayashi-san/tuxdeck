@@ -5,6 +5,10 @@ import { t } from './i18n.js';
 /** `action`: optional `{ label, run }` button, e.g. "Undo". */
 export function toast(message, level = 'info', ms = 5000, action = null) {
   const box = document.getElementById('toasts');
+  // One failure, one message: the service logs it and the UI reports it too.
+  const text = String(message ?? '');
+  const shown = [...box.querySelectorAll('.toast-msg')].map((m) => m.textContent);
+  if (!action && text.length > 8 && shown.some((s) => s.includes(text) || (s.length > 8 && text.includes(s)))) return;
   const el = h('div.toast', { class: 'toast-' + level, role: 'status' },
     h('span.toast-msg', null, message),
     action ? h('button.btn.small.toast-action', { onclick: () => { el.remove(); action.run(); } }, action.label) : null,

@@ -28,7 +28,7 @@ const opt = (name, def) => {
   return i >= 0 ? args[i + 1] : def;
 };
 const BIN = path.resolve(opt('--bin', path.join(ROOT, 'target/release/tuxdeck')));
-const ONLY = (opt('--only', 'neo,plus,mini,original,mk2,xl,pedal,twodecks')).split(',');
+const ONLY = (opt('--only', 'neo,plus,mini,original,original2,mk2,xl,pedal,twodecks')).split(',');
 const KEEP = args.includes('--keep');
 const VERBOSE = args.includes('-v');
 const ELGATO = path.join(os.homedir(), '.local/share/tuxdeck/elgato');
@@ -2242,6 +2242,18 @@ async function suiteApi(d) {
     eq(wrong, [], 'expected 404');
   });
 
+  await test('errors are JSON: wrong method, wrong content type, no access', async () => {
+    const json = async (r) => [r.status, (await r.json()).error];
+    let r = await fetch(d.url('/api/state'), { method: 'PUT', headers: { 'x-tuxdeck-token': d.token } });
+    const [status, msg] = await json(r);
+    assert(status === 405 && typeof msg === 'string' && msg, `405: ${msg}`);
+    r = await fetch(d.url('/api/settings'), { method: 'POST', headers: { 'x-tuxdeck-token': d.token, 'content-type': 'text/plain' }, body: '{}' });
+    eq(r.status, 415);
+    assert(typeof (await r.json()).error === 'string', '415 body');
+    r = await fetch(d.url('/api/state'), { headers: { 'x-tuxdeck-token': d.token, origin: 'http://evil.example' } });
+    eq(await json(r), [403, 'forbidden']);
+  });
+
   await test('bad requests: malformed JSON, missing fields, wrong types, wrong content type', async () => {
     const send = (method, p, body, ct = 'application/json') => d.raw(p, { method, headers: { 'x-tuxdeck-token': T, ...(ct ? { 'content-type': ct } : {}) }, body });
     eq((await send('POST', '/api/profiles', '{nope')).status, 400, 'syntax error');
@@ -3652,7 +3664,7 @@ async function suiteConvertEdge(d) {
 
   await test('sample profiles without their catalogue plugins: keys keep their look and wait for a command', async () => {
     const r = await d.post('/api/templates/stream', { model: '20GBJ9901' });
-    eq(r.failed, ['de.felitendo.obs-tools']);
+    eq(r.failed, ['OBS Tools'], 'by name');
     const kp = (await d.page(r.id, (await d.state()).profiles.find((p) => p.id === r.id).pages[0])).controllers.find((c) => c.Type === 'Keypad').Actions;
     for (const coord of ['0,0', '1,0', '2,0', '3,0', '0,1', '1,1', '2,1']) {
       eq([kp[coord].UUID, kp[coord].Settings.path], [O, ''], coord);
@@ -3661,7 +3673,7 @@ async function suiteConvertEdge(d) {
     eq([kp['3,1'].UUID, kp['3,1'].Settings.path], [WEBSITE, 'https://dashboard.twitch.tv/']);
     eq((await d.get(`/api/profiles/${r.id}/conversion`)).needed, false, 'nothing to convert');
     const play = await d.post('/api/templates/play', { model: '20GBJ9901' });
-    eq(play.failed, ['me.amankhanna.oadiscord']);
+    eq(play.failed, ['Discord']);
     const pk = (await d.page(play.id, (await d.state()).profiles.find((p) => p.id === play.id).pages[0])).controllers.find((c) => c.Type === 'Keypad').Actions;
     eq([pk['0,0'].States[0].Title, pk['0,0'].Settings.path], ['Steam', 'e2e-steam-launcher'], 'installed program found');
     eq([pk['1,0'].States[0].Title, pk['1,0'].Settings.path], ['Heroic', ''], 'a program that is not installed gets no command');
@@ -3911,6 +3923,8 @@ const GROUPS = [
   { model: 'plus', name: 'plus', run: suitePlus },
   { model: 'mini', name: 'mini', run: (d) => suiteSmall(d, 'mini', [3, 2]) },
   { model: 'original', name: 'original', run: (d) => suiteSmall(d, 'original', [5, 3]) },
+  // The second Stream Deck generation by its model number.
+  { model: '20GAA9902', name: 'original2', run: (d) => suiteSmall(d, 'original2', [5, 3]) },
   { model: 'xl', name: 'xl', run: (d) => suiteSmall(d, 'xl', [8, 4]) },
   { model: 'pedal', name: 'pedal', run: suitePedal },
   { model: 'neo', name: 'neo: api', run: suiteApi },

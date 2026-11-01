@@ -203,18 +203,20 @@ async function renameProfile() {
 async function smartProfile() {
   const prof = profileById(S.view.profile);
   if (!prof) return;
-  let wins = { active: '', windows: [] };
+  let wins = { active: '', windows: [], available: true };
   try { wins = await api('/api/windows'); } catch { /* optional */ }
   const listId = 'smart-apps-' + Date.now();
   const input = h('input.text', { type: 'text', value: prof.app || '', spellcheck: 'false', list: listId, placeholder: t('e.g. firefox') });
   const classes = [...new Set(wins.windows.map((w) => w.class))];
   const body = h('div', null,
-    h('p.modal-text', null, t('The profile is shown automatically while a window of this application is active, and afterwards the previous profile returns. Enter the window class (Hyprland: "hyprctl clients"); separate several applications with ";".')),
+    h('p.modal-text', null, t('The profile is shown automatically while a window of this application is active, and afterwards the previous profile returns. Enter the window class (Hyprland: "hyprctl clients", X11: "xprop WM_CLASS"); separate several applications with ";".')),
     h('label.modal-field', null, h('span', null, t('Application')), input),
     h('datalist', { id: listId }, classes.map((c) => h('option', { value: c }))),
     classes.length ? h('div.chip-row', null, classes.slice(0, 12).map((c) =>
       h('button.chip', { type: 'button', onclick: () => { input.value = c; input.focus(); } }, c))) : null,
-    wins.active ? h('p.field-help', null, t('Currently active: {app}', { app: wins.active })) : null);
+    wins.active ? h('p.field-help', null, t('Currently active: {app}', { app: wins.active })) : null,
+    // GNOME and KDE on Wayland don't tell other programs which window is active.
+    wins.available === false ? h('p.modal-text.warn-text', null, t('On this desktop TuxDeck can\'t see which window is active, so Smart Profiles don\'t switch here. They work on Hyprland and in X11 sessions.')) : null);
   // With several decks that can show the profile: only one of them, or every one.
   const decks = S.state.devices.filter((x) => compatibleModel(x.model, prof.model));
   const deckSelect = h('select.select', null,
@@ -230,7 +232,9 @@ async function smartProfile() {
   const app = r === 'clear' ? '' : input.value.trim();
   try {
     await api(`/api/profiles/${enc(prof.id)}`, { method: 'PATCH', body: { app, ...(decks.length > 1 || prof.device ? { device: deckSelect.value } : {}) } });
-    toast(app ? t('"{profile}" is activated automatically for "{app}"', { profile: prof.name, app }) : t('Link removed'), 'info', 3000);
+    toast(!app ? t('Link removed')
+      : wins.available === false ? t('Saved. Smart Profiles don\'t switch on this desktop.')
+        : t('"{profile}" is activated automatically for "{app}"', { profile: prof.name, app }), 'info', 3000);
   } catch (e) {
     toast(e.message, 'error');
   }

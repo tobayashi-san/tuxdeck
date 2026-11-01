@@ -158,7 +158,10 @@ fn check_access(access: &Access, req: &axum::extract::Request, is_api: bool) -> 
             header_token(headers).or(query("token")) == Some(&*access.token) || (from_ui && has_cookie(headers, &session_cookie(access.port), &access.session));
         if !ok {
             return Some(
-                (StatusCode::UNAUTHORIZED, Json(json!({"error": crate::tr!("Open the configuration from the application menu or with `tuxdeck ui`.")})))
+                (
+                    StatusCode::UNAUTHORIZED,
+                    Json(json!({"error": crate::tr!("Open the configuration from the application menu or with the command tuxdeck ui.")})),
+                )
                     .into_response(),
             );
         }
@@ -221,6 +224,23 @@ pub fn router(sh: Shared) -> Router {
         .fallback(get(static_file))
         .with_state(sh)
         .layer(axum::middleware::from_fn_with_state(access, guard))
+        .layer(axum::middleware::from_fn(json_errors))
+}
+
+/// Errors of the API are JSON (`{"error": "…"}`), also those axum or the guard produce
+/// as plain text or with no body (403, 405, 413, 415, 422).
+async fn json_errors(req: axum::extract::Request, next: axum::middleware::Next) -> Response {
+    let api = req.uri().path().starts_with("/api/");
+    let r = next.run(req).await;
+    let json = r.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).is_some_and(|v| v.starts_with("application/json"));
+    if !api || json || !(r.status().is_client_error() || r.status().is_server_error()) {
+        return r;
+    }
+    let status = r.status();
+    let body = axum::body::to_bytes(r.into_body(), 64 * 1024).await.unwrap_or_default();
+    let text = String::from_utf8_lossy(&body).trim().to_string();
+    let msg = if text.is_empty() { status.canonical_reason().unwrap_or("error").to_lowercase() } else { text };
+    (status, Json(json!({"error": msg}))).into_response()
 }
 
 async fn new_login_code() -> Json<Value> {
@@ -1038,8 +1058,9 @@ async fn rename_profile(State(sh): State<Shared>, Path(profile): Path<String>, J
 /// Open application windows (window class + title), for linking smart profiles.
 async fn windows(State(sh): State<Shared>) -> Json<Value> {
     let active = sh.lock().active_app.clone();
-    let list = tokio::task::spawn_blocking(crate::smart::open_windows).await.unwrap_or_default();
-    Json(json!({"active": active, "windows": list.into_iter().map(|(c, t)| json!({"class": c, "title": t})).collect::<Vec<_>>()}))
+    let (list, available) = tokio::task::spawn_blocking(|| (crate::smart::open_windows(), crate::smart::available())).await.unwrap_or_default();
+    Json(json!({"active": active, "available": available,
+                "windows": list.into_iter().map(|(c, t)| json!({"class": c, "title": t})).collect::<Vec<_>>()}))
 }
 
 /// Simulate a focus change (tests, or desktops without a supported focus source).

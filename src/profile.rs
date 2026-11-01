@@ -298,7 +298,12 @@ impl Profile {
                     Ok(p) => {
                         pages.insert(id, p);
                     }
-                    Err(err) => tracing::warn!("skipping page {}: {err:#}", path.display()),
+                    // Kept as an empty page (it stays in the page list); the file is copied
+                    // aside before it is overwritten (see `save_page`).
+                    Err(err) => {
+                        tracing::error!("page {} can't be read, shown empty: {err:#}", path.display());
+                        pages.insert(id, PageManifest::default());
+                    }
                 }
             }
         }
@@ -350,7 +355,15 @@ impl Profile {
         let page = self.pages.get(page_id).context("unknown page")?;
         let dir = self.page_dir(page_id).context("invalid page id")?;
         fs::create_dir_all(dir.join("Images"))?;
-        write_atomic(&dir.join("manifest.json"), &serde_json::to_vec(page)?)
+        let file = dir.join("manifest.json");
+        // A manifest that couldn't be read is kept for repair instead of being replaced.
+        if let Ok(old) = fs::read(&file) {
+            if serde_json::from_slice::<PageManifest>(&old).is_err() {
+                let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+                fs::write(dir.join(format!("manifest.json.broken-{secs}")), &old)?;
+            }
+        }
+        write_atomic(&file, &serde_json::to_vec(page)?)
     }
 
     pub fn save_all(&self) -> Result<()> {
@@ -415,7 +428,11 @@ impl Profile {
 
 pub fn write_atomic(path: &Path, data: &[u8]) -> Result<()> {
     let tmp = path.with_extension("tmp");
-    fs::write(&tmp, data)?;
+    let mut f = fs::File::create(&tmp)?;
+    f.write_all(data)?;
+    // On disk before the rename: a crash must not leave an empty file behind.
+    f.sync_all()?;
+    drop(f);
     fs::rename(&tmp, path)?;
     Ok(())
 }
@@ -523,6 +540,30 @@ mod tests {
         assert_eq!(encode_page_dir("9a3bd784-aeb1-4a35-8618-293e75e00cc3").unwrap(), "J8TTF15EM553B1GO54W7BO0COCZ");
         assert_eq!(encode_page_dir("5211d3c8-731e-42c4-b6e7-dc1d5135ac96").unwrap(), "A88T7I3J3P1C9DN7RGEL2DDCIOZ");
         assert_eq!(decode_page_dir("9GDVDHMPPD77F4S4WSH81KIWN0Z").unwrap(), "4c1be6c6-d9cb-4e77-9384-ff2280d25fb8");
+    }
+
+    #[test]
+    fn unreadable_pages_stay_and_are_kept_aside() {
+        let root = std::env::temp_dir().join(format!("tuxdeck-broken-page-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let mut p = Profile::new(&root, "P", "20GBJ9901");
+        let second = new_uuid();
+        p.pages.insert(second.clone(), PageManifest::default());
+        p.manifest.pages.pages.push(second.clone());
+        p.save_all().unwrap();
+        let file = p.page_dir(&second).unwrap().join("manifest.json");
+        fs::write(&file, "").unwrap();
+        // Still in the list, shown empty; nothing lost when the profile is saved again.
+        let loaded = Profile::load(&p.dir).unwrap();
+        assert_eq!(loaded.manifest.pages.pages, p.manifest.pages.pages);
+        loaded.save_manifest().unwrap();
+        fs::write(&file, "{ broken").unwrap();
+        loaded.save_page(&second).unwrap();
+        let kept: Vec<_> =
+            fs::read_dir(file.parent().unwrap()).unwrap().flatten().filter(|e| e.file_name().to_string_lossy().starts_with("manifest.json.broken-")).collect();
+        assert_eq!(kept.len(), 1);
+        assert_eq!(fs::read_to_string(kept[0].path()).unwrap(), "{ broken");
+        fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

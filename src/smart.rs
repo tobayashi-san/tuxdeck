@@ -80,16 +80,49 @@ fn focus_event_class(line: &str) -> Option<&str> {
     line.strip_prefix("activewindow>>").map(|rest| rest.split(',').next().unwrap_or(""))
 }
 
-/// Window classes of all open windows (for the profile editor).
-pub fn open_windows() -> Vec<(String, String)> {
-    if crate::input::hypr_instance().is_some() {
-        if let Ok(out) = crate::input::hyprctl_command().args(["clients", "-j"]).output() {
-            if let Some(v) = clients_from_json(&out.stdout) {
-                return v;
-            }
-        }
+/// Whether TuxDeck learns which window is active here (Hyprland, X11 with xprop); off on
+/// GNOME/KDE Wayland and in tests.
+pub fn available() -> bool {
+    if std::env::var_os("TUXDECK_NO_WINDOW_WATCH").is_some() {
+        return false;
     }
-    x11_active_class().map(|c| vec![(c, String::new())]).unwrap_or_default()
+    let xprop = || std::env::var_os("PATH").is_some_and(|p| std::env::split_paths(&p).any(|d| d.join("xprop").is_file()));
+    crate::input::hypr_instance().is_some() || (x11_session() && xprop())
+}
+
+/// Window classes of the open windows (for the profile editor), without TuxDeck's own.
+pub fn open_windows() -> Vec<(String, String)> {
+    let mut v = if crate::input::hypr_instance().is_some() {
+        crate::input::hyprctl_command().args(["clients", "-j"]).output().ok().and_then(|out| clients_from_json(&out.stdout)).unwrap_or_default()
+    } else if x11_session() {
+        x11_windows()
+    } else {
+        vec![]
+    };
+    v.retain(|(c, _)| !c.eq_ignore_ascii_case("tuxdeck"));
+    v
+}
+
+/// Every top-level X11 window (`_NET_CLIENT_LIST`), one per class.
+fn x11_windows() -> Vec<(String, String)> {
+    let Ok(out) = Command::new("xprop").args(["-root", "_NET_CLIENT_LIST"]).output() else { return vec![] };
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut v: Vec<(String, String)> = text
+        .split(['#', ','])
+        .skip(1)
+        .map(str::trim)
+        .filter(|id| id.starts_with("0x"))
+        .filter_map(|id| {
+            let out = Command::new("xprop").args(["-id", id, "WM_CLASS", "_NET_WM_NAME"]).output().ok()?;
+            let text = String::from_utf8_lossy(&out.stdout);
+            let class = text.lines().find(|l| l.starts_with("WM_CLASS")).and_then(xprop_class)?;
+            let title = text.lines().find(|l| l.starts_with("_NET_WM_NAME")).and_then(|l| l.split('"').nth(1)).unwrap_or("").to_string();
+            Some((class, title))
+        })
+        .collect();
+    v.sort();
+    v.dedup_by(|a, b| a.0 == b.0);
+    v
 }
 
 fn x11_active_class() -> Option<String> {

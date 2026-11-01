@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/hero.svg" width="720" alt="A Stream Deck whose middle row of keys spells TuxDeck">
+  <img src="https://github.com/tobayashi-san/tuxdeck/raw/main/docs/images/hero.svg" width="720" alt="A Stream Deck whose middle row of keys spells TuxDeck">
 </p>
 
 <h1 align="center">TuxDeck</h1>
@@ -17,7 +17,7 @@
   &nbsp;·&nbsp;
   <a href="#devices">Devices</a>
   &nbsp;·&nbsp;
-  <a href="docs/README.md">Handbook</a>
+  <a href="https://github.com/tobayashi-san/tuxdeck/blob/main/docs/README.md">Handbook</a>
 </p>
 
 <p align="center"><sub>
@@ -27,7 +27,7 @@
 
 <br>
 
-![TuxDeck with a Stream Deck MK.2: keys on the left, the selected key's settings below, all actions on the right](docs/images/editor.png)
+![TuxDeck with a Stream Deck MK.2: keys on the left, the selected key's settings below, all actions on the right](https://github.com/tobayashi-san/tuxdeck/raw/main/docs/images/editor.png)
 
 ## Plug in, press keys
 
@@ -48,7 +48,7 @@ and so do its backups.
 Hyprland and X11, profiles follow the window in focus. Every plugin can be test-run in a
 sandbox first, and a badge tells you whether it works on Linux.
 
-![The plugin catalogue: open-source Stream Deck plugins, installed with one click](docs/images/plugins.png)
+![The plugin catalogue: open-source Stream Deck plugins, installed with one click](https://github.com/tobayashi-san/tuxdeck/raw/main/docs/images/plugins.png)
 
 ## Install
 
@@ -70,7 +70,7 @@ systemctl --user enable --now tuxdeck
 Open **TuxDeck** from your app menu. That's it.
 
 <sub>Needs a 64-bit PC and a distribution from 2022 or newer (Ubuntu 22.04, Debian 12,
-Fedora 36). Raspberry Pi, NixOS or older systems: [build from source](docs/README.md#build-from-source).</sub>
+Fedora 36). Raspberry Pi, NixOS or older systems: [build from source](https://github.com/tobayashi-san/tuxdeck/blob/main/docs/README.md#build-from-source).</sub>
 
 ## First five minutes
 
@@ -90,11 +90,12 @@ Fedora 36). Raspberry Pi, NixOS or older systems: [build from source](docs/READM
 ## Devices
 
 <p align="center">
-  <img src="docs/images/devices.svg" width="760" alt="Stream Deck Mini, Neo, MK.2, Plus, XL and Pedal, drawn to scale">
+  <img src="https://github.com/tobayashi-san/tuxdeck/raw/main/docs/images/devices.svg" width="760" alt="Stream Deck Mini, Neo, MK.2, Plus, XL and Pedal, drawn to scale">
 </p>
 
-Every current Stream Deck works: **Mini, Neo, MK.2, Stream Deck +** (dials and touch
-strip), **XL, Pedal**, and the first-generation models. The Neo and the MK.2 are tested on
+Supported: **Mini, Neo, MK.2, Stream Deck +** (dials and touch strip), **XL, Pedal**,
+and the first-generation models. Not yet: Stream Deck Studio, the Stream Deck modules
+and the Mini Discord edition (`tuxdeck list` names such devices as not supported). The Neo and the MK.2 are tested on
 real hardware; the others are tested against simulated devices. Own one of them? A quick
 report helps a lot – `tuxdeck probe` lights up every key and prints what you press, and
 there's an [issue template](https://github.com/tobayashi-san/tuxdeck/issues/new?template=device.yml)
@@ -113,7 +114,7 @@ what TuxDeck can see. If you built from source, run `sudo make install-udev` fir
 <summary><b>Hotkeys or text don't arrive</b></summary>
 
 On Hyprland this works out of the box; Sway needs `wtype`, X11 `xdotool`. GNOME and KDE on
-Wayland need the optional virtual keyboard – the [handbook](docs/README.md#troubleshooting) explains how to
+Wayland need the optional virtual keyboard – the [handbook](https://github.com/tobayashi-san/tuxdeck/blob/main/docs/README.md#troubleshooting) explains how to
 switch it on and why it's off by default.
 </details>
 
@@ -124,7 +125,7 @@ Plugins need Node.js 20 or newer (`node`), some also a Chromium-based browser. P
 ship only a Windows or macOS program can't run on Linux; TuxDeck marks them.
 </details>
 
-More in the [handbook](docs/README.md#troubleshooting).
+More in the [handbook](https://github.com/tobayashi-san/tuxdeck/blob/main/docs/README.md#troubleshooting).
 
 ## Questions people ask
 
@@ -135,7 +136,7 @@ DRM-protected, those only run in the official app.
 **Is this the official app?** No, TuxDeck is an independent project written in
 Rust. It is not affiliated with, endorsed or sponsored by Elgato or Corsair.
 
-**Is it free?** Yes, and open source under the [MIT license](LICENSE).
+**Is it free?** Yes, and open source under the [MIT license](https://github.com/tobayashi-san/tuxdeck/blob/main/LICENSE).
 
 <br>
 
@@ -143,8 +144,8 @@ Rust. It is not affiliated with, endorsed or sponsored by Elgato or Corsair.
 
 <p align="center">
   <b>Developers, packagers, curious people:</b>
-  the <a href="docs/README.md">handbook</a> has commands, file locations, internals and the
-  release process. <a href="CONTRIBUTING.md">CONTRIBUTING.md</a> explains how to build and
+  the <a href="https://github.com/tobayashi-san/tuxdeck/blob/main/docs/README.md">handbook</a> has commands, file locations, internals and the
+  release process. <a href="https://github.com/tobayashi-san/tuxdeck/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> explains how to build and
   test without hardware.
 </p>
 

@@ -21,7 +21,11 @@ pkgs.rustPlatform.buildRustPackage {
     install -Dm644 assets/icon/tuxdeck.svg $out/share/icons/hicolor/scalable/apps/tuxdeck.svg
     for s in 16 24 32 48 64 128 256; do install -Dm644 assets/icon/tuxdeck-$s.png $out/share/icons/hicolor/"$s"x"$s"/apps/tuxdeck.png; done
     install -Dm644 packaging/tuxdeck.service $out/lib/systemd/user/tuxdeck.service
-    substituteInPlace $out/lib/systemd/user/tuxdeck.service --replace-fail '%h/.local/bin/tuxdeck' "$out/bin/tuxdeck"
+    substituteInPlace $out/lib/systemd/user/tuxdeck.service --replace-fail '%h/.local/bin/tuxdeck' "$out/bin/tuxdeck" \
+      --replace-fail 'file://%h/.local/share/doc/tuxdeck/README.md' "file://$out/share/doc/tuxdeck/README.md"
+    install -Dm644 README.md $out/share/doc/tuxdeck/README.md
+    install -Dm644 docs/README.md $out/share/doc/tuxdeck/HANDBOOK.md
+    install -Dm644 LICENSE THIRD-PARTY-LICENSES.md assets/fonts/LICENSE-DejaVu.txt -t $out/share/doc/tuxdeck
   '';
   meta = {
     description = "Linux software for Elgato Stream Deck devices";

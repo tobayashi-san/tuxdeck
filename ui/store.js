@@ -58,7 +58,7 @@ function showNoAccess(detail) {
   document.body.append(h('div.no-access', { role: 'alert' },
     h('div.no-access-box', null,
       h('h2', null, t('No access to the TuxDeck service')),
-      h('p', null, detail || t('Open the configuration from the application menu or with `tuxdeck ui`.')))));
+      h('p', null, detail || t('Open the configuration from the application menu or with the command tuxdeck ui.')))));
 }
 
 export async function api(path, { method = 'GET', body, headers, raw = false } = {}) {

@@ -20,6 +20,7 @@ BINDIR ?= $(PREFIX)/bin
 DATADIR ?= $(PREFIX)/share
 SYSTEMDUSERDIR ?= $(PREFIX)/lib/systemd/user
 UDEVRULESDIR ?= /etc/udev/rules.d
+MODULESLOADDIR ?= /etc/modules-load.d
 
 # XDG base directories; empty or relative values are invalid per the spec and ignored.
 xdg_dir = $(if $(filter /%,$(firstword $(1))),$(1),$(2))
@@ -62,6 +63,8 @@ define install_files
 	install -Dm644 README.md $(call q,$(4)/doc/tuxdeck/README.md)
 	install -Dm644 docs/README.md $(call q,$(4)/doc/tuxdeck/HANDBOOK.md)
 	install -Dm644 THIRD-PARTY-LICENSES.md $(call q,$(4)/doc/tuxdeck/THIRD-PARTY-LICENSES.md)
+	install -Dm644 LICENSE $(call q,$(4)/doc/tuxdeck/LICENSE)
+	install -Dm644 assets/fonts/LICENSE-DejaVu.txt $(call q,$(4)/doc/tuxdeck/LICENSE-DejaVu.txt)
 	install -Dm644 tuxdeck.desktop.tmp $(call q,$(4)/applications/tuxdeck.desktop)
 	install -Dm644 tuxdeck.service.tmp $(call q,$(3)/tuxdeck.service)
 	install -Dm644 assets/icon/tuxdeck.svg $(call q,$(4)/icons/hicolor/scalable/apps/tuxdeck.svg)
@@ -76,6 +79,8 @@ define udev_reload
 endef
 
 install: $(BIN)
+	@if [ -n "$$(find src ui Cargo.toml Cargo.lock -newer $(BIN) -print -quit 2>/dev/null)" ]; then \
+	  echo "$(BIN) is older than the sources: run 'make' first (as your user), then 'sudo make install'." >&2; exit 1; fi
 	$(call install_files,$(BINDIR)/tuxdeck,$(DESTDIR)$(BINDIR),$(DESTDIR)$(SYSTEMDUSERDIR),$(DESTDIR)$(DATADIR),$(DATADIR))
 	install -Dm644 packaging/70-tuxdeck.rules $(call q,$(DESTDIR)$(UDEVRULESDIR)/70-tuxdeck.rules)
 	@echo
@@ -92,7 +97,8 @@ uninstall:
 	rm -rf $(call q,$(DESTDIR)$(DATADIR)/doc/tuxdeck)
 	@echo "Users who used it: make uninstall-user (removes their service link and streamdeck:// handler)"
 
-install-user: $(BIN)
+# Builds first (a no-op when up to date), so an update never installs an old binary.
+install-user: build
 	$(call install_files,$(USER_BINDIR)/tuxdeck,$(USER_BINDIR),$(USER_SYSTEMDDIR),$(USER_DATADIR),$(USER_DATADIR))
 	-if command -v update-desktop-database >/dev/null; then update-desktop-database $(call q,$(USER_DATADIR)/applications); fi
 	-if command -v systemctl >/dev/null; then systemctl --user daemon-reload; fi
@@ -125,12 +131,15 @@ uninstall-udev:
 
 install-uinput:
 	install -Dm644 packaging/71-tuxdeck-uinput.rules $(call q,$(DESTDIR)$(UDEVRULESDIR)/71-tuxdeck-uinput.rules)
+	install -Dm644 packaging/tuxdeck-uinput.conf $(call q,$(DESTDIR)$(MODULESLOADDIR)/tuxdeck-uinput.conf)
+	-modprobe uinput
 	-udevadm control --reload
 	-udevadm trigger --subsystem-match=misc --sysname-match=uinput
 	@echo "Restart the app to use it: systemctl --user restart tuxdeck"
+	@echo "(If /dev/uinput still can't be opened, reboot once.)"
 
 uninstall-uinput:
-	rm -f $(call q,$(DESTDIR)$(UDEVRULESDIR)/71-tuxdeck-uinput.rules)
+	rm -f $(call q,$(DESTDIR)$(UDEVRULESDIR)/71-tuxdeck-uinput.rules) $(call q,$(DESTDIR)$(MODULESLOADDIR)/tuxdeck-uinput.conf)
 	-udevadm control --reload
 	@echo "Access already granted to /dev/uinput ends with the next reboot."
 

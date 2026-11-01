@@ -2,7 +2,7 @@
 // The catalogues are "sources" (see sources.js); each one provides tabs, a list, details
 // and installation.
 import { api, enc, h, debounce } from './store.js';
-import { toast, confirmDialog, modal } from './dialogs.js';
+import { toast, confirmDialog, modal, restoreFocus } from './dialogs.js';
 import { t, tn, locale } from './i18n.js';
 import { importFile } from './topbar.js';
 import { SOURCES } from './sources.js';
@@ -103,7 +103,7 @@ function linuxBadge(item) {
   const c = item.state?.linux_check;
   const v = c && VERDICTS[c.verdict]?.();
   if (!v) return null;
-  const when = c.tested_at ? new Date(c.tested_at).toLocaleDateString() : '';
+  const when = c.tested_at ? new Date(c.tested_at).toLocaleDateString(locale()) : '';
   const by = c.source === 'community' ? t('tested by the TuxDeck plugin test') : t('tested on this computer');
   return h(`span.mk-badge.${v.cls}`, { title: `${t('Version {version}, tested {date}', { version: c.version || '?', date: when })} (${by})` }, v.label);
 }
@@ -120,7 +120,7 @@ function linuxSection(item) {
   return h('section.mk-section.mk-linux', null,
     h('h3', null, t('Linux check')),
     v ? h(`div.mk-linux-verdict.${v.cls}`, null, v.text,
-      h('span.muted', null, ` · ${t('Version {version}, tested {date}', { version: report.version || '?', date: new Date(report.tested_at).toLocaleString() })}`),
+      h('span.muted', null, ` · ${t('Version {version}, tested {date}', { version: report.version || '?', date: new Date(report.tested_at).toLocaleString(locale()) })}`),
       h('div.muted', null, report.community ? t('Result of the TuxDeck plugin test.') : t('Tested on this computer.'))) : null,
     report ? h('ul.mk-linux-checks', null, report.checks.map((c) => h('li', { class: c.ok === true ? 'ok' : c.ok === false ? 'bad' : 'skip' },
       h('span.mk-linux-mark', null, mark(c.ok)),
@@ -324,6 +324,7 @@ export function openMarket() {
   if (location.hash !== '#market') history.replaceState(null, '', '#market');
   if (M.open) return;
   M.open = true;
+  M.returnFocus = document.activeElement;
   M.root.hidden = false;
   document.body.classList.add('market-open');
   for (const s of SOURCES) s.onOpen?.();
@@ -341,6 +342,9 @@ export function closeMarket() {
   M.root.hidden = true;
   document.body.classList.remove('market-open');
   for (const s of SOURCES) s.onClose?.();
+  // Back to where the view was opened from (keyboard and screen reader users).
+  const back = M.returnFocus?.isConnected && M.returnFocus !== document.body ? M.returnFocus : document.getElementById('market-btn');
+  restoreFocus(back);
 }
 
 /** {"event":"market","type":"installed"|"open"|…} (other types are for the sources) */

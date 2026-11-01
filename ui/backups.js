@@ -2,7 +2,7 @@
 
 import { api, enc, h } from './store.js';
 import { confirmDialog, toast } from './dialogs.js';
-import { t } from './i18n.js';
+import { locale, t } from './i18n.js';
 import { $ } from './dom.js';
 
 const kindLabel = (k) => (k === 'daily' ? t('Daily backup') : k === 'before' ? t('Before restoring') : k === 'convert' ? t('Before converting a profile') : t('Backup'));
@@ -21,11 +21,16 @@ export async function renderBackups() {
     list.replaceChildren(h('li.muted', null, e.message));
     return;
   }
-  const date = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-  list.replaceChildren(...(items.length ? items.map((b) => h('li', null,
-    h('span.grow', { title: b.name }, `${date.format(new Date(b.created))} · ${kindLabel(b.kind)} · ${sizeLabel(b.size)}`),
-    h('a.btn.small', { href: `/api/backups/${enc(b.name)}`, download: b.name }, t('Download')),
-    h('button.btn.small', { type: 'button', onclick: () => restore(`/api/backups/${enc(b.name)}/restore`) }, t('Restore')))) : [h('li.muted', null, t('No backups yet.'))]));
+  const date = new Intl.DateTimeFormat(locale(), { dateStyle: 'medium', timeStyle: 'short' });
+  list.replaceChildren(...(items.length ? items.map((b) => {
+    const when = date.format(new Date(b.created));
+    // Date on one line, kind and size below: the kind tells which backup is which.
+    return h('li', null,
+      h('span.grow', { title: `${when} · ${kindLabel(b.kind)} · ${sizeLabel(b.size)}` },
+        h('span', null, when), h('span.muted.backup-kind', null, `${kindLabel(b.kind)} · ${sizeLabel(b.size)}`)),
+      h('a.btn.small', { href: `/api/backups/${enc(b.name)}`, download: b.name }, t('Download')),
+      h('button.btn.small', { type: 'button', onclick: () => restore(`/api/backups/${enc(b.name)}/restore`) }, t('Restore')));
+  }) : [h('li.muted', null, t('No backups yet.'))]));
 }
 
 async function restore(path, body) {

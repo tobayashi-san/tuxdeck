@@ -36,6 +36,13 @@ export function connectEvents() {
     return;
   }
   ws.addEventListener('open', () => {
+    // The first load failed (the service was restarting): start over now that it is
+    // there, language included. At most once in a short while.
+    if (S.bootFailed && Date.now() - Number(sessionStorage.getItem('tuxdeck.bootReload') || 0) > 15000) {
+      sessionStorage.setItem('tuxdeck.bootReload', String(Date.now()));
+      location.reload();
+      return;
+    }
     const reconnect = wsEverConnected;
     wsEverConnected = true;
     wsRetry = 0;

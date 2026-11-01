@@ -138,7 +138,7 @@ fn main() -> Result<()> {
             // hardware alone (like `run`).
             if let Some(kinds) = virtual_device() {
                 for kind in kinds.split(',').map(str::trim).filter(|k| !k.is_empty()) {
-                    println!("{}  serial VIRTUAL-{}  firmware virtual  (simulated)", virtual_model(kind).name, kind.to_uppercase());
+                    println!("{}  serial VIRTUAL-{}  firmware virtual  (simulated)", virtual_model(kind)?.name, kind.to_uppercase());
                 }
                 return Ok(());
             }
@@ -261,8 +261,28 @@ fn login_code(paths: &paths::Paths, port: u16) -> Result<String> {
     })
 }
 
+/// Exit status when the UI port is taken (see packaging/tuxdeck.service).
+const EXIT_PORT_IN_USE: i32 = 3;
+
 fn start_daemon_if_needed(port: u16) -> Result<()> {
     if daemon_running(port) {
+        return Ok(());
+    }
+    // The installed service, if there is one: a daemon of our own would hold the port
+    // and keep the service from starting later.
+    let unit = std::process::Command::new("systemctl")
+        .args(["--user", "start", "tuxdeck.service"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success());
+    if unit
+        && (0..50).any(|_| {
+            std::thread::sleep(Duration::from_millis(100));
+            daemon_running(port)
+        })
+    {
         return Ok(());
     }
     let exe = std::env::current_exe()?;
@@ -436,15 +456,33 @@ fn virtual_device() -> Option<String> {
     std::env::var("TUXDECK_VIRTUAL_DEVICE").ok().filter(|_| std::env::var_os("TUXDECK_ALLOW_HARDWARE").is_none())
 }
 
-fn virtual_model(kind: &str) -> &'static device::Model {
-    device::MODELS.iter().find(|m| format!("{:?}", m.kind).eq_ignore_ascii_case(kind)).unwrap_or(&device::MODELS[0])
+/// The simulated model: a kind (`neo`, `original` = 1st generation, `original2`), a model
+/// number (`20GAA9902`) or a USB product id (`0x006d`).
+fn virtual_model(kind: &str) -> Result<&'static device::Model> {
+    let k = kind.trim().to_ascii_lowercase();
+    let pid = u16::from_str_radix(k.trim_start_matches("0x"), 16).ok().filter(|_| k.starts_with("0x"));
+    device::MODELS
+        .iter()
+        .find(|m| match k.as_str() {
+            "original2" => m.model_id == "20GAA9902",
+            _ => format!("{:?}", m.kind).eq_ignore_ascii_case(&k) || m.model_id.eq_ignore_ascii_case(&k) || pid == Some(m.pid),
+        })
+        .with_context(|| {
+            format!("TUXDECK_VIRTUAL_DEVICE: unknown model {kind:?} (neo, mk2, xl, plus, pedal, original, original2, mini, a model number or 0x<product id>)")
+        })
 }
 
-/// Simulated deck for tests (`TUXDECK_VIRTUAL_DEVICE=neo|mk2|xl|plus|pedal|original|mini`,
+/// Simulated deck for tests (`TUXDECK_VIRTUAL_DEVICE`, see `virtual_model`,
 /// several separated by commas): accepts all device commands, input comes from the API
 /// (`…/press`), `…/virtual` unplugs and plugs it in again.
 fn spawn_virtual_device(kind: &str, n: usize, events: UnboundedSender<DevEvent>) {
-    let model = virtual_model(kind);
+    let model = match virtual_model(kind) {
+        Ok(m) => m,
+        Err(e) => {
+            tracing::error!("{e:#}");
+            return;
+        }
+    };
     let (tx, rx) = std::sync::mpsc::channel::<DevCmd>();
     let id = if n > 1 { format!("VIRTUAL-{}-{n}", kind.to_uppercase()) } else { format!("VIRTUAL-{}", kind.to_uppercase()) };
     let _ = events.send(DevEvent::Connected { id, model, firmware: "virtual".into(), tx });
@@ -552,9 +590,15 @@ fn run(paths: paths::Paths, open_browser: bool) -> Result<()> {
         std::thread::spawn(engine::scopes_available);
         let (ui_port, sdk_port) = (engine.settings.ui_port, engine.settings.sdk_port);
         // Bind the UI port first: a second instance must fail before touching devices.
-        let listener = tokio::net::TcpListener::bind(("127.0.0.1", ui_port))
-            .await
-            .with_context(|| format!("UI port {ui_port} is in use – is TuxDeck already running?"))?;
+        let listener = match tokio::net::TcpListener::bind(("127.0.0.1", ui_port)).await {
+            Ok(l) => l,
+            // Its own exit status: the service unit doesn't restart for this
+            // (RestartPreventExitStatus).
+            Err(e) => {
+                eprintln!("Error: UI port {ui_port} is in use ({e}) – is TuxDeck already running?");
+                std::process::exit(EXIT_PORT_IN_USE);
+            }
+        };
         // Plugin files (property inspectors, HTML plugins, icon packs) come from their own
         // origin without the API: next to the UI port if free, else any free port.
         let wanted = match engine.settings.plugin_port {
@@ -639,6 +683,16 @@ fn run(paths: paths::Paths, open_browser: bool) -> Result<()> {
             let mut iv = tokio::time::interval(Duration::from_secs(3600));
             loop {
                 iv.tick().await;
+                // A first start has no profile until the deck connects: a backup without
+                // one would take the day's place.
+                let has_profiles =
+                    |p: &paths::Paths| std::fs::read_dir(p.profiles()).is_ok_and(|rd| rd.flatten().any(|e| e.path().join("manifest.json").is_file()));
+                for _ in 0..600 {
+                    if has_profiles(&paths) {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
                 let p = paths.clone();
                 match tokio::task::spawn_blocking(move || backup::daily(&p)).await {
                     Ok(Ok(Some(f))) => tracing::info!("daily backup: {}", f.display()),

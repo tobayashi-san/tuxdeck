@@ -58,7 +58,7 @@ jobs:
           mkdir -p "$name/packaging/icon"
           cp build/tuxdeck packaging/install.sh README.md LICENSE THIRD-PARTY-LICENSES.md assets/fonts/LICENSE-DejaVu.txt "$name/"
           cp docs/README.md "$name/HANDBOOK.md"
-          cp packaging/70-tuxdeck.rules packaging/71-tuxdeck-uinput.rules packaging/install-helper.sh \
+          cp packaging/70-tuxdeck.rules packaging/71-tuxdeck-uinput.rules packaging/tuxdeck-uinput.conf packaging/install-helper.sh \
             packaging/tuxdeck.desktop packaging/tuxdeck.service "$name/packaging/"
           cp assets/icon/tuxdeck.svg assets/icon/tuxdeck-*.png "$name/packaging/icon/"
           chmod 755 "$name/tuxdeck" "$name/install.sh"

@@ -8,6 +8,8 @@ After=graphical-session.target
 ExecStart=%h/.local/bin/tuxdeck run --no-browser
 Restart=on-failure
 RestartSec=3
+# 3: the UI port is taken (another TuxDeck runs) – restarting doesn't help.
+RestartPreventExitStatus=3
 
 [Install]
 WantedBy=graphical-session.target
