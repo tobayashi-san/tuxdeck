@@ -528,7 +528,7 @@ fn parse_css_gradient(c: &str) -> Option<CssGradient> {
                 _ => return None,
             })
         };
-        let angle = first.strip_suffix("deg").and_then(|a| a.trim().parse::<f64>().ok()).or_else(|| side(&first));
+        let angle = first.strip_suffix("deg").and_then(|a| a.trim().parse::<f64>().ok()).filter(|a| a.is_finite()).or_else(|| side(&first));
         if let Some(a) = angle {
             kind = GradientKind::Linear(a);
             parts.remove(0);
@@ -549,7 +549,7 @@ fn parse_css_gradient(c: &str) -> Option<CssGradient> {
     for (i, p) in parts.iter().enumerate() {
         // "<colour> <pos>%" – the position is optional (spread evenly then).
         let (col, at) = match p.rsplit_once(char::is_whitespace) {
-            Some((col, pos)) if pos.ends_with('%') => (col.trim(), pos.trim_end_matches('%').trim().parse::<f64>().ok()? / 100.0),
+            Some((col, pos)) if pos.ends_with('%') => (col.trim(), pos.trim_end_matches('%').trim().parse::<f64>().ok().filter(|p| p.is_finite())? / 100.0),
             _ => (p.trim(), i as f64 / (n - 1) as f64),
         };
         if col.is_empty() || col.len() > 40 || col.contains(['<', '>', '"', '\'', '&']) {
@@ -942,6 +942,12 @@ mod tests {
         let mut defs = String::new();
         css_paint("radial-gradient(circle, #ff0000 0%, #0000ff 100%)", &mut defs, "k");
         assert!(defs.contains("<radialGradient"), "{defs}");
+        // NaN/infinite angles and positions never reach the SVG.
+        for bad in ["linear-gradient(nandeg, red, blue)", "linear-gradient(infdeg, red, blue)", "linear-gradient(90deg, red nan%, blue)"] {
+            let mut defs = String::new();
+            css_paint(bad, &mut defs, "k");
+            assert!(!defs.contains("\"NaN\"") && !defs.contains("\"inf\"") && !defs.contains("\"-inf\""), "{bad}: {defs}");
+        }
         // Rendered: left red, right blue.
         let key = render_key(&KeySpec { background: Some("linear-gradient(90deg, #ff0000 0%, #0000ff 100%)".into()), ..Default::default() }, 72);
         let (l, r) = (key.get_pixel(2, 36).0, key.get_pixel(69, 36).0);

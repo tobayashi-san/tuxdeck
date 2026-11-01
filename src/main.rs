@@ -14,6 +14,7 @@ mod linuxcheck;
 mod net;
 mod packages;
 mod paths;
+mod peer;
 mod plugins;
 mod profile;
 mod render;
@@ -620,7 +621,7 @@ fn run(paths: paths::Paths, open_browser: bool) -> Result<()> {
         let shared: Shared = Arc::new(Mutex::new(engine));
         shared.lock().self_ref = Some(Arc::downgrade(&shared));
         shared.lock().plugin_port = plugin_port;
-        let plugin_app = web::plugin_router(shared.clone());
+        let plugin_app = peer::guard(web::plugin_router(shared.clone()), plugin_listener.local_addr()?);
         tokio::spawn(async move {
             if let Err(e) = axum::serve(plugin_listener, plugin_app).await {
                 tracing::error!("plugin file server: {e:#}");
@@ -750,7 +751,8 @@ fn run(paths: paths::Paths, open_browser: bool) -> Result<()> {
                 let _ = tokio::task::spawn_blocking(move || sdk::start_html_host(&sh)).await;
             });
         }
-        let server = axum::serve(listener, app).with_graceful_shutdown(async {
+        let local = listener.local_addr()?;
+        let server = axum::serve(listener, peer::guard(app, local)).with_graceful_shutdown(async {
             let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).unwrap();
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {}

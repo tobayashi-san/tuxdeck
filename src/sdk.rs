@@ -21,7 +21,8 @@ pub async fn serve(shared: Shared, port: u16) -> Result<()> {
     let app = Router::new().route("/", get(ws_handler)).fallback(get(ws_handler)).with_state(shared);
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await.with_context(|| format!("SDK port {port} is in use"))?;
     tracing::info!("plugin SDK listening on ws://127.0.0.1:{port}");
-    axum::serve(listener, app).await?;
+    let local = listener.local_addr()?;
+    axum::serve(listener, crate::peer::guard(app, local)).await?;
     Ok(())
 }
 

@@ -5,7 +5,7 @@ import {
 } from './store.js';
 import { toast } from './dialogs.js';
 import { pickIcon } from './iconpacks.js';
-import { GRADIENT_PRESETS, editGradient, isGradient } from './gradient.js';
+import { GRADIENT_PRESETS, editGradient, isGradient, safeGradient } from './gradient.js';
 import { t, tn } from './i18n.js';
 import {
   makeHotkey, unusedHotkey, isUnusedHotkey, hotkeyLabel, loadLayoutMap, layoutLoaded, MODIFIER_CODES, hotkeyMods, withMods, isModifierOnly,
@@ -437,7 +437,7 @@ function bgSwatches(value, set, fallback = '#1e1e1e') {
     h('button.bg-swatch.bg-gradient', {
       type: 'button',
       class: isGradient(value) && !GRADIENT_PRESETS.includes(value) ? 'active' : null,
-      style: isGradient(value) ? { background: value } : null,
+      style: safeGradient(value) ? { background: safeGradient(value) } : null,
       title: t('Edit gradient…'), 'aria-label': t('Edit gradient…'),
       onclick: async () => {
         const g = await editGradient(isGradient(value) ? value : null);

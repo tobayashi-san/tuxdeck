@@ -1112,6 +1112,13 @@ async function suiteNeo(d, b) {
     await b.dialogButton('Apply');
     await until(async () => (await st0()).Background === 'linear-gradient(90deg, rgba(255,0,0,1) 0%, rgba(0,0,255,1) 100%)', 'gradient saved');
     await until(async () => !(await d.api(`/api/render/${(await d.state()).devices[0].profile}/${(await d.state()).devices[0].page}/Keypad/0,0.png?size=72&v=${Date.now()}`)).equals(before), 'drawn on the key');
+    // A background from an imported profile can't make the UI load a URL.
+    const dv = await d.dev();
+    await d.api(`/api/pages/${dv.profile}/${dv.page}/slot`, 'PATCH', { controller: 'Keypad', coord: '0,0', state: 0, style: { Background: 'linear-gradient(#000, #000), url(http://127.0.0.1:9/beacon)' } });
+    await until(async () => /beacon/.test((await st0()).Background || ''), 'stored as it came');
+    await selectSlot(b, 'Keypad', '1,0');
+    await selectSlot(b, 'Keypad', '0,0');
+    eq(await b.eval(`[...document.querySelectorAll('#editor [style]')].map((e) => e.getAttribute('style')).filter((x) => /url\\(/.test(x))`), [], 'no url() in the editor');
     // A ready-made one, then none again.
     await b.click('#editor .bg-swatch[title="Gradient"]');
     await until(async () => /^linear-gradient\(135deg/.test((await st0()).Background || ''), 'preset');

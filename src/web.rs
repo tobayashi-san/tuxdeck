@@ -427,7 +427,12 @@ fn serve_plugin_file(sh: &Shared, plugin: &str, path: &str) -> Response {
     }
     let full = dir.join(rel);
     let full = if full.is_file() { Some(full) } else { plugins::resolve_image(&dir, path) };
-    match full.and_then(|f| std::fs::read(&f).ok().map(|b| (f, b))) {
+    // Links a plugin made may not lead out of its folder (to the user's files).
+    let inside = |f: &std::path::Path| match (f.canonicalize(), dir.canonicalize()) {
+        (Ok(f), Ok(d)) => f.starts_with(d),
+        _ => false,
+    };
+    match full.filter(|f| inside(f)).and_then(|f| std::fs::read(&f).ok().map(|b| (f, b))) {
         Some((f, b)) => {
             let mime = mime_guess::from_path(&f).first_or_octet_stream();
             ([(header::CONTENT_TYPE, mime.to_string())], b).into_response()

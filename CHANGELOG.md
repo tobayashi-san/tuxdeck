@@ -3,6 +3,12 @@
 ## 0.6.0-beta.2 – 2026-11-01
 
 - **Security** (findings of a full review):
+  - Only the user running TuxDeck can use its ports (UI, plugin files, plugin SDK): each
+    connection's owner is checked. Login codes and plugin secrets on command lines could
+    otherwise be used by other users of the same computer.
+  - Program paths in plugin manifests must stay inside the plugin (a package could make
+    TuxDeck read a device file without end); plugin files that link out of their folder
+    are not served; backgrounds from imported profiles can't make the UI load URLs.
   - Deleting or replacing a folder key of an imported profile could delete a folder
     outside the profile; page ids are now always checked.
   - Property inspectors, HTML plugins and icon pack files run on their own port without

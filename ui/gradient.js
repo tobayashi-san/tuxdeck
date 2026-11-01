@@ -61,7 +61,20 @@ export function parseGradient(css) {
     const s = /^(.*\S)\s+(-?[\d.]+)%$/.exec(p);
     return s ? { color: s[1], pos: Number(s[2]) } : { color: p, pos: Math.round((i / (parts.length - 1)) * 100) };
   });
+  // Only colours (a profile could bring e.g. url(…) here, which the browser would load).
+  if (!Number.isFinite(angle) || !stops.every((x) => isColor(x.color) && Number.isFinite(x.pos))) return null;
   return { type, angle: ((angle % 360) + 360) % 360, stops };
+}
+
+/** A CSS colour: #hex, rgb()/rgba()/hsl()/hsla() with numbers, or a colour name. */
+function isColor(c) {
+  return /^#[0-9a-f]{3,8}$/i.test(c) || /^(rgba?|hsla?)\(\s*[-\d.%\s,/deg]+\)$/i.test(c) || /^[a-z]{3,20}$/i.test(c);
+}
+
+/** A gradient TuxDeck understands, written anew from its parts (for CSS); else null. */
+export function safeGradient(v) {
+  const g = isGradient(v) ? parseGradient(v) : null;
+  return g ? gradientCss(g) : null;
 }
 
 export function gradientCss(g) {

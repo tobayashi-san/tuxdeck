@@ -209,16 +209,24 @@ impl Plugin {
     }
 }
 
+/// A file of the plugin named in its manifest: relative, inside the plugin folder, a
+/// regular file (no device, pipe or link). Manifests come from untrusted packages.
+fn plugin_file(dir: &Path, rel: &str) -> Option<PathBuf> {
+    let p = dir.join(entry_path(rel)?);
+    fs::symlink_metadata(&p).ok().filter(|m| m.file_type().is_file()).map(|_| p)
+}
+
 fn detect_runtime(dir: &Path, m: &Manifest) -> Runtime {
+    let invalid = || Runtime::Unsupported(crate::tr!("its program path is invalid"));
     if let Some(p) = &m.code_path_lin {
-        return Runtime::Executable(dir.join(p));
+        return plugin_file(dir, p).map(Runtime::Executable).unwrap_or_else(invalid);
     }
     let candidates = [m.code_path.as_ref(), m.code_path_mac.as_ref(), m.code_path_win.as_ref()];
     // A JavaScript entry point (SDK v2 / Node.js) runs everywhere.
     for c in candidates.iter().flatten() {
         let lc = c.to_lowercase();
         if lc.ends_with(".js") || lc.ends_with(".mjs") || lc.ends_with(".cjs") {
-            return Runtime::Node(dir.join(c));
+            return plugin_file(dir, c).map(Runtime::Node).unwrap_or_else(invalid);
         }
     }
     let Some(code) = candidates.iter().flatten().next() else {
@@ -226,6 +234,9 @@ fn detect_runtime(dir: &Path, m: &Manifest) -> Runtime {
     };
     let lc = code.to_lowercase();
     if lc.ends_with(".html") || lc.ends_with(".htm") {
+        if entry_path(code).is_none() {
+            return invalid();
+        }
         if html_browser().is_some() {
             return Runtime::Html(code.to_string());
         }
@@ -234,10 +245,11 @@ fn detect_runtime(dir: &Path, m: &Manifest) -> Runtime {
     if lc.ends_with(".exe") {
         return Runtime::Unsupported(crate::tr!("Windows program"));
     }
-    let path = dir.join(code);
-    // A real ELF binary shipped by the plugin would run on Linux.
-    if let Ok(head) = fs::read(&path).map(|b| b.into_iter().take(4).collect::<Vec<u8>>()) {
-        if head == b"\x7fELF" {
+    // A real ELF binary shipped by the plugin would run on Linux (only its first bytes
+    // are read).
+    if let Some(path) = plugin_file(dir, code) {
+        let mut head = Vec::new();
+        if fs::File::open(&path).and_then(|f| std::io::Read::read_to_end(&mut std::io::Read::take(f, 4), &mut head)).is_ok() && head == b"\x7fELF" {
             return Runtime::Executable(path);
         }
     }
@@ -526,6 +538,37 @@ mod tests {
         // A broken package leaves the installed one alone.
         assert!(install_archive(&package("com.test.inst.sdPlugin", "3", 0)[..40], &dir).is_err());
         assert!(fs::read_to_string(target.join("manifest.json")).unwrap().contains(r#""Version":"2""#));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn program_paths_from_the_manifest_stay_in_the_plugin() {
+        let dir = std::env::temp_dir().join(format!("tuxdeck-runtime-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("bin")).unwrap();
+        fs::write(dir.join("bin/p.js"), "//").unwrap();
+        fs::write(dir.join("bin/elf"), b"\x7fELF and more").unwrap();
+        std::os::unix::fs::symlink("/etc/hostname", dir.join("link.js")).unwrap();
+        let rt = |field: &str, path: &str| {
+            let m: Manifest =
+                serde_json::from_value(serde_json::json!({"Name": "T", "UUID": "com.t", "Version": "1", "Author": "t", "Actions": [], field: path})).unwrap();
+            detect_runtime(&dir, &m)
+        };
+        assert_eq!(rt("CodePath", "bin/p.js"), Runtime::Node(dir.join("bin/p.js")));
+        assert_eq!(rt("CodePath", "bin/elf"), Runtime::Executable(dir.join("bin/elf")));
+        assert_eq!(rt("CodePathLin", "bin/elf"), Runtime::Executable(dir.join("bin/elf")));
+        // Outside the plugin, devices (reading /dev/zero would never end) and links: refused
+        // without reading anything.
+        for (field, bad) in [
+            ("CodePath", "/dev/zero"),
+            ("CodePath", "../../etc/passwd"),
+            ("CodePathLin", "/bin/sh"),
+            ("CodePath", "/x/p.js"),
+            ("CodePath", "link.js"),
+            ("CodePath", "C:/p.html"),
+        ] {
+            assert!(matches!(rt(field, bad), Runtime::Unsupported(_)), "{field} {bad}: {:?}", rt(field, bad));
+        }
         fs::remove_dir_all(&dir).unwrap();
     }
 
