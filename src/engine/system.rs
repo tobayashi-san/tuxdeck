@@ -391,13 +391,24 @@ mod tests {
         assert!(argv(&in_scope(&Command::new("/usr/bin/my prog!")).0)[5].starts_with("--unit=app-tuxdeck-my_prog_-"));
     }
 
-    /// Start a process that waits on its stdin.
+    /// Start a process that waits on its stdin, once it runs its own program (right after
+    /// the fork it still is a copy of the test binary, which the name search won't find).
     fn waiter(cmd: &mut Command) -> std::process::Child {
         for _ in 0..20 {
             match cmd.stdin(Stdio::piped()).spawn() {
                 // Another test thread may still hold the fresh script open while forking.
                 Err(e) if e.raw_os_error() == Some(libc::ETXTBSY) => std::thread::sleep(Duration::from_millis(50)),
-                r => return r.unwrap(),
+                r => {
+                    let child = r.unwrap();
+                    let me = std::fs::read_link("/proc/self/exe").ok();
+                    for _ in 0..200 {
+                        if std::fs::read_link(format!("/proc/{}/exe", child.id())).ok() != me {
+                            break;
+                        }
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                    return child;
+                }
             }
         }
         panic!("could not start {cmd:?}");
