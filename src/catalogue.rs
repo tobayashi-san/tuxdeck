@@ -79,7 +79,7 @@ pub async fn load() -> Result<Arc<Vec<Entry>>> {
     }
     let fetched = async {
         let r = crate::net::http().get(catalogue_url()).timeout(crate::net::SHORT).send().await?.error_for_status()?;
-        r.json::<serde_json::Map<String, Value>>().await.context("invalid catalogue")
+        r.json::<serde_json::Map<String, Value>>().await.context(crate::tr!("invalid catalogue"))
     }
     .await;
     let raw = match fetched {

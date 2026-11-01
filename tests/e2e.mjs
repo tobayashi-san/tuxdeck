@@ -2728,10 +2728,10 @@ async function suiteProfiles(d) {
       ['broken zip', Buffer.concat([Buffer.from('PK\u0003\u0004'), Buffer.alloc(64)]), 'x.streamDeckProfile', /invalid archive/],
       ['truncated', exp.subarray(0, Math.floor(exp.length / 2)), 'x.streamDeckProfile', /invalid archive/],
       ['unknown content', zip({ 'readme.txt': 'hi' }), undefined, /unknown package type/],
-      ['no profile folder', zip({ 'readme.txt': 'hi' }), 'x.streamDeckProfile', /no \.sdProfile/],
+      ['no profile folder', zip({ 'readme.txt': 'hi' }), 'x.streamDeckProfile', /contains no profile \(\.sdProfile\)/],
       ['no manifest', zip({ [`${root}/Profiles/X/manifest.json`]: '{}' }), 'x.streamDeckProfile', /manifest|No such file/],
       ['manifest of the wrong shape', zip({ [`${root}/manifest.json`]: '{"Name": 5}' }), 'x.streamDeckProfile', /manifest/],
-      ['no plugin folder', zip({ 'plugin.js': '' }), 'x.streamDeckPlugin', /no \.sdPlugin/],
+      ['no plugin folder', zip({ 'plugin.js': '' }), 'x.streamDeckPlugin', /contains no plugin \(\.sdPlugin folder\)/],
       ['plugin without manifest', zip({ 'com.e2e.nomf.sdPlugin/plugin.js': '' }), 'x.streamDeckPlugin', /manifest/],
       ['icon pack without folder', zip({ 'icons/a.svg': SVG('#000') }), 'x.streamDeckIconPack', /sdIconPack/],
       ['icon pack without manifest', zip({ 'com.e2e.nomf.sdIconPack/icons/a.svg': SVG('#000') }), 'x.streamDeckIconPack', /manifest/],
@@ -3693,12 +3693,12 @@ async function suiteSdk(d) {
   await test('restart: a crashed plugin is started again and gets its actions; a crash loop is given up', async () => {
     m = d.mark();
     pi.send({ event: 'sendToPlugin', payload: { exit: 3 } });
-    await d.waitLog(/Plugin E2E Counter exited \(exit status: 3\), restart 1\/5/, m, 12000);
+    await d.waitLog(/Plugin E2E Counter exited \(exit code 3\), restart 1\/5/, m, 12000);
     await d.waitLog(ev('willAppear', ctx), m, 15000);
     const diag = await d.get('/api/plugins/com.e2e.counter/diagnostics');
     eq([diag.running, diag.connected, diag.restarts], [true, true, 1]);
     assert(diag.stats.registrations >= 2 && diag.shown.some((s) => s.context === ctx), JSON.stringify(diag));
-    await d.waitLog(/Plugin com\.e2e\.crashloop exited \(exit status: 7\) and is no longer restarted/, 0, 60000);
+    await d.waitLog(/Plugin com\.e2e\.crashloop exited \(exit code 7\) and is no longer restarted/, 0, 60000);
     const dead = await d.get('/api/plugins/com.e2e.crashloop/diagnostics');
     eq([dead.running, dead.restarts], [null, 6]);
     assert(d.lines.filter((l) => /started plugin com\.e2e\.crashloop/.test(l)).length >= 6, 'started and restarted five times');
@@ -4114,7 +4114,7 @@ async function suiteCli(d) {
     for (const [argv, re] of [
       [['import-profile', path.join(files, 'missing.streamDeckProfile')], /No such file/],
       [['import-profile', bad], /not a zip archive/],
-      [['import-profile', file('evil.streamDeckProfile', zip({ [`../${root}/manifest.json`]: 'x' }))], /no \.sdProfile/],
+      [['import-profile', file('evil.streamDeckProfile', zip({ [`../${root}/manifest.json`]: 'x' }))], /contains no profile \(\.sdProfile\)/],
       [['import-profile', file('broken.streamDeckProfile', zip({ [`${root}/manifest.json`]: '{nope' }))], /manifest\.json/],
       [['install-plugin', bad], /not a zip archive/],
       [['install-plugin', file('nomf.streamDeckPlugin', zip({ 'com.e2e.nomf.sdPlugin/plugin.js': '' }))], /manifest/],
@@ -4172,7 +4172,7 @@ const GROUPS = [
   { model: 'neo', name: 'neo: builtins', run: suiteBuiltins },
   // The crash-looping test plugin is given up on purpose.
   { model: 'neo', name: 'neo: elgato-library', run: suiteElgatoLibrary },
-  { model: 'neo', name: 'neo: sdk', run: suiteSdk, allow: /Plugin com\.e2e\.crashloop exited \(exit status: 7\) and is no longer restarted/ },
+  { model: 'neo', name: 'neo: sdk', run: suiteSdk, allow: /Plugin com\.e2e\.crashloop exited \(exit code 7\) and is no longer restarted/ },
   // Only the desktop entries made by prepareDesktop (plus system-wide Flatpaks) are found.
   // No catalogue: nothing listens on port 9.
   { model: 'neo', name: 'neo: convert-offline', run: suiteConvertOffline, opts: { env: () => ({ TUXDECK_CATALOGUE_URL: 'http://127.0.0.1:9/catalogue.json' }) } },

@@ -105,6 +105,16 @@ pub fn tr(s: &str) -> String {
     dict(&lang).get(s).cloned().unwrap_or_else(|| s.to_string())
 }
 
+/// How a program ended, in words of the current language ("exit code 1", "signal 9").
+pub fn exit_status(st: &std::process::ExitStatus) -> String {
+    use std::os::unix::process::ExitStatusExt;
+    match (st.code(), st.signal()) {
+        (Some(c), _) => crate::tr!("exit code {code}", code = c),
+        (None, Some(s)) => crate::tr!("signal {signal}", signal = s),
+        _ => st.to_string(),
+    }
+}
+
 /// `tr!("Plugin \"{name}\" installed", name = n)`: translate, then fill `{name}`.
 #[macro_export]
 macro_rules! tr {

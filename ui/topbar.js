@@ -146,7 +146,7 @@ export async function createProfile() {
   const nameInput = h('input.text', { type: 'text', value: t('New profile'), spellcheck: 'false' });
   const defModel = d?.model || curProf?.model || '20GBJ9901';
   const modelSel = h('select.select', null, Object.entries(MODELS).map(([m, info]) =>
-    h('option', { value: m, selected: m === defModel }, `${info.name} (${m})`)));
+    h('option', { value: m, selected: m === defModel }, `${modelName(m)} (${m})`)));
   const body = h('div', null,
     h('label.modal-field', null, h('span', null, t('Name')), nameInput),
     d ? h('p.modal-text', null, t('For {device}', { device: deckLabel(d) }))

@@ -46,7 +46,7 @@ impl Engine {
         } else {
             self.devices.insert(id.clone(), dev);
         }
-        self.log("info", crate::tr!("{device} connected ({id})", device = model.name, id = id));
+        self.log("info", crate::tr!("{device} connected ({id})", device = crate::i18n::tr(model.name), id = id));
         if !reconnect {
             let profile = saved.unwrap_or_else(|| self.first_profile(&id, model));
             self.set_profile(&id, &profile);

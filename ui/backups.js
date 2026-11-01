@@ -12,7 +12,8 @@ const KINDS = {
 const kindLabel = (k) => (KINDS[k] || (() => t('Backup')))();
 
 function sizeLabel(bytes) {
-  return bytes >= 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1e3))} kB`;
+  const n = (v, digits) => new Intl.NumberFormat(locale(), { maximumFractionDigits: digits, minimumFractionDigits: digits }).format(v);
+  return bytes >= 1e6 ? `${n(bytes / 1e6, 1)} MB` : `${n(Math.max(1, Math.round(bytes / 1e3)), 0)} kB`;
 }
 
 /** Fill the list of stored backups (called when the settings dialog opens). */

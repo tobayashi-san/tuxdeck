@@ -1447,6 +1447,8 @@ async fn update_settings(State(sh): State<Shared>, Json(req): Json<Map<String, V
         e.settings.language = v.to_string();
         crate::i18n::set_language(&crate::i18n::resolve(v));
         e.rescan_plugins();
+        // Texts drawn on the decks (info bar date and page, folder titles) change too.
+        e.refresh_all();
         e.emit(json!({"event": "state"}));
     }
     if let Some(v) = touch_color {

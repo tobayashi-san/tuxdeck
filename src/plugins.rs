@@ -418,13 +418,13 @@ fn archive_root(zip: &mut zip::ZipArchive<std::io::Cursor<&[u8]>>) -> Result<Str
             }
         }
     }
-    bail!("archive contains no .sdPlugin directory")
+    bail!(crate::tr!("the archive contains no plugin (.sdPlugin folder)"))
 }
 
 /// Unpack a plugin archive into `scratch` (removed by the caller) and read it, without
 /// installing or running anything.
 pub fn inspect_archive(data: &[u8], scratch: &Path) -> Result<Plugin> {
-    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(data)).context("not a zip archive")?;
+    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(data)).with_context(|| crate::tr!("not a zip archive"))?;
     let root = archive_root(&mut zip)?;
     let dir = scratch.join(format!("{}.sdPlugin", &root[..root.len() - ".sdPlugin".len()]));
     unpack_plugin(&mut zip, &root, &dir)?;
@@ -433,7 +433,7 @@ pub fn inspect_archive(data: &[u8], scratch: &Path) -> Result<Plugin> {
 
 /// Install a `.streamDeckPlugin` archive (zip containing `<uuid>.sdPlugin/`).
 pub fn install_archive(data: &[u8], plugins_dir: &Path) -> Result<String> {
-    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(data)).context("not a zip archive")?;
+    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(data)).with_context(|| crate::tr!("not a zip archive"))?;
     let root = archive_root(&mut zip)?;
     // Installed under the usual spelling, which the plugin scan looks for.
     let name = format!("{}.sdPlugin", &root[..root.len() - ".sdPlugin".len()]);

@@ -373,7 +373,7 @@ pub fn run(paths: &Paths, node: &str, source: Source, key: &str, extra: Value) -
         std::thread::sleep(Duration::from_millis(200));
     }
     let out = reader.join().map_err(|_| anyhow!("reader failed"))?;
-    let mut report: Value = out.lines().rev().find_map(|l| serde_json::from_str(l).ok()).context("the Linux check gave no result")?;
+    let mut report: Value = out.lines().rev().find_map(|l| serde_json::from_str(l).ok()).with_context(|| crate::tr!("the Linux check gave no result"))?;
     report["sandboxed"] = Value::Bool(sandbox.is_some());
     // Where the package came from and its release (to test updates again).
     if let Value::Object(x) = extra {
@@ -383,9 +383,16 @@ pub fn run(paths: &Paths, node: &str, source: Source, key: &str, extra: Value) -
     }
     report["app_version"] = Value::String(env!("CARGO_PKG_VERSION").into());
     if report["verdict"] == "error" {
-        bail!("{}", report["error"].as_str().unwrap_or("Linux check failed"));
+        // The check script's own failures, in the user's language.
+        let msg = match report["error"].as_str().unwrap_or("") {
+            "the test instance did not start" => crate::tr!("the test instance did not start"),
+            "the plugin was not installed" => crate::tr!("the plugin could not be installed in the test instance"),
+            "" => crate::tr!("the Linux check failed"),
+            other => other.to_string(),
+        };
+        bail!("{msg}");
     }
-    report["uuid"].as_str().context("no plugin UUID in the result")?;
+    report["uuid"].as_str().with_context(|| crate::tr!("the Linux check gave no result"))?;
     // Stored under the plugin or catalogue entry that was checked, not under the UUID the
     // package claims (it could claim another plugin's).
     let mut s = store(paths).lock();

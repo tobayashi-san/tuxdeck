@@ -63,7 +63,7 @@ impl Engine {
             .devices
             .values()
             .map(|d| {
-                json!({"id": d.id, "name": d.model.name, "model": d.model.model_id, "kind": format!("{:?}", d.model.kind).to_lowercase(),
+                json!({"id": d.id, "name": crate::i18n::tr(d.model.name), "model": d.model.model_id, "kind": format!("{:?}", d.model.kind).to_lowercase(),
                        "connected": d.tx.is_some(), "cols": d.model.cols, "rows": d.model.rows, "key_px": d.model.key_px,
                        "touch_points": d.model.touch_points, "screen": d.model.screen.map(|s| json!([s.0, s.1])),
                        "encoders": d.model.encoders, "firmware": d.firmware, "profile": d.profile, "page": d.page,

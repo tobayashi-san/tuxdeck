@@ -530,7 +530,7 @@ fn run(cmd: &str, args: &[&str]) -> Result<()> {
     }
     let st = Command::new(cmd).args(args).stdout(Stdio::null()).stderr(Stdio::null()).status()?;
     if !st.success() {
-        bail!("{cmd} failed ({st})");
+        bail!(crate::tr!("{cmd} failed ({status})", cmd = cmd, status = crate::i18n::exit_status(&st)));
     }
     Ok(())
 }

@@ -109,7 +109,9 @@ export function profileById(id) {
 }
 
 export function modelName(model) {
-  return MODELS[model]?.name || model;
+  const name = MODELS[model]?.name;
+  // Product names stay as they are; only this one has words in it.
+  return name === 'Stream Deck (1st gen)' ? t('Stream Deck (1st gen)') : name || model;
 }
 
 /** A deck's name; two decks with the same name get the end of their id. */

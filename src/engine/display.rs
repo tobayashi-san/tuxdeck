@@ -153,7 +153,7 @@ impl Engine {
             }
             Some(a) if a.uuid == PAGINATION => {
                 let pi = page_info();
-                let key = spec_hash(&(a.settings.to_string(), pi.number, pi.count, pi.name.clone(), page));
+                let key = spec_hash(&(a.settings.to_string(), pi.number, pi.count, pi.name.clone(), page, crate::i18n::current()));
                 (key, InfoContent::Pagination { settings: a.settings.clone(), page: pi })
             }
             Some(a) if a.uuid == INFO_TEXT => {
@@ -203,7 +203,7 @@ impl Engine {
             None if pages.len() > 1 => {
                 // Default: page indicator when there are several pages.
                 let pi = page_info();
-                let key = spec_hash(&("default", pi.number, pi.count, pi.name.clone(), page));
+                let key = spec_hash(&("default", pi.number, pi.count, pi.name.clone(), page, crate::i18n::current()));
                 (key, InfoContent::Pagination { settings: json!({"layout": "pagination_01", "theme": "black"}), page: pi })
             }
             None => (0, InfoContent::Black),

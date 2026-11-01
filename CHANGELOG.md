@@ -106,6 +106,11 @@
 - **Gradient key backgrounds:** besides colours, keys can have a linear or radial gradient:
   ready-made ones, an editor (type, angle, up to six colours) and CSS pasted from
   cssgradient.io (`linear-gradient(…)`, `radial-gradient(…)`).
+- **German:** messages of the service that were still English are translated (failed
+  hotkeys and tools, how a plugin exited, import errors, Linux check details), the first
+  Stream Deck generation is named in German, the decks redraw their texts after a
+  language switch, backup sizes use the language's number format; several German terms
+  were made consistent ("unter Linux", "Website", "Testen", "Tastenlogik", …).
 - **Linux check without bubblewrap:** bubblewrap is optional. Without it, installed
   plugins are tested in the isolated test instances (they run with your rights anyway
   once used); plugins that are not installed are not started, only their files are

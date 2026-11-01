@@ -467,10 +467,16 @@ pub async fn watchdog(sh: Shared) {
                         let r = c.restarts;
                         let n = if n == HTML_HOST { crate::tr!("HTML plugin host") } else { e.registry.plugin(&n).map(|p| p.name()).unwrap_or(n) };
                         if r <= 5 {
-                            e.log("warn", crate::tr!("Plugin {name} exited ({status}), restart {r}/5", name = n, status = status, r = r));
+                            e.log(
+                                "warn",
+                                crate::tr!("Plugin {name} exited ({status}), restart {r}/5", name = n, status = crate::i18n::exit_status(&status), r = r),
+                            );
                             need = true;
                         } else {
-                            e.log("error", crate::tr!("Plugin {name} exited ({status}) and is no longer restarted", name = n, status = status));
+                            e.log(
+                                "error",
+                                crate::tr!("Plugin {name} exited ({status}) and is no longer restarted", name = n, status = crate::i18n::exit_status(&status)),
+                            );
                         }
                     }
                 }

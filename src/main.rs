@@ -298,7 +298,7 @@ fn start_daemon_if_needed(port: u16) -> Result<()> {
         }
         std::thread::sleep(Duration::from_millis(100));
     }
-    anyhow::bail!("the daemon does not respond")
+    anyhow::bail!(crate::tr!("TuxDeck does not respond"))
 }
 
 /// `tuxdeck open-url streamdeck://…`: forward the link to the daemon.

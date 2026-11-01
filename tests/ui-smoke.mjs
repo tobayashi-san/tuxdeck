@@ -1521,7 +1521,7 @@ async function suiteNeo(d, b) {
     views.main = english(await b.eval(VISIBLE_TEXTS));
     await selectSlot(b, 'Keypad', '1,1');
     await b.waitFor(`!!document.querySelector('#editor .ed-press')`, 'editor');
-    eq(await b.text('#editor .ed-press'), '▶ Test drücken');
+    eq(await b.text('#editor .ed-press'), '▶ Testen');
     views.editor = english(await b.eval(VISIBLE_TEXTS));
     await b.click('#profile-menu-btn');
     await b.waitFor(`!!document.querySelector('.ctxmenu')`, 'menu');

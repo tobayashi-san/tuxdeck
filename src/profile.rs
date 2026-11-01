@@ -356,8 +356,8 @@ impl Profile {
     }
 
     pub fn save_page(&self, page_id: &str) -> Result<()> {
-        let page = self.pages.get(page_id).context("unknown page")?;
-        let dir = self.page_dir(page_id).context("invalid page id")?;
+        let page = self.pages.get(page_id).with_context(|| crate::tr!("page not found"))?;
+        let dir = self.page_dir(page_id).with_context(|| crate::tr!("invalid page id"))?;
         fs::create_dir_all(dir.join("Images"))?;
         let file = dir.join("manifest.json");
         // A manifest that couldn't be read is kept for repair instead of being replaced.
@@ -474,7 +474,7 @@ pub fn import_archive(data: &[u8], root: &Path) -> Result<PathBuf> {
 }
 
 fn unpack_profile(data: &[u8], target: &Path) -> Result<()> {
-    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(data)).context("not a zip archive")?;
+    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(data)).with_context(|| crate::tr!("not a zip archive"))?;
     let mut found = false;
     let mut unpacked = 0;
     for i in 0..zip.len() {
@@ -502,7 +502,7 @@ fn unpack_profile(data: &[u8], target: &Path) -> Result<()> {
         crate::plugins::write_zip_entry(&mut f, &out, &mut unpacked)?;
     }
     if !found {
-        bail!("archive contains no .sdProfile");
+        bail!(crate::tr!("the archive contains no profile (.sdProfile)"));
     }
     Ok(())
 }

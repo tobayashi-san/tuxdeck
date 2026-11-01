@@ -86,6 +86,26 @@ const VERDICTS = {
   static: () => ({ cls: 'info', label: t('Made for Linux'), text: t('Its program runs on Linux (files checked, not started)') }),
 };
 
+/** A detail of a check in the UI's language (the check script reports in English). */
+function checkDetail(d) {
+  const m = (re) => re.exec(d);
+  let x;
+  if ((x = m(/^does not connect; log: (.*)$/s))) return t('does not connect; log: {log}', { log: x[1] });
+  if ((x = m(/^not shown: (.*)$/s))) return t('not shown: {actions}', { actions: x[1] });
+  if ((x = m(/^no reaction from: (.*)$/s))) return t('no reaction from: {actions}', { actions: x[1] });
+  if ((x = m(/^(\d+) placed$/))) return t('{n} placed', { n: x[1] });
+  const fixed = {
+    'macOS/Windows only': () => t('macOS/Windows only'),
+    'does not connect to TuxDeck': () => t('does not connect to TuxDeck'),
+    'the plugin stopped after its actions appeared': () => t('the plugin stopped after its actions appeared'),
+    'the plugin stopped while its actions were used': () => t('the plugin stopped while its actions were used'),
+    'no settings': () => t('no settings'),
+    'no Chromium-based browser to test with': () => t('no Chromium-based browser to test with'),
+  };
+  // Else maybe a message of TuxDeck itself (e.g. why a program doesn't run on Linux).
+  return fixed[d]?.() ?? t(d);
+}
+
 const CHECK_TITLES = {
   linux_runtime: () => t('Runs on Linux (not a macOS/Windows-only program)'),
   starts: () => t('Starts and connects'),
@@ -126,7 +146,7 @@ function linuxSection(item) {
       h('div.muted', null, report.community ? t('Result of the TuxDeck plugin test.') : t('Tested on this computer.'))) : null,
     report ? h('ul.mk-linux-checks', null, report.checks.map((c) => h('li', { class: c.ok === true ? 'ok' : c.ok === false ? 'bad' : 'skip' },
       h('span.mk-linux-mark', null, mark(c.ok)),
-      h('span', null, CHECK_TITLES[c.id]?.() || c.id, c.detail && c.ok !== true ? h('span.mk-linux-detail', null, c.detail) : null)))) : null,
+      h('span', null, CHECK_TITLES[c.id]?.() || c.id, c.detail && c.ok !== true ? h('span.mk-linux-detail', null, checkDetail(c.detail)) : null)))) : null,
     !report && !busy ? h('p.mk-note', null, t('Not tested on Linux yet. The test runs the plugin in an isolated test instance (simulated Stream Deck, folders of its own) and checks that it starts, that its actions and settings work and that it reports no errors.')) : null,
     report?.static ? h('p.mk-note', null, t('Plugins that are not installed are only started for the test with bubblewrap (a sandbox without access to your files and the network). Without it only the files are checked; after installing, the plugin is tested completely.')) : null,
     h('div.mk-linux-actions', null,
@@ -455,7 +475,7 @@ function renderStatus() {
   if (M.loading) el.status.append(spinner(), h('span', null, t('Loading…')));
   else if (M.error) {
     el.status.append(M.errorLocal ? errorBox(M.error)
-      : errorBox(t(source().errorText || 'The catalogue is not reachable. Check the internet connection and try again.'), M.error),
+      : errorBox(source().errorText ? t(source().errorText) : t('The catalogue is not reachable. Check the internet connection and try again.'), M.error),
       h('button.btn.small', { onclick: () => (M.items.length ? loadMore() : reload()) }, t('Try again')));
   } else if (!M.items.length) {
     el.status.append(h('span.muted', null, M.search ? t('No results for "{q}".', { q: M.search }) : t('No entries.')));
@@ -796,7 +816,7 @@ function installedCheck(p, ok) {
   const r = M.checks[p.uuid];
   const v = r && VERDICTS[r.verdict]?.();
   const badge = busy ? h('span.mk-badge', null, spinner('small'), t('Testing on Linux…'))
-    : v ? h(`span.mk-badge.${v.cls}`, { title: r.checks.filter((c) => c.ok === false).map((c) => `${CHECK_TITLES[c.id]?.() || c.id}: ${c.detail}`).join('\n') }, v.label)
+    : v ? h(`span.mk-badge.${v.cls}`, { title: r.checks.filter((c) => c.ok === false).map((c) => `${CHECK_TITLES[c.id]?.() || c.id}: ${checkDetail(c.detail || '')}`).join('\n') }, v.label)
       : h('span.mk-badge.ok', null, t('Runs on Linux'));
   const test = h('button.btn.small', {
     disabled: busy,
