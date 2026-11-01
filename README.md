@@ -13,6 +13,8 @@
 <p align="center">
   <a href="https://github.com/tobayashi-san/tuxdeck/releases"><b>Download</b></a>
   &nbsp;·&nbsp;
+  <a href="https://tobayashi-san.github.io/tuxdeck/">Website</a>
+  &nbsp;·&nbsp;
   <a href="#first-five-minutes">First five minutes</a>
   &nbsp;·&nbsp;
   <a href="#devices">Devices</a>
@@ -45,8 +47,8 @@ and anything you downloaded elsewhere installs from the file.
 and so do its backups.
 
 **Made for Linux, not ported to it.** Wayland and X11, GNOME, KDE, Hyprland, Sway. On
-Hyprland and X11, profiles follow the window in focus. Every plugin can be test-run in a
-sandbox first, and a badge tells you whether it works on Linux.
+Hyprland and X11, profiles follow the window in focus. Plugins get a Linux check (test
+instances, a sandbox with bubblewrap), and a badge tells you whether they work on Linux.
 
 ![The plugin catalogue: open-source Stream Deck plugins, installed with one click](https://github.com/tobayashi-san/tuxdeck/raw/main/docs/images/plugins.png)
 

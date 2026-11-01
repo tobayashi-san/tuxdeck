@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TuxDeck – your Stream Deck, at home on Linux</title>
+<meta name="description" content="TuxDeck is free, open-source Stream Deck software for Linux: your Elgato Stream Deck, its plugins and your profiles on Ubuntu, Fedora, Arch and the rest.">
+<meta property="og:title" content="TuxDeck – your Stream Deck, at home on Linux">
+<meta property="og:description" content="Free, open-source Stream Deck software for Linux. Plugins and profiles included.">
+<meta property="og:image" content="https://tobayashi-san.github.io/tuxdeck/assets/social-preview.png">
+<meta name="theme-color" content="#0d0e12">
+<link rel="icon" href="assets/tuxdeck.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <a class="brand" href="#top"><img src="assets/tuxdeck.svg" alt="" width="28" height="28"><span>TuxDeck</span></a>
+  <nav aria-label="Sections">
+    <a href="#features">Features</a>
+    <a href="#devices">Devices</a>
+    <a href="#install">Install</a>
+    <a href="#faq">FAQ</a>
+    <a class="gh" href="https://github.com/tobayashi-san/tuxdeck"><svg aria-hidden="true"><use href="icons.svg#code"/></svg>GitHub</a>
+  </nav>
+</header>
+
+<main id="main">
+<section class="hero" id="top">
+  <div class="hero-text">
+    <p class="kicker"><span class="dot"></span> Free &amp; open source · <b>beta</b></p>
+    <h1>Your Stream&nbsp;Deck, <span class="wiggle">finally</span> at home on&nbsp;Linux.</h1>
+    <p class="lede">TuxDeck runs your Elgato Stream Deck, its plugins and your profiles on Ubuntu, Fedora, Arch and the rest. No Windows, no Mac, no VM&nbsp;– just keys that do what you told them to.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/tobayashi-san/tuxdeck/releases/latest"><svg aria-hidden="true"><use href="icons.svg#download"/></svg>Download</a>
+      <a class="btn" href="#install">How to install</a>
+    </div>
+    <p class="hint"><kbd>1</kbd>–<kbd>8</kbd> work too. Go on, press a key<span class="arrow" aria-hidden="true"> →</span></p>
+  </div>
+
+  <div class="deck-wrap">
+    <span class="sticker" aria-hidden="true">press me!</span>
+    <div class="neo" role="group" aria-label="A Stream Deck Neo: its keys take you around this page">
+      <div class="keys" id="keys"></div>
+      <div class="neo-bottom">
+        <button class="touch" id="touch-l" aria-label="Previous message"><svg aria-hidden="true"><use href="icons.svg#chevron-left"/></svg></button>
+        <div class="bar" id="bar" aria-live="polite"><span id="bar-text">hello, penguin 👋</span></div>
+        <button class="touch" id="touch-r" aria-label="Next message"><svg aria-hidden="true"><use href="icons.svg#chevron-right"/></svg></button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="marquee" aria-label="Works on">
+  <div class="marquee-track">
+    <span>KDE Plasma</span><span>GNOME</span><span>Hyprland</span><span>Sway</span><span>X11</span><span>Wayland</span>
+    <span>Ubuntu</span><span>Fedora</span><span>Arch</span><span>Debian</span><span>openSUSE</span><span>Mint</span><span>Pop!_OS</span>
+    <span aria-hidden="true">KDE Plasma</span><span aria-hidden="true">GNOME</span><span aria-hidden="true">Hyprland</span><span aria-hidden="true">Sway</span><span aria-hidden="true">X11</span><span aria-hidden="true">Wayland</span>
+    <span aria-hidden="true">Ubuntu</span><span aria-hidden="true">Fedora</span><span aria-hidden="true">Arch</span><span aria-hidden="true">Debian</span><span aria-hidden="true">openSUSE</span><span aria-hidden="true">Mint</span><span aria-hidden="true">Pop!_OS</span>
+  </div>
+</div>
+
+<section id="features" class="section">
+  <h2><span class="num">01</span> Everything a deck should do</h2>
+  <p class="section-lede">It feels like the official app: drag an action onto a key, done. The rest is made for Linux, not ported to it.</p>
+  <div class="features">
+    <article class="feature" style="--c: #60a5fa">
+      <svg aria-hidden="true"><use href="icons.svg#multi-action"/></svg>
+      <h3>All the usual keys</h3>
+      <p>Folders, pages, profiles, multi actions, Key Logic, hotkeys, text snippets, a soundboard, timers and media keys.</p>
+    </article>
+    <article class="feature" style="--c: #a78bfa">
+      <svg aria-hidden="true"><use href="icons.svg#plugin"/></svg>
+      <h3>Your plugins keep working</h3>
+      <p>Plugins for the Stream Deck SDK run unmodified, settings pages included. A catalogue installs open-source ones with one click.</p>
+    </article>
+    <article class="feature" style="--c: #2dd4bf">
+      <svg aria-hidden="true"><use href="icons.svg#folder-download"/></svg>
+      <h3>Bring your setup along</h3>
+      <p>Profiles and backups from the official app import as they are. Keys pointing at Windows or macOS programs get converted for Linux.</p>
+    </article>
+    <article class="feature" style="--c: #fbbf24">
+      <svg aria-hidden="true"><use href="icons.svg#shield"/></svg>
+      <h3>A Linux check for plugins</h3>
+      <p>Every plugin gets test-run in an isolated instance, and a badge tells you whether it really works on Linux.</p>
+    </article>
+    <article class="feature" style="--c: #fb7185">
+      <svg aria-hidden="true"><use href="icons.svg#hotkey"/></svg>
+      <h3>Hotkeys that land</h3>
+      <p>Your keyboard layout is respected, and on Hyprland a hotkey that's one of your own bindings simply runs it.</p>
+    </article>
+    <article class="feature" style="--c: #4ade80">
+      <svg aria-hidden="true"><use href="icons.svg#window"/></svg>
+      <h3>Profiles follow your focus</h3>
+      <p>Open your editor, get your editor keys. On Hyprland and X11 profiles switch with the window in focus.</p>
+    </article>
+    <article class="feature" style="--c: #f87171">
+      <svg aria-hidden="true"><use href="icons.svg#palette"/></svg>
+      <h3>Good looking keys</h3>
+      <p>Elgato's open icon set built in, gradients, icon colours, and four ready-made profiles in one calm design.</p>
+    </article>
+    <article class="feature" style="--c: #94a3b8">
+      <svg aria-hidden="true"><use href="icons.svg#infobar"/></svg>
+      <h3>Neo info bar &amp; dials</h3>
+      <p>Clock, page dots or your own text on the Neo's info bar; dials and the touch strip on the Stream Deck&nbsp;+.</p>
+    </article>
+  </div>
+</section>
+
+<section class="section shots" aria-label="Screenshots">
+  <figure class="window">
+    <div class="window-bar"><i></i><i></i><i></i><span>TuxDeck</span></div>
+    <img src="assets/editor.png" alt="TuxDeck with a Stream Deck MK.2: keys at the top, the selected key's settings below, all actions on the right" loading="lazy" width="1440" height="900">
+    <figcaption>Pick a key, drop an action, tweak the look. That's the whole workflow.</figcaption>
+  </figure>
+  <figure class="window tilt">
+    <div class="window-bar"><i></i><i></i><i></i><span>Plugins</span></div>
+    <img src="assets/plugins.png" alt="The plugin catalogue: open-source Stream Deck plugins, installed with one click" loading="lazy" width="1440" height="900">
+    <figcaption>Open-source plugins, one click away.</figcaption>
+  </figure>
+</section>
+
+<section id="devices" class="section">
+  <h2><span class="num">02</span> Bring your deck</h2>
+  <p class="section-lede">Mini, Neo, MK.2, Stream Deck&nbsp;+ (dials and touch strip), XL, Pedal and the first-generation models.</p>
+  <img class="devices" src="assets/devices.svg" alt="Stream Deck Mini, Neo, MK.2, Plus, XL and Pedal, drawn to scale" width="1181" height="270">
+  <p class="small">The Neo and the MK.2 run on real hardware every day; the others are tested against simulated devices. Not yet: Stream Deck Studio, the modules and the Mini Discord edition. Own one? <a href="https://github.com/tobayashi-san/tuxdeck/issues/new?template=device.yml">A quick report</a> helps a lot.</p>
+</section>
+
+<section id="install" class="section">
+  <h2><span class="num">03</span> Install in a minute</h2>
+  <p class="section-lede">Grab the package for your system from the <a href="https://github.com/tobayashi-san/tuxdeck/releases/latest">latest release</a>, then:</p>
+  <div class="tabs" role="tablist" aria-label="Your system">
+    <button role="tab" aria-selected="true" aria-controls="t-deb" id="b-deb">Ubuntu · Debian · Mint</button>
+    <button role="tab" aria-selected="false" aria-controls="t-rpm" id="b-rpm" tabindex="-1">Fedora · openSUSE</button>
+    <button role="tab" aria-selected="false" aria-controls="t-tar" id="b-tar" tabindex="-1">Arch &amp; everything else</button>
+  </div>
+  <div class="term" role="tabpanel" id="t-deb" aria-labelledby="b-deb">
+    <pre><code><span class="p">$</span> sudo apt install ./tuxdeck_*_amd64.deb
+<span class="p">$</span> systemctl --user enable --now tuxdeck</code></pre>
+    <button class="copy" type="button"><svg aria-hidden="true"><use href="icons.svg#copy"/></svg><span>Copy</span></button>
+  </div>
+  <div class="term" role="tabpanel" id="t-rpm" aria-labelledby="b-rpm" hidden>
+    <pre><code><span class="p">$</span> sudo dnf install ./tuxdeck-*.x86_64.rpm
+<span class="c"># openSUSE: sudo zypper install --allow-unsigned-rpm ./tuxdeck-*.x86_64.rpm</span>
+<span class="p">$</span> systemctl --user enable --now tuxdeck</code></pre>
+    <button class="copy" type="button"><svg aria-hidden="true"><use href="icons.svg#copy"/></svg><span>Copy</span></button>
+  </div>
+  <div class="term" role="tabpanel" id="t-tar" aria-labelledby="b-tar" hidden>
+    <pre><code><span class="p">$</span> tar xzf tuxdeck-*-x86_64.tar.gz
+<span class="p">$</span> cd tuxdeck-*-x86_64 &amp;&amp; ./install.sh
+<span class="p">$</span> systemctl --user enable --now tuxdeck</code></pre>
+    <button class="copy" type="button"><svg aria-hidden="true"><use href="icons.svg#copy"/></svg><span>Copy</span></button>
+  </div>
+  <ol class="steps">
+    <li><span><b>Unplug the deck and plug it back in</b> once, so Linux lets TuxDeck talk to it.</span></li>
+    <li><span><b>Open TuxDeck</b> from your app menu. Your deck already plays music; the rest is yours.</span></li>
+  </ol>
+  <p class="small">For 64-bit PCs with a distribution from 2022 or newer. Raspberry Pi, NixOS or older systems: <a href="https://github.com/tobayashi-san/tuxdeck/blob/main/docs/README.md#build-from-source">build from source</a>.</p>
+</section>
+
+<section id="faq" class="section">
+  <h2><span class="num">04</span> Questions people ask</h2>
+  <div class="faq">
+    <details><summary>Is this the official Elgato app?</summary><p>No. TuxDeck is an independent project written in Rust. It is not affiliated with, endorsed or sponsored by Elgato or Corsair.</p></details>
+    <details><summary>Do I need an Elgato account?</summary><p>No, TuxDeck doesn't sign in anywhere. Plugins from the Elgato Marketplace website install from the downloaded file – unless they're DRM-protected; those only run in the official app.</p></details>
+    <details><summary>Will my favourite plugin work?</summary><p>Plugins written in JavaScript (most of them) run as they are, and so do HTML plugins with a Chromium-based browser installed. Plugins that ship only a Windows or macOS program can't run on Linux – TuxDeck's Linux check tells you before you rely on one.</p></details>
+    <details><summary>GNOME, KDE, Hyprland …?</summary><p>All of them, on Wayland and X11. Hotkeys work out of the box on Hyprland; on GNOME and KDE (Wayland) switch on the optional virtual keyboard – the <a href="https://github.com/tobayashi-san/tuxdeck/blob/main/docs/README.md#troubleshooting">handbook</a> explains how.</p></details>
+    <details><summary>Is it free?</summary><p>Yes, free and open source under the MIT license. Bug reports and device reports are the best way to help.</p></details>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <p><img src="assets/tuxdeck.svg" alt="" width="20" height="20"> TuxDeck · MIT license · <a href="https://github.com/tobayashi-san/tuxdeck">Source on GitHub</a> · <a href="https://github.com/tobayashi-san/tuxdeck/blob/main/docs/README.md">Handbook</a></p>
+  <p class="small">Stream Deck is a trademark of Corsair Memory Inc. TuxDeck is not affiliated with Elgato or Corsair. Icons: <a href="https://github.com/elgatosf/icons">Elgato Icons</a> (MIT).</p>
+</footer>
+
+<div class="confetti" id="confetti" aria-hidden="true"></div>
+<script src="main.js"></script>
+</body>
+</html>
