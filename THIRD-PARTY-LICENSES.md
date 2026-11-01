@@ -7423,7 +7423,7 @@ SOFTWARE.
 ## MIT License
 
 Used by:
-- [tuxdeck 0.6.0-beta.1](https://github.com/tobayashi-san/tuxdeck)
+- [tuxdeck 0.6.0-beta.2](https://github.com/tobayashi-san/tuxdeck)
 
 ```text
 MIT License

@@ -81,9 +81,9 @@ Fedora 36). Raspberry Pi, NixOS or older systems: [build from source](https://gi
 3. **Need more room?** Add a page below the deck, or drop a *Create Folder* action.
 4. **Add plugins.** *Plugins*, top right. Install from the catalogue, or drop a
    `.streamDeckPlugin` file onto the window.
-5. **Want a head start?** `⋯` next to the profile name → *Add a sample profile…*: Stream
-   (OBS), Work or Play. They come with the app; keys for programs you don't have stay
-   empty until you give them a command.
+5. **Want a head start?** `⋯` next to the profile name → *Add a sample profile…*:
+   Standard, Work, Play (Discord, games) or Streaming (OBS). They come with the app; keys
+   for programs you don't have stay empty until you give them a command.
 6. **Coming from Windows or macOS?** Export your profiles there and import them via the
    same `⋯` menu. TuxDeck offers to convert them for Linux once.
 

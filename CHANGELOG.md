@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0-beta.2 – 2026-11-01
 
 - **Security** (findings of a full review):
   - Deleting or replacing a folder key of an imported profile could delete a folder
