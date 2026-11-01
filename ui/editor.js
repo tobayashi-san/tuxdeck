@@ -305,6 +305,7 @@ function buildEditor(sel, inst) {
         },
       }, t('Icon…')),
       h('button.btn.small', { title: t('Use the default image of the action'), onclick: () => patch({ state: stateIdx, image: '' }) }, t('Default'))),
+    sel.controller === 'Keypad' ? iconColorRow(states[stateIdx] || {}, setStyle) : null,
     sel.controller === 'Keypad' ? backgroundRow(states[stateIdx] || {}, setStyle) : null,
     fileInput);
 
@@ -386,6 +387,31 @@ function formFields(action) {
   return action?.uuid === HOTKEY_SWITCH ? form.map((f) => (f.type === 'hotkey' ? { ...f, rows: 2 } : f)) : form;
 }
 
+/** Colour of the key's icon: as it comes, white, black or a colour of one's own (the
+ * image's shape in that colour; for photos it gives a silhouette). */
+/** Mark the clicked swatch as the chosen one (the editor isn't rebuilt for a style change). */
+function markActive(e) {
+  for (const x of e.currentTarget.parentElement.children) x.classList.toggle('active', x === e.currentTarget);
+}
+
+function iconColorRow(st, setStyle) {
+  const cur = (st.ImageColor || '').toLowerCase();
+  const set = (v, final) => setStyle({ ImageColor: v }, final);
+  return h('div.ed-bg.ed-iconcolor', null,
+    h('span.field-label', null, t('Icon colour')),
+    h('div.bg-swatches', null,
+      h('button.bg-swatch.ic-none', { type: 'button', class: cur ? null : 'active', title: t('As it comes'), 'aria-label': t('As it comes'), onclick: (e) => { markActive(e); set(null, true); } }),
+      [['#ffffff', t('White')], ['#000000', t('Black')]].map(([c, label]) => h('button.bg-swatch', {
+        type: 'button', class: cur === c ? 'active' : null, style: { background: c }, title: label, 'aria-label': label, dataset: { color: c },
+        onclick: (e) => { markActive(e); set(c, true); },
+      })),
+      h('input.color.ic-custom', {
+        type: 'color', title: t('Icon colour of your own'), 'aria-label': t('Icon colour of your own'), value: normColor(st.ImageColor, '#ffffff'),
+        oninput: (e) => set(e.target.value, false),
+        onchange: (e) => set(e.target.value, true),
+      })));
+}
+
 /** Key background: preset colours and gradients, a gradient editor, a custom colour and "none" (black). */
 function backgroundRow(st, setStyle) {
   return h('div.ed-bg', null,
@@ -398,15 +424,15 @@ function bgSwatches(value, set, fallback = '#1e1e1e') {
   const presets = ['#1e1e1e', '#2563eb', '#059669', '#e11d48', '#d97706', '#7c3aed', '#0d9488', '#475569'];
   const cur = (value || '').toLowerCase();
   return h('div.bg-swatches', null,
-    h('button.bg-swatch.bg-none', { type: 'button', class: cur && cur !== '#000000' ? null : 'active', title: t('No background (black)'), onclick: () => set(null, true) }),
+    h('button.bg-swatch.bg-none', { type: 'button', class: cur && cur !== '#000000' ? null : 'active', title: t('No background (black)'), onclick: (e) => { markActive(e); set(null, true); } }),
     presets.map((c) => h('button.bg-swatch', {
       type: 'button', class: cur === c ? 'active' : null, style: { background: c }, title: c,
-      onclick: () => set(c, true),
+      onclick: (e) => { markActive(e); set(c, true); },
     })),
     // Gradients: a few ready ones and an editor (also takes CSS from cssgradient.io).
     GRADIENT_PRESETS.map((g) => h('button.bg-swatch', {
       type: 'button', class: (value || '') === g ? 'active' : null, style: { background: g }, title: t('Gradient'),
-      onclick: () => set(g, true),
+      onclick: (e) => { markActive(e); set(g, true); },
     })),
     h('button.bg-swatch.bg-gradient', {
       type: 'button',

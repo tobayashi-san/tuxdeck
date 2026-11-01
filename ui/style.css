@@ -419,8 +419,8 @@ body.file-dragging.file-import #file-drop { display: grid; }
 .bg-swatches { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; max-width: 176px; }
 .bg-swatch { width: 20px; height: 20px; border-radius: 5px; border: 1px solid #00000066; cursor: pointer; padding: 0; }
 .bg-swatch.active { outline: 2px solid var(--accent); outline-offset: 1px; }
-.bg-none { background: #111; position: relative; overflow: hidden; }
-.bg-none::after { content: ''; position: absolute; left: 1px; right: 1px; top: 9px; height: 2px; background: #e11d48; transform: rotate(-45deg); }
+.bg-none, .ic-none { background: #111; position: relative; overflow: hidden; }
+.bg-none::after, .ic-none::after { content: ''; position: absolute; left: 1px; right: 1px; top: 9px; height: 2px; background: #e11d48; transform: rotate(-45deg); }
 .bg-custom { width: 26px; height: 22px; padding: 1px; border-radius: 5px; }
 .bg-gradient { background: conic-gradient(from 90deg, #f43f5e, #f59e0b, #22c55e, #3b82f6, #a855f7, #f43f5e); }
 .grad-editor { display: grid; grid-template-columns: 132px 1fr; gap: 12px 16px; align-items: start; min-width: 420px; }

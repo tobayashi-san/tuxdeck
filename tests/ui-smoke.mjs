@@ -1082,6 +1082,24 @@ async function suiteNeo(d, b) {
     assert((await b.eval(`document.querySelector('#editor .ed-preview img').src`)).includes('/api/render/'), 'preview');
   });
 
+  await test('editor: the icon can be drawn black, white or in a colour of its own', async () => {
+    await selectSlot(b, 'Keypad', '0,0');
+    const st0 = async () => (await d.action('Keypad', '0,0')).States[0];
+    const dev = await d.dev();
+    const render = () => d.api(`/api/render/${dev.profile}/${dev.page}/Keypad/0,0.png?size=72&v=${Date.now()}`);
+    await b.waitFor(`!!document.querySelector('#editor .ed-iconcolor')`, 'icon colour row');
+    const before = await render();
+    await b.click('#editor .ed-iconcolor .bg-swatch[data-color="#000000"]');
+    await until(async () => (await st0()).ImageColor === '#000000', 'black saved');
+    await until(async () => !(await render()).equals(before), 'drawn differently');
+    await b.waitFor(`document.querySelector('#editor .ed-iconcolor .bg-swatch[data-color="#000000"]')?.classList.contains('active')`, 'black marked');
+    await b.set('#editor .ed-iconcolor input[type=color]', '#ff0000');
+    await until(async () => (await st0()).ImageColor === '#ff0000', 'own colour saved');
+    await b.click('#editor .ed-iconcolor .ic-none');
+    await until(async () => !(await st0()).ImageColor, 'back to the icon as it comes');
+    await until(async () => (await render()).equals(before), 'drawn as before');
+  });
+
   await test('editor: a gradient background from cssgradient.io is saved and drawn', async () => {
     await selectSlot(b, 'Keypad', '0,0');
     const st0 = async () => (await d.action('Keypad', '0,0')).States[0];

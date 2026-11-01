@@ -254,6 +254,7 @@ impl Engine {
         let mut spec = KeySpec { ..Default::default() };
         // User-chosen key background, shown behind the (possibly transparent) image.
         spec.background = st.background.clone().filter(|s| !s.is_empty());
+        spec.image_color = st.image_color.clone().filter(|s| !s.is_empty());
         // Image precedence: plugin override > user image > built-in variant > manifest default.
         spec.image = rt
             .and_then(|r| r.images.get(&Some(state_idx)).or(r.images.get(&None)).cloned())

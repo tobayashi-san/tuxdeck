@@ -121,6 +121,10 @@ pub struct StateDef {
     /// Key background colour (`#rrggbb`), shown behind the image. Our own extension.
     #[serde(rename = "Background", skip_serializing_if = "Option::is_none")]
     pub background: Option<String>,
+    /// Colour the image is drawn in (`#rrggbb`; its shape, i.e. the opaque parts, in that
+    /// colour): black or white icons whatever the icon brings. Our own extension.
+    #[serde(rename = "ImageColor", skip_serializing_if = "Option::is_none")]
+    pub image_color: Option<String>,
     #[serde(rename = "OutlineThickness", skip_serializing_if = "Option::is_none")]
     pub outline_thickness: Option<f32>,
     #[serde(rename = "ShowTitle", skip_serializing_if = "Option::is_none")]

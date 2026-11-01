@@ -596,6 +596,8 @@ pub enum Overlay {
 pub struct KeySpec {
     pub background: Option<String>,
     pub image: Option<ImageData>,
+    /// Draw the image in one colour (`#rgb`/`#rrggbb`), keeping its shape.
+    pub image_color: Option<String>,
     pub title: Option<Title>,
     pub overlay: Option<Overlay>,
     /// Large centered text (page indicator, timer) drawn when no image is set.
@@ -604,6 +606,20 @@ pub struct KeySpec {
 
 /// Canvas the SVG is authored in (Elgato keys are 72pt; we use 2x).
 const CANVAS: f32 = 144.0;
+
+/// A dark colour (`#rgb`/`#rrggbb`, relative luminance below one half); other notations
+/// count as light.
+fn is_dark(c: &str) -> bool {
+    let Some(h) = c.trim().strip_prefix('#').filter(|_| is_hex_color(c.trim())) else { return false };
+    let h: String = if h.len() == 3 { h.chars().flat_map(|x| [x, x]).collect() } else { h.to_string() };
+    let ch = |i: usize| u8::from_str_radix(&h[i..i + 2], 16).unwrap_or(255) as f32 / 255.0;
+    0.2126 * ch(0) + 0.7152 * ch(2) + 0.0722 * ch(4) < 0.5
+}
+
+/// `#rgb` or `#rrggbb`.
+fn is_hex_color(c: &str) -> bool {
+    c.strip_prefix('#').is_some_and(|h| (h.len() == 3 || h.len() == 6) && h.chars().all(|x| x.is_ascii_hexdigit()))
+}
 
 pub fn key_svg(spec: &KeySpec) -> String {
     let mut s = format!(
@@ -618,7 +634,15 @@ pub fn key_svg(spec: &KeySpec) -> String {
     }
     s += &format!(r#"<rect width="{c}" height="{c}" fill="{bg}"/>"#, c = CANVAS);
     if let Some(img) = &spec.image {
-        s += &format!(r#"<image width="{c}" height="{c}" preserveAspectRatio="xMidYMid meet" xlink:href="{}"/>"#, img.to_href(), c = CANVAS);
+        // One colour: the image's alpha filled with it.
+        let tint = spec.image_color.as_deref().map(str::trim).filter(|c| is_hex_color(c));
+        if let Some(c) = tint {
+            s += &format!(
+                r#"<filter id="tint" x="0" y="0" width="1" height="1" color-interpolation-filters="sRGB"><feFlood flood-color="{c}"/><feComposite in2="SourceAlpha" operator="in"/></filter>"#
+            );
+        }
+        let filter = if tint.is_some() { r#" filter="url(#tint)""# } else { "" };
+        s += &format!(r#"<image width="{c}" height="{c}" preserveAspectRatio="xMidYMid meet"{filter} xlink:href="{}"/>"#, img.to_href(), c = CANVAS);
     }
     if let Some(t) = &spec.big_text {
         s += &format!(
@@ -666,7 +690,10 @@ fn title_svg(t: &Title) -> String {
         xml_escape(&t.color),
     );
     if t.outline > 0 {
-        s += &format!(r##" stroke="#000000" stroke-width="{}" stroke-linejoin="round" paint-order="stroke""##, t.outline as f32 * scale * 1.2);
+        // The outline sets the title off its background: dark around light text, light
+        // around dark text (black on black would be a blot).
+        let stroke = if is_dark(&t.color) { "#ffffff" } else { "#000000" };
+        s += &format!(r#" stroke="{stroke}" stroke-width="{}" stroke-linejoin="round" paint-order="stroke""#, t.outline as f32 * scale * 1.2);
     }
     s += ">";
     for (i, l) in lines.iter().enumerate() {
@@ -1036,6 +1063,26 @@ mod tests {
     }
 
     #[test]
+    fn image_colour() {
+        // A white symbol (left half) on a transparent image, drawn black on a white key.
+        let mut sym = RgbaImage::from_pixel(10, 10, Rgba([0, 0, 0, 0]));
+        for y in 0..10 {
+            for x in 0..5 {
+                sym.put_pixel(x, y, Rgba([255, 255, 255, 255]));
+            }
+        }
+        let spec = |c: &str| KeySpec { background: Some("#ffffff".into()), image: Some(png(&sym)), image_color: Some(c.into()), ..Default::default() };
+        let black = render_key(&spec("#000000"), 72);
+        assert_eq!(black.get_pixel(10, 36).0, [0, 0, 0, 255], "the symbol in black");
+        assert_eq!(black.get_pixel(60, 36).0, [255, 255, 255, 255], "the background stays");
+        assert_eq!(render_key(&spec("#f00"), 72).get_pixel(10, 36).0, [255, 0, 0, 255]);
+        // Anything but a hex colour is ignored (and can't get into the SVG).
+        let svg = key_svg(&spec(r#"red"/><script/>"#));
+        assert!(!svg.contains("<script") && !svg.contains("filter="), "{svg}");
+        assert_eq!(render_key(&spec("nope"), 72).get_pixel(10, 36).0, [255, 255, 255, 255]);
+    }
+
+    #[test]
     fn key_images() {
         let green = png(&RgbaImage::from_pixel(10, 10, Rgba([0, 255, 0, 255])));
         let img = render_key(&KeySpec { image: Some(green), ..Default::default() }, 72);
@@ -1113,6 +1160,13 @@ mod tests {
         o.outline = 3;
         let img = render_key(&KeySpec { background: Some("#808080".into()), title: Some(o), ..Default::default() }, 144);
         assert!(img.pixels().any(|p| p.0[0] < 40));
+        // Dark titles get a light outline.
+        let mut dark = title("O", "middle", 24);
+        dark.outline = 3;
+        dark.color = "#000".into();
+        assert!(title_svg(&dark).contains(r##"stroke="#ffffff""##));
+        assert!(title_svg(&Title { outline: 3, ..title("O", "middle", 24) }).contains(r##"stroke="#000000""##));
+        assert!(is_dark("#123456") && !is_dark("#a1a1aa") && !is_dark("white") && is_dark("#000"));
     }
 
     #[test]
