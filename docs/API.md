@@ -5,9 +5,12 @@ All bodies are JSON unless noted. Errors: non-2xx with `{"error": "..."}`.
 
 Access: every `/api/*` request needs the secret from `~/.config/tuxdeck/api-token`
 (created on first start, readable only by the user) as `X-Tuxdeck-Token: <token>`
-header, `Authorization: Bearer <token>`, the `tuxdeck_token` cookie or (for WebSocket clients)
-`?token=<token>`; otherwise `401`. Opening any UI page with `?token=<token>` (what
-`tuxdeck ui` does) sets the cookie and redirects to the URL without it.
+header, `Authorization: Bearer <token>` or (for WebSocket clients) `?token=<token>`;
+otherwise `401`. The browser UI uses the session cookie `tuxdeck_session_<port>` instead
+(value in `~/.config/tuxdeck/ui-session`); it counts only for requests from the UI page
+itself (`Sec-Fetch-Site: same-origin`). `POST /api/login-code` returns
+`{"code": "…"}`: opening any UI page with `?code=<code>` within 30 s (what `tuxdeck ui`
+does) sets the cookie once and redirects to the URL without it.
 
     curl -H "X-Tuxdeck-Token: $(cat ~/.config/tuxdeck/api-token)" http://127.0.0.1:47800/api/state
 
@@ -136,20 +139,27 @@ top-level pages).
 ### `GET /api/pi/{profile}/{page}?controller=Keypad&coord=0,0`
 Everything needed to open a third-party property inspector:
 ```json
-{"url": "/plugin-files/<plugin>/pi/index.html", "port": 47801,
- "uuid": "<context>", "registerEvent": "registerPropertyInspector",
+{"url": "http://127.0.0.1:47802/plugins/<name>.sdPlugin/pi/index.html", "port": 47801,
+ "uuid": "<alias>", "registerEvent": "registerPropertyInspector",
  "info": {...}, "actionInfo": {...}}
 ```
-`url` keeps the plugin directory name (`/plugins/<name>.sdPlugin/...`): Elgato's PI
-libraries locate the plugin root by looking for a path segment ending in `sdPlugin`.
-The UI loads `url` in an `<iframe>` (same origin) and after `load` calls
-`iframe.contentWindow.connectElgatoStreamDeckSocket(port, uuid, registerEvent,
-JSON.stringify(info), JSON.stringify(actionInfo))`. (This is the official Elgato
-SDK contract; the PI then talks to the daemon over its own WebSocket.)
+`url` keeps the plugin directory name: Elgato's PI libraries locate the plugin root by
+looking for a path segment ending in `sdPlugin`. It is on the **plugin file server**, a
+second port (UI port + 2, or any free port; `settings.plugin_port` in `/api/state`) that
+serves only plugin, icon pack and plugin data files and has no API: inspector code can't
+use the UI's session. The UI loads `url` in a sandboxed `<iframe>`; the server adds a
+small bridge script (`/__tuxdeck/pi-bridge.js`, source `src/pi-bridge.js`) to every HTML page there. After `load` the UI
+posts `{tuxdeck: "connect", args: [port, uuid, registerEvent, info, actionInfo]}` to
+the frame, the bridge calls `connectElgatoStreamDeckSocket(...)` (the official Elgato
+SDK contract) and reports the content height back. `uuid` (also `actionInfo.context`)
+is an alias of the action's context, new for every opened inspector: the SDK WebSocket accepts inspectors only
+with such an alias and plugins only with the secret they get as `-pluginUUID`.
 Returns 404 when the action has no PI.
 
 ### `GET /plugin-files/{plugin-uuid}/{path...}`, `GET /plugins/{dir}.sdPlugin/{path...}`
-Static files of an installed plugin (icons, property inspector HTML/JS/CSS).
+Static files of an installed plugin (icons, property inspector HTML/JS/CSS). On the UI
+port they come with `Content-Security-Policy: sandbox` (icons only, never a working page);
+pages and scripts run from the plugin file server.
 
 ### `GET /api/profiles/{profile}/export`
 Download `.streamDeckProfile` (zip).

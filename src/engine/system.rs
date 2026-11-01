@@ -31,6 +31,69 @@ pub fn spawn_detached(mut cmd: Command) -> Result<()> {
     Ok(())
 }
 
+/// Start a program for the user (Open, Open Application, links). Under the systemd user
+/// service it gets its own transient scope: otherwise it would stay in tuxdeck.service's
+/// cgroup and systemd would kill it whenever the service restarts or stops.
+pub fn spawn_program(cmd: Command) -> Result<()> {
+    spawn_detached(if scopes_available() { in_scope(&cmd) } else { cmd })
+}
+
+/// Whether `systemd-run --user --scope` works here (checked once).
+pub fn scopes_available() -> bool {
+    static SCOPES: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *SCOPES.get_or_init(|| {
+        let ok = std::env::var_os("INVOCATION_ID").is_some()
+            && !input::dry_run()
+            && Command::new("systemd-run")
+                .args(["--user", "--scope", "--collect", "--quiet", "--", "true"])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success());
+        tracing::info!("programs start in their own systemd scope: {ok}");
+        ok
+    })
+}
+
+/// `cmd` wrapped in `systemd-run --user --scope` (unit `app-tuxdeck-<program>-<random>.scope`,
+/// named like the desktop launchers do).
+fn in_scope(cmd: &Command) -> Command {
+    let program = std::path::Path::new(cmd.get_program()).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
+    // `sh -c "<command line>"`: name the scope after the command line's program.
+    let args: Vec<_> = cmd.get_args().map(|a| a.to_string_lossy().into_owned()).collect();
+    let shown = match (program.as_str(), args.first().map(String::as_str)) {
+        ("sh", Some("-c")) => match args.get(1).and_then(|l| l.split_whitespace().find(|w| *w != "exec")) {
+            // `exec "$0" <args>` with the program path as $0 (Open Application).
+            Some("\"$0\"") => args.get(2).cloned().unwrap_or_default(),
+            Some(w) => w.to_string(),
+            None => "sh".to_string(),
+        },
+        _ => program,
+    };
+    let name: String = std::path::Path::new(shown.trim_matches('"'))
+        .file_name()
+        .map(|f| f.to_string_lossy().into_owned())
+        .unwrap_or_default()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '.' { c } else { '_' })
+        .take(40)
+        .collect();
+    let unit = format!("app-tuxdeck-{}-{}.scope", if name.is_empty() { "program" } else { &name }, &uuid::Uuid::new_v4().simple().to_string()[..8]);
+    let mut c = Command::new("systemd-run");
+    c.args(["--user", "--scope", "--collect", "--quiet"]).arg(format!("--unit={unit}")).arg("--").arg(cmd.get_program()).args(cmd.get_args());
+    for (k, v) in cmd.get_envs() {
+        match v {
+            Some(v) => c.env(k, v),
+            None => c.env_remove(k),
+        };
+    }
+    if let Some(d) = cmd.get_current_dir() {
+        c.current_dir(d);
+    }
+    c
+}
+
 /// Signal every process of the given program (like `pkill -x`, but also for names
 /// longer than 15 characters and for NixOS-wrapped programs, whose process name is
 /// `.name-wrapped`). Matches the process name or the file name of argv[0].
@@ -64,7 +127,8 @@ pub fn kill_processes(name: &str, signal: i32) -> Result<usize> {
 pub fn open_url(url: &str) -> Result<()> {
     let mut c = Command::new("xdg-open");
     c.arg(url);
-    spawn_detached(c)
+    // A browser that isn't running yet becomes a child of xdg-open.
+    spawn_program(c)
 }
 
 pub(super) fn expand_home(p: &str) -> String {
@@ -194,6 +258,24 @@ mod tests {
         }
         assert!(spawn_detached(Command::new("true")).is_ok());
         assert!(spawn_detached(Command::new("/nonexistent/tuxdeck-test")).is_err());
+    }
+
+    #[test]
+    fn programs_get_a_named_scope() {
+        let argv = |c: &Command| std::iter::once(c.get_program()).chain(c.get_args()).map(|a| a.to_string_lossy().into_owned()).collect::<Vec<_>>();
+        let mut sh = Command::new("sh");
+        sh.arg("-c").arg("exec \"$0\" --x").arg("/opt/My App/obs");
+        sh.env("A", "1");
+        let c = in_scope(&sh);
+        let a = argv(&c);
+        assert_eq!(a[..5], ["systemd-run", "--user", "--scope", "--collect", "--quiet"]);
+        assert!(a[5].starts_with("--unit=app-tuxdeck-obs-") && a[5].ends_with(".scope"), "{}", a[5]);
+        assert_eq!(a[6..], ["--", "sh", "-c", "exec \"$0\" --x", "/opt/My App/obs"]);
+        assert!(c.get_envs().any(|(k, v)| k == "A" && v == Some("1".as_ref())));
+        let mut sh = Command::new("sh");
+        sh.arg("-c").arg("flatpak run org.x.Y --new");
+        assert!(argv(&in_scope(&sh))[5].starts_with("--unit=app-tuxdeck-flatpak-"));
+        assert!(argv(&in_scope(&Command::new("/usr/bin/my prog!")))[5].starts_with("--unit=app-tuxdeck-my_prog_-"));
     }
 
     /// Start a process that waits on its stdin.

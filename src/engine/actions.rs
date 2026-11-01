@@ -311,7 +311,7 @@ impl Engine {
                 if path.contains("://") || p.is_dir() || (p.is_file() && !is_executable(p)) {
                     open_url(&path)?;
                 } else if p.is_file() {
-                    spawn_detached(Command::new(&path))?;
+                    spawn_program(Command::new(&path))?;
                 } else if path.starts_with("/Applications/") || path.starts_with("/System/") {
                     bail!(crate::tr!("the macOS path {path} does not exist on Linux", path = path));
                 } else if path.starts_with('/') && !std::path::Path::new(path.split_whitespace().next().unwrap_or("")).exists() {
@@ -319,7 +319,7 @@ impl Engine {
                 } else {
                     let mut c = Command::new("sh");
                     c.arg("-c").arg(&path);
-                    spawn_detached(c)?;
+                    spawn_program(c)?;
                 }
             }
             (OPEN_APP, false) => {
@@ -343,16 +343,16 @@ impl Engine {
                 } else if exec.ends_with(".desktop") {
                     let mut c = Command::new("gtk-launch");
                     c.arg(std::path::Path::new(&exec).file_name().unwrap());
-                    spawn_detached(c)?;
+                    spawn_program(c)?;
                 } else if is_path {
                     // Arguments stay shell syntax (quotes), the program path is passed as is.
                     let mut c = Command::new("sh");
                     c.arg("-c").arg(format!("exec \"$0\" {}", sv("args"))).arg(expand_home(&exec));
-                    spawn_detached(c)?;
+                    spawn_program(c)?;
                 } else {
                     let mut c = Command::new("sh");
                     c.arg("-c").arg(format!("{} {}", exec, sv("args")));
-                    spawn_detached(c)?;
+                    spawn_program(c)?;
                 }
             }
             (CLOSE, true) => {

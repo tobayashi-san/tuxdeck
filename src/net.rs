@@ -10,6 +10,13 @@ pub fn http() -> reqwest::Client {
     .clone()
 }
 
+/// Client for requests to the local daemon: they carry the API token, so they must never
+/// go through a proxy from the environment.
+pub fn local() -> reqwest::Client {
+    static C: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    C.get_or_init(|| reqwest::Client::builder().no_proxy().timeout(Duration::from_secs(30)).build().expect("http client")).clone()
+}
+
 pub fn urlencode(s: &str) -> String {
     s.bytes()
         .map(|b| match b {

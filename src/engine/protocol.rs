@@ -214,10 +214,43 @@ impl Engine {
         }
     }
 
-    pub fn send_pi(&mut self, ctx: &str, msg: Value) {
+    pub fn send_pi(&mut self, ctx: &str, mut msg: Value) {
         if let Some(tx) = self.pis.get(ctx) {
+            // The property inspector knows its action by its alias.
+            if let Some(alias) = self.pi_alias.get(ctx) {
+                if msg.get("context").and_then(|c| c.as_str()) == Some(ctx) {
+                    msg["context"] = Value::String(alias.clone());
+                }
+            }
             let _ = tx.send(msg.to_string());
         }
+    }
+
+    /// A new registration secret for a plugin start (see `PluginConn::key`). Upper-case hex
+    /// like the official app's.
+    pub fn new_plugin_key(&mut self, plugin: &str) -> String {
+        let key = uuid::Uuid::new_v4().simple().to_string().to_uppercase();
+        self.plugin_conns.entry(plugin.to_string()).or_default().key = Some(key.clone());
+        key
+    }
+
+    /// The plugin that was started with this registration secret.
+    pub fn plugin_by_key(&self, key: &str) -> Option<String> {
+        self.plugin_conns.iter().find(|(_, c)| c.key.as_deref() == Some(key)).map(|(u, _)| u.clone())
+    }
+
+    /// An alias for a property inspector of `ctx` to register with (see `pi_aliases`).
+    pub fn new_pi_alias(&mut self, ctx: &str) -> String {
+        let alias = uuid::Uuid::new_v4().simple().to_string().to_uppercase();
+        if self.pi_aliases.len() >= 64 {
+            self.pi_aliases.remove(0);
+        }
+        self.pi_aliases.push((alias.clone(), ctx.to_string()));
+        alias
+    }
+
+    pub fn pi_context(&self, alias: &str) -> Option<String> {
+        self.pi_aliases.iter().find(|(a, _)| a == alias).map(|(_, c)| c.clone())
     }
 
     /// Context for a slot (used by the UI to open a property inspector).
@@ -362,7 +395,13 @@ impl Engine {
             }
             "openUrl" => {
                 if let Some(u) = payload.get("url").and_then(|v| v.as_str()) {
-                    let _ = open_url(u);
+                    // Not TuxDeck's own pages: the browser may hold the UI's session.
+                    let own = [self.settings.ui_port, self.plugin_port, self.settings.sdk_port];
+                    if targets_own_port(u, &own) {
+                        tracing::warn!("[{plugin_uuid}] openUrl to TuxDeck itself refused: {u}");
+                    } else {
+                        let _ = open_url(u);
+                    }
                 }
             }
             "logMessage" => {
@@ -524,6 +563,48 @@ impl Engine {
             }
             "setTriggerDescription" => {}
             other => tracing::debug!("unhandled SDK event {other} from {owner}"),
+        }
+    }
+}
+
+/// Whether `url` points at one of these ports on this computer (loopback address). Parsed
+/// like browsers do (`127.1`, `2130706433`, `http:/host` all mean 127.0.0.1).
+fn targets_own_port(url: &str, ports: &[u16]) -> bool {
+    let Ok(u) = reqwest::Url::parse(url.trim()) else { return false };
+    // The parser normalises IP addresses (IPv6 in brackets).
+    let host = u.host_str().unwrap_or("").trim_matches(['[', ']']).trim_end_matches('.').to_ascii_lowercase();
+    let loopback = match host.parse::<std::net::IpAddr>() {
+        Ok(std::net::IpAddr::V4(ip)) => ip.is_loopback() || ip.is_unspecified(),
+        Ok(std::net::IpAddr::V6(ip)) => ip.is_loopback() || ip.is_unspecified() || ip.to_ipv4_mapped().is_some_and(|v4| v4.is_loopback()),
+        Err(_) => host == "localhost" || host.ends_with(".localhost"),
+    };
+    loopback && u.port_or_known_default().is_some_and(|p| ports.contains(&p))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::targets_own_port;
+
+    #[test]
+    fn open_url_to_own_ports() {
+        let own = [47800, 47802];
+        for u in [
+            "http://127.0.0.1:47800/",
+            "http://localhost:47802/x",
+            "HTTP://[::1]:47800",
+            "http://127.1.2.3:47800/?a",
+            "http://user@0.0.0.0:47800",
+            "http://127.1:47800/",
+            "http://2130706433:47800/",
+            "http://0x7f.0.0.1:47800/",
+            "http:/127.0.0.1:47800",
+            "http:\\\\127.0.0.1:47800",
+            "ws://LOCALHOST.:47800",
+        ] {
+            assert!(targets_own_port(u, &own), "{u}");
+        }
+        for u in ["http://127.0.0.1:8080/", "https://example.org:47800/", "mailto:a@b.c", "http://localhost/", "file:///tmp/x"] {
+            assert!(!targets_own_port(u, &own), "{u}");
         }
     }
 }

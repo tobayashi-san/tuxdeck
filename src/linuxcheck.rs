@@ -211,6 +211,66 @@ fn bwrap(paths: &Paths) -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.is_file())
 }
 
+/// System folders the check needs (programs, libraries, Node, the test browser). Everything
+/// else – the user's files, other drives (/mnt, /media, /run/media), /srv, the D-Bus
+/// sockets – stays outside the sandbox.
+const SYSTEM_DIRS: &[&str] =
+    &["/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32", "/etc", "/opt", "/nix/store", "/run/current-system", "/run/opengl-driver", "/sys"];
+
+/// bubblewrap arguments: system folders and `binds` read-only, own network (only its
+/// own loopback: the test instances, the plugin and the browser talk to each other, but
+/// nothing on the host – like a running TuxDeck – or the internet is reachable), own
+/// IPC, hostname and process namespaces.
+fn sandbox_args(binds: &[PathBuf]) -> Vec<std::ffi::OsString> {
+    // Only the environment the check needs (no tokens or other secrets of the session).
+    let mut a: Vec<std::ffi::OsString> = vec!["--clearenv".into()];
+    for k in ["PATH", "LANG", "TUXDECK_BROWSER"] {
+        if let Some(v) = std::env::var_os(k) {
+            a.extend(["--setenv".into(), k.into(), v]);
+        }
+    }
+    for d in SYSTEM_DIRS.iter().map(Path::new).filter(|d| d.exists()) {
+        a.extend(["--ro-bind".into(), d.into(), d.into()]);
+    }
+    for s in [
+        "--dev",
+        "/dev",
+        "--proc",
+        "/proc",
+        "--tmpfs",
+        "/tmp",
+        "--dir",
+        "/run/user/sandbox",
+        "--setenv",
+        "XDG_RUNTIME_DIR",
+        "/run/user/sandbox",
+        "--setenv",
+        "HOME",
+        "/tmp",
+        "--unsetenv",
+        "WAYLAND_DISPLAY",
+        "--unsetenv",
+        "DISPLAY",
+        "--unsetenv",
+        "DBUS_SESSION_BUS_ADDRESS",
+        "--unsetenv",
+        "DBUS_SYSTEM_BUS_ADDRESS",
+        "--unshare-net",
+        "--unshare-ipc",
+        "--unshare-uts",
+        "--unshare-pid",
+        "--unshare-cgroup-try",
+        "--die-with-parent",
+        "--new-session",
+    ] {
+        a.push(s.into());
+    }
+    for b in binds {
+        a.extend(["--ro-bind".into(), b.into(), b.into()]);
+    }
+    a
+}
+
 /// A program on the PATH as a real path (symlinks resolved, e.g. into /nix/store), so it
 /// stays visible in the sandbox where /home is hidden.
 fn resolve(program: &str) -> PathBuf {
@@ -222,10 +282,9 @@ fn resolve(program: &str) -> PathBuf {
     found.and_then(|p| p.canonicalize().ok()).unwrap_or_else(|| PathBuf::from(program))
 }
 
-/// Run the check (blocking, up to a few minutes) and store the result. With bubblewrap
-/// the plugin can't see the user's files: /home and /run/user are empty in there, only
-/// what the check needs is mounted read-only.
-pub fn run(paths: &Paths, node: &str, source: Source, extra: Value) -> Result<Value> {
+/// Run the check (blocking, up to a few minutes) and store the result. The plugin runs in
+/// a bubblewrap sandbox (see `sandbox_args`); without bubblewrap there is no check.
+pub fn run(paths: &Paths, node: &str, source: Source, key: &str, extra: Value) -> Result<Value> {
     let tools = paths.data.join("tools");
     std::fs::create_dir_all(&tools)?;
     let script = tools.join("linux-check.mjs");
@@ -237,24 +296,24 @@ pub fn run(paths: &Paths, node: &str, source: Source, extra: Value) -> Result<Va
         Source::Dir(d) => ("--plugin-dir", d.canonicalize()?),
         Source::Archive(f) => ("--plugin", f.canonicalize()?),
     };
-    let sandbox = bwrap(paths);
+    let sandbox = match bwrap(paths) {
+        Some(bw) => Some(bw),
+        // Only on explicit request (tests, development): the plugin then sees everything.
+        None if std::env::var_os("TUXDECK_NO_SANDBOX").is_some() => None,
+        None => bail!(crate::tr!("The Linux check runs the plugin in a sandbox: install bubblewrap (bwrap) first.")),
+    };
     let mut cmd = match &sandbox {
         Some(bw) => {
-            let mut c = Command::new(bw);
-            c.args(["--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp", "--tmpfs", "/home", "--tmpfs", "/run/user"]);
-            c.args(["--dir", "/run/user/sandbox", "--setenv", "XDG_RUNTIME_DIR", "/run/user/sandbox", "--setenv", "HOME", "/tmp"]);
-            c.args(["--unsetenv", "WAYLAND_DISPLAY", "--unsetenv", "DISPLAY", "--unsetenv", "DBUS_SESSION_BUS_ADDRESS"]);
-            c.args(["--unshare-pid", "--die-with-parent", "--new-session"]);
             let mut binds = vec![exe.clone(), script.clone(), plugin.clone(), node.clone()];
             binds.extend(elgato.clone());
             // Debug builds read the UI from the source tree.
             if cfg!(debug_assertions) {
                 binds.push(PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/ui")));
             }
-            for b in binds {
-                c.arg("--ro-bind").arg(&b).arg(&b);
-            }
-            c.arg(&node);
+            let mut c = Command::new(bw);
+            // The test instances start the plugin with this Node (the PATH may lead
+            // through folders that are not in the sandbox).
+            c.args(sandbox_args(&binds)).arg("--setenv").arg("TUXDECK_NODE").arg(&node).arg(&node);
             c
         }
         None => Command::new(&node),
@@ -304,9 +363,11 @@ pub fn run(paths: &Paths, node: &str, source: Source, extra: Value) -> Result<Va
     if report["verdict"] == "error" {
         bail!("{}", report["error"].as_str().unwrap_or("Linux check failed"));
     }
-    let uuid = report["uuid"].as_str().context("no plugin UUID in the result")?.to_string();
+    report["uuid"].as_str().context("no plugin UUID in the result")?;
+    // Stored under the plugin or catalogue entry that was checked, not under the UUID the
+    // package claims (it could claim another plugin's).
     let mut s = store(paths).lock();
-    s.insert(uuid, report.clone());
+    s.insert(key.to_string(), report.clone());
     mark_dirty();
     let _ = crate::profile::write_atomic(&store_file(paths), &serde_json::to_vec_pretty(&*s)?);
     Ok(report)
@@ -315,6 +376,19 @@ pub fn run(paths: &Paths, node: &str, source: Source, extra: Value) -> Result<Va
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sandbox_is_offline_and_hides_the_users_files() {
+        let a: Vec<String> = sandbox_args(&[PathBuf::from("/home/u/plugin")]).iter().map(|x| x.to_string_lossy().into_owned()).collect();
+        for flag in ["--unshare-net", "--unshare-ipc", "--unshare-pid", "--die-with-parent"] {
+            assert!(a.iter().any(|x| x == flag), "{flag}");
+        }
+        let bound: Vec<&str> = a.windows(3).filter(|w| w[0] == "--ro-bind").map(|w| w[1].as_str()).collect();
+        assert!(bound.contains(&"/home/u/plugin"));
+        for hidden in ["/", "/home", "/mnt", "/media", "/run/media", "/srv", "/run/dbus", "/run/user", "/var"] {
+            assert!(!bound.contains(&hidden), "{hidden} must not be visible");
+        }
+    }
 
     #[test]
     fn published_results_contain_no_local_paths() {

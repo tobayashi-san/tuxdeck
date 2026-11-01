@@ -449,7 +449,8 @@ fn unpack_plugin(zip: &mut zip::ZipArchive<std::io::Cursor<&[u8]>>, root: &str, 
         #[cfg(unix)]
         if let Some(mode) = f.unix_mode() {
             use std::os::unix::fs::PermissionsExt;
-            let _ = fs::set_permissions(&out, fs::Permissions::from_mode(mode & 0o777));
+            // Only the executable bit is taken over: never writable for group or others.
+            let _ = fs::set_permissions(&out, fs::Permissions::from_mode(if mode & 0o111 != 0 { 0o755 } else { 0o644 }));
         }
     }
     Ok(())

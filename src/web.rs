@@ -62,48 +62,108 @@ pub fn origin_allowed(headers: &HeaderMap, port: u16) -> bool {
 struct Access {
     port: u16,
     token: std::sync::Arc<str>,
+    session: std::sync::Arc<str>,
 }
 
-const TOKEN_COOKIE: &str = "tuxdeck_token";
+/// Name of the UI's session cookie. Cookies don't keep ports apart: with the port in the
+/// name, a second instance (tests, another user's) doesn't replace this one's cookie.
+fn session_cookie(port: u16) -> String {
+    format!("tuxdeck_session_{port}")
+}
 
-/// The API token of a request: `X-Tuxdeck-Token` or bearer header, else the cookie of
-/// the browser UI (an explicit header wins over a stale cookie).
-fn request_token(headers: &HeaderMap) -> Option<&str> {
-    let cookie = headers
-        .get_all(header::COOKIE)
-        .iter()
-        .filter_map(|v| v.to_str().ok())
-        .flat_map(|v| v.split(';'))
-        .find_map(|c| c.trim().strip_prefix(TOKEN_COOKIE)?.strip_prefix('='));
+/// How long a login code from `POST /api/login-code` can be used (once).
+const LOGIN_CODE_TTL: std::time::Duration = std::time::Duration::from_secs(30);
+
+fn login_codes() -> &'static parking_lot::Mutex<Vec<(String, std::time::Instant)>> {
+    static CODES: std::sync::OnceLock<parking_lot::Mutex<Vec<(String, std::time::Instant)>>> = std::sync::OnceLock::new();
+    CODES.get_or_init(Default::default)
+}
+
+/// A one-time code that opens the UI (`/?code=…`): `tuxdeck ui` passes it to the browser
+/// instead of the API token, so the browser's command line holds nothing lasting.
+pub fn login_code() -> String {
+    let code = uuid::Uuid::new_v4().simple().to_string();
+    let mut codes = login_codes().lock();
+    codes.retain(|(_, t)| t.elapsed() < LOGIN_CODE_TTL);
+    codes.push((code.clone(), std::time::Instant::now()));
+    code
+}
+
+fn take_login_code(code: &str) -> bool {
+    let mut codes = login_codes().lock();
+    codes.retain(|(_, t)| t.elapsed() < LOGIN_CODE_TTL);
+    match codes.iter().position(|(c, _)| c == code) {
+        Some(i) => {
+            codes.remove(i);
+            true
+        }
+        None => false,
+    }
+}
+
+/// The API token of a request: `X-Tuxdeck-Token` or bearer header.
+fn header_token(headers: &HeaderMap) -> Option<&str> {
     headers
         .get("x-tuxdeck-token")
         .and_then(|v| v.to_str().ok())
         .or_else(|| headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("Bearer ")))
-        .or(cookie)
+}
+
+/// Whether a cookie `name` has this value (several cookies may share the name, e.g. with
+/// different paths).
+fn has_cookie(headers: &HeaderMap, name: &str, value: &str) -> bool {
+    headers
+        .get_all(header::COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|v| v.split(';'))
+        .filter_map(|c| c.trim().strip_prefix(name)?.strip_prefix('='))
+        .any(|v| v == value)
 }
 
 async fn guard(State(access): State<Access>, req: axum::extract::Request, next: axum::middleware::Next) -> Response {
     if !origin_allowed(req.headers(), access.port) {
         return (StatusCode::FORBIDDEN, "forbidden").into_response();
     }
-    let query_token = req.uri().query().and_then(|q| q.split('&').find_map(|kv| kv.strip_prefix("token=")));
     let is_api = req.uri().path().starts_with("/api/");
-    // `?token=…` on a page (from `tuxdeck ui` / the app menu) becomes a cookie, then the
-    // URL is cleaned. API clients that can't set headers (WebSocket) may pass it as well.
-    if let (Some(q), false) = (req.uri().query(), is_api) {
-        if query_token == Some(&*access.token) {
-            let rest: Vec<&str> = q.split('&').filter(|kv| !kv.starts_with("token=")).collect();
-            let target = if rest.is_empty() { req.uri().path().to_string() } else { format!("{}?{}", req.uri().path(), rest.join("&")) };
-            let cookie = format!("{TOKEN_COOKIE}={}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000", access.token);
-            return (StatusCode::SEE_OTHER, [(header::LOCATION, target), (header::SET_COOKIE, cookie)]).into_response();
-        }
-    }
-    // The API needs the token; the UI files and plugin files are not secret.
-    if is_api && request_token(req.headers()).or(query_token) != Some(&*access.token) {
-        return (StatusCode::UNAUTHORIZED, Json(json!({"error": crate::tr!("Open the configuration from the application menu or with `tuxdeck ui`.")})))
-            .into_response();
+    if let Some(denied) = check_access(&access, &req, is_api) {
+        return denied;
     }
     next.run(req).await
+}
+
+/// The response that ends a request (login redirect, `401`), if any.
+fn check_access(access: &Access, req: &axum::extract::Request, is_api: bool) -> Option<Response> {
+    let query = |key: &str| req.uri().query().and_then(|q| q.split('&').find_map(|kv| kv.strip_prefix(key)?.strip_prefix('=')));
+    // `?code=…` on a page (from `tuxdeck ui` / the app menu) becomes the session cookie,
+    // then the URL is cleaned.
+    if let (Some(q), Some(code), false) = (req.uri().query(), query("code"), is_api) {
+        if take_login_code(code) {
+            let rest: Vec<&str> = q.split('&').filter(|kv| !kv.starts_with("code=")).collect();
+            // A path starting with "//" would leave the site.
+            let path = format!("/{}", req.uri().path().trim_start_matches('/'));
+            let target = if rest.is_empty() { path } else { format!("{path}?{}", rest.join("&")) };
+            let cookie = format!("{}={}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000", session_cookie(access.port), access.session);
+            return Some((StatusCode::SEE_OTHER, [(header::LOCATION, target), (header::SET_COOKIE, cookie)]).into_response());
+        }
+    }
+    // The API needs the token (header; WebSocket clients, which can't set headers, may
+    // pass it as `?token=`) or the UI's session cookie. The cookie counts only for requests
+    // from the UI page itself: browsers send it along with requests from other pages on
+    // 127.0.0.1 as well (other ports are the same site).
+    if is_api {
+        let headers = req.headers();
+        let from_ui = headers.get("sec-fetch-site").and_then(|v| v.to_str().ok()).is_none_or(|s| s == "same-origin" || s == "none");
+        let ok =
+            header_token(headers).or(query("token")) == Some(&*access.token) || (from_ui && has_cookie(headers, &session_cookie(access.port), &access.session));
+        if !ok {
+            return Some(
+                (StatusCode::UNAUTHORIZED, Json(json!({"error": crate::tr!("Open the configuration from the application menu or with `tuxdeck ui`.")})))
+                    .into_response(),
+            );
+        }
+    }
+    None
 }
 
 /// Highest state index accepted from the UI (Elgato actions have one or two states).
@@ -113,14 +173,15 @@ const MAX_IMPORT_BYTES: usize = 512 * 1024 * 1024;
 const MAX_IMAGE_BYTES: usize = 64 * 1024 * 1024;
 
 pub fn router(sh: Shared) -> Router {
-    let (port, token) = {
+    let (port, token, session) = {
         let e = sh.lock();
         let _ = PLUGIN_DATA.set(e.paths.plugin_data());
-        (e.settings.ui_port, e.api_token.clone())
+        (e.settings.ui_port, e.api_token.clone(), e.ui_session.clone())
     };
-    let access = Access { port, token: token.into() };
+    let access = Access { port, token: token.into(), session: session.into() };
     Router::new()
         .route("/api/state", get(state))
+        .route("/api/login-code", post(new_login_code))
         .route("/api/actions", get(actions))
         .route("/api/pages/{profile}/{page}", get(get_page).delete(delete_page))
         // Custom key images (animated GIFs) are sent inline as data URLs.
@@ -146,20 +207,98 @@ pub fn router(sh: Shared) -> Router {
         .route("/api/backups/{name}/restore", post(restore_stored_backup))
         .route("/api/restore", post(restore_uploaded_backup).layer(axum::extract::DefaultBodyLimit::max(MAX_IMPORT_BYTES)))
         .route("/api/events", get(events))
-        .route("/plugin-host", get(plugin_host))
-        .route("/plugin-files/{plugin}/{*path}", get(plugin_file))
-        .route("/plugins/{dir}/{*path}", get(plugin_dir_file))
+        // Plugin and icon pack files for the UI (icons): never run as a page here.
+        .merge(plugin_file_routes().layer(axum::middleware::map_response(inert)))
         .route("/api/devices/{id}/input", post(device_input))
         .route("/api/windows", get(windows))
         .route("/api/iconpacks", get(list_iconpacks))
         .route("/api/iconpacks/{id}", axum::routing::delete(delete_iconpack))
         .route("/api/iconpacks/{id}/icons", get(iconpack_icons))
-        .route("/iconpack-files/{id}/{*path}", get(iconpack_file))
         .route("/api/active-app", post(set_active_app))
         .merge(crate::web_plugins::routes())
         .fallback(get(static_file))
         .with_state(sh)
         .layer(axum::middleware::from_fn_with_state(access, guard))
+}
+
+async fn new_login_code() -> Json<Value> {
+    Json(json!({"code": login_code()}))
+}
+
+fn plugin_file_routes() -> Router<Shared> {
+    Router::new()
+        .route("/plugin-files/{plugin}/{*path}", get(plugin_file))
+        .route("/plugins/{dir}/{*path}", get(plugin_dir_file))
+        .route("/iconpack-files/{id}/{*path}", get(iconpack_file))
+}
+
+/// Files of plugins and icon packs on the UI origin (key and action icons in the UI) must
+/// not run scripts there: an HTML or SVG file opened as a page would get the UI's access.
+async fn inert(mut r: Response) -> Response {
+    let h = r.headers_mut();
+    h.insert(header::CONTENT_SECURITY_POLICY, header::HeaderValue::from_static("sandbox"));
+    h.insert(header::X_CONTENT_TYPE_OPTIONS, header::HeaderValue::from_static("nosniff"));
+    r
+}
+
+/// The plugin file server: property inspectors, HTML plugins (`/plugin-host`), icon pack
+/// and plugin data files on their own origin (port), which has no API. Plugin code there
+/// can't use the UI's session; it talks to TuxDeck only through the SDK WebSocket, like
+/// with the official app.
+pub fn plugin_router(sh: Shared) -> Router {
+    let (port, ui_port) = {
+        let e = sh.lock();
+        let _ = PLUGIN_DATA.set(e.paths.plugin_data());
+        (e.plugin_port, e.settings.ui_port)
+    };
+    let origins = Value::from(["127.0.0.1", "localhost", "[::1]"].iter().map(|h| format!("http://{h}:{ui_port}")).collect::<Vec<_>>());
+    // An external script, so inspectors whose CSP allows only 'self' scripts still get it.
+    let script = PI_BRIDGE.replace("__UI_ORIGINS__", &origins.to_string());
+    let bridge: std::sync::Arc<str> = format!("\n<script src=\"{BRIDGE_URL}\"></script>\n").into();
+    plugin_file_routes()
+        .route(BRIDGE_URL, get(move || async move { ([(header::CONTENT_TYPE, "text/javascript; charset=utf-8")], script) }))
+        .route("/plugin-host", get(plugin_host))
+        .fallback(get(plugin_static))
+        .with_state(sh)
+        .layer(axum::middleware::map_response_with_state(bridge, with_bridge))
+        .layer(axum::middleware::from_fn_with_state((port, ui_port), plugin_guard))
+}
+
+const PI_BRIDGE: &str = include_str!("pi-bridge.js");
+const BRIDGE_URL: &str = "/__tuxdeck/pi-bridge.js";
+
+async fn plugin_guard(State((port, ui_port)): State<(u16, u16)>, req: axum::extract::Request, next: axum::middleware::Next) -> Response {
+    // DNS rebinding: only for pages on 127.0.0.1/localhost. No service workers: they would
+    // outlive their plugin on this origin, which all plugins share.
+    if !origin_allowed(req.headers(), port) || req.headers().contains_key("service-worker") {
+        return (StatusCode::FORBIDDEN, "forbidden").into_response();
+    }
+    let mut r = next.run(req).await;
+    // Pages here may only be framed by the UI (inspectors) or each other (plugin host).
+    let ancestors = format!("frame-ancestors 'self' http://127.0.0.1:{ui_port} http://localhost:{ui_port} http://[::1]:{ui_port}");
+    if let Ok(v) = header::HeaderValue::from_str(&ancestors) {
+        r.headers_mut().insert(header::CONTENT_SECURITY_POLICY, v);
+    }
+    r
+}
+
+/// HTML pages get the bridge script (see `pi-bridge.js`).
+async fn with_bridge(State(bridge): State<std::sync::Arc<str>>, r: Response) -> Response {
+    let html = r.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).is_some_and(|t| t.starts_with("text/html"));
+    if !html || !r.status().is_success() {
+        return r;
+    }
+    let (mut parts, body) = r.into_parts();
+    let Ok(bytes) = axum::body::to_bytes(body, MAX_IMPORT_BYTES).await else { return StatusCode::INTERNAL_SERVER_ERROR.into_response() };
+    let mut out = bytes.to_vec();
+    out.extend_from_slice(bridge.as_bytes());
+    parts.headers.remove(header::CONTENT_LENGTH);
+    Response::from_parts(parts, axum::body::Body::from(out))
+}
+
+/// Files the plugins reference by absolute path (their data folder, clock faces).
+async fn plugin_static(uri: axum::http::Uri) -> Response {
+    plugin_data_file(uri.path()).or_else(|| uri.path().strip_prefix("/ClockFaces/").map(clock_faces)).unwrap_or_else(|| StatusCode::NOT_FOUND.into_response())
 }
 
 async fn static_file(uri: axum::http::Uri) -> Response {
@@ -174,9 +313,7 @@ async fn static_file(uri: axum::http::Uri) -> Response {
             let mime = mime_guess::from_path(path).first_or_octet_stream();
             ([(header::CONTENT_TYPE, mime.to_string()), (header::CACHE_CONTROL, "no-cache".to_string())], f.data.into_owned()).into_response()
         }
-        None => plugin_data_file(uri.path())
-            .or_else(|| uri.path().strip_prefix("/ClockFaces/").map(clock_faces))
-            .unwrap_or_else(|| StatusCode::NOT_FOUND.into_response()),
+        None => StatusCode::NOT_FOUND.into_response(),
     }
 }
 
@@ -203,6 +340,15 @@ fn plugin_data_file(url_path: &str) -> Option<Response> {
         return None;
     }
     let mime = mime_guess::from_path(&file).first_or_octet_stream();
+    // Plugins keep their settings and tokens in there too: only images and fonts are
+    // served (key backgrounds, clock faces), plus the clock faces' font list.
+    let clock_faces = file.starts_with(base.join("ClockFaces"));
+    let media = matches!(mime.type_(), mime_guess::mime::IMAGE | mime_guess::mime::FONT)
+        || matches!(file.extension().and_then(|x| x.to_str()), Some("ttf" | "otf" | "woff" | "woff2"));
+    let allowed = media || (clock_faces && mime.subtype() == mime_guess::mime::JSON);
+    if !allowed {
+        return None;
+    }
     let data = std::fs::read(&file).ok()?;
     Some(([(header::CONTENT_TYPE, mime.to_string()), (header::CACHE_CONTROL, "no-cache".to_string())], data).into_response())
 }
@@ -268,14 +414,19 @@ fn serve_plugin_file(sh: &Shared, plugin: &str, path: &str) -> Response {
 }
 
 /// Page loaded by the headless browser: one iframe per HTML plugin.
-async fn plugin_host(State(sh): State<Shared>) -> Response {
-    let e = sh.lock();
-    let plugins: Vec<Value> = e
-        .registry
-        .plugins
+async fn plugin_host(State(sh): State<Shared>, Query(q): Query<HashMap<String, String>>) -> Response {
+    let mut e = sh.lock();
+    // Only the host browser TuxDeck starts knows this: the page hands out the plugins'
+    // registration secrets.
+    if e.html_host_key.is_empty() || q.get("k") != Some(&e.html_host_key) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let html: Vec<plugins::Plugin> = e.registry.plugins.iter().filter(|p| matches!(p.runtime, Runtime::Html(_))).cloned().collect();
+    let plugins: Vec<Value> = html
         .iter()
         .filter_map(|p| match &p.runtime {
-            Runtime::Html(rel) => Some(json!({"uuid": p.uuid, "url": format!("{}/{}", plugin_base_url(p), rel), "info": e.app_info(p)})),
+            // Registration secret, like the `-pluginUUID` of other plugins.
+            Runtime::Html(rel) => Some(json!({"uuid": e.new_plugin_key(&p.uuid), "url": format!("{}/{}", plugin_base_url(p), rel), "info": e.app_info(p)})),
             _ => None,
         })
         .collect();
@@ -467,7 +618,7 @@ async fn patch_slot(State(sh): State<Shared>, Path((profile, page)): Path<(Strin
         req.settings = Some(merged);
     }
     let e = &mut *guard;
-    let page_dir = e.profiles.get(&profile).ok_or_else(|| not_found("Profile"))?.page_dir(&page);
+    let page_dir = e.profiles.get(&profile).ok_or_else(|| not_found("Profile"))?.page_dir(&page).ok_or_else(|| not_found("Page"))?;
     let registry = &e.registry;
     let pm = e.profiles.get_mut(&profile).and_then(|p| p.pages.get_mut(&page)).ok_or_else(|| not_found("Page"))?;
     let inst = pm.action_mut(&req.controller, &req.coord).ok_or_else(|| not_found("Action"))?;
@@ -642,11 +793,12 @@ async fn paste_slot(State(sh): State<Shared>, Path((profile, page)): Path<(Strin
     }
     let mut inst = crate::engine::with_new_ids(&inst);
     let mut e = sh.lock();
-    let dst_dir = e.profiles.get(&profile).ok_or_else(|| not_found("Profile"))?.page_dir(&page);
+    let dst_dir = e.profiles.get(&profile).ok_or_else(|| not_found("Profile"))?.page_dir(&page).ok_or_else(|| not_found("Page"))?;
     e.page_mut(&profile, &page).map_err(|_| not_found("Page"))?;
     // Custom images live next to the source page (or in its profile, like the renderer
     // resolves them); data URLs are self-contained.
-    let src_dirs: Vec<std::path::PathBuf> = e.profiles.get(&req.from_profile).map(|p| vec![p.page_dir(&req.from_page), p.dir.clone()]).unwrap_or_default();
+    let src_dirs: Vec<std::path::PathBuf> =
+        e.profiles.get(&req.from_profile).map(|p| p.page_dir(&req.from_page).into_iter().chain([p.dir.clone()]).collect()).unwrap_or_default();
     let mut lost = 0;
     for st in &mut inst.states {
         let Some(img) = st.image.take().filter(|i| !i.is_empty()) else { continue };
@@ -776,13 +928,15 @@ async fn pi_info(State(sh): State<Shared>, Path((profile, page)): Path<(String, 
     }
     let info = e.app_info(&pl);
     let payload = e.action_payload(&loc.slot, &inst, false);
+    // The inspector registers with an alias and knows its action only by that.
+    let alias = e.new_pi_alias(&ctx);
     Ok(Json(json!({
-        "url": format!("{}/{}", plugin_base_url(&pl), url_path_encode(&rel)),
+        "url": format!("http://127.0.0.1:{}{}/{}", e.plugin_port, plugin_base_url(&pl), url_path_encode(&rel)),
         "port": e.settings.sdk_port,
-        "uuid": ctx,
+        "uuid": alias,
         "registerEvent": "registerPropertyInspector",
         "info": info,
-        "actionInfo": {"action": inst.uuid, "context": ctx, "device": loc.device, "payload": payload},
+        "actionInfo": {"action": inst.uuid, "context": alias, "device": loc.device, "payload": payload},
     })))
 }
 
@@ -1085,49 +1239,82 @@ async fn restore_backup(sh: Shared, data: Vec<u8>) -> ApiResult<Json<Value>> {
 }
 
 async fn update_settings(State(sh): State<Shared>, Json(req): Json<Map<String, Value>>) -> ApiResult<Json<Value>> {
+    // Check the whole request first: a rejected request changes nothing.
+    let bad = |msg: String| Err(ApiError(StatusCode::BAD_REQUEST, msg));
+    let text = |k: &str| -> Result<Option<&str>, ApiError> {
+        match req.get(k) {
+            None => Ok(None),
+            Some(Value::String(v)) => Ok(Some(v.as_str())),
+            Some(_) => Err(ApiError(StatusCode::BAD_REQUEST, crate::tr!("{name} must be a string", name = k))),
+        }
+    };
+    let flag = |k: &str| -> Result<Option<bool>, ApiError> {
+        match req.get(k) {
+            None => Ok(None),
+            Some(Value::Bool(v)) => Ok(Some(*v)),
+            Some(_) => Err(ApiError(StatusCode::BAD_REQUEST, crate::tr!("{name} must be true or false", name = k))),
+        }
+    };
+    let (cmd_as_ctrl, checks_publish) = (flag("cmd_as_ctrl")?, flag("checks_publish")?);
+    let (checks_repo, platform, language, touch_color, injector) =
+        (text("checks_repo")?, text("platform")?, text("language")?, text("touch_color")?, text("injector")?);
+    if let Some(v) = checks_repo {
+        let valid = v.is_empty() || (v.split('/').count() == 2 && v.chars().all(|c| c.is_ascii_alphanumeric() || "-_./".contains(c)));
+        if !valid {
+            return bad(crate::tr!("invalid repository {name}", name = format!("{v:?}")));
+        }
+    }
+    if let Some(v) = platform {
+        if !["mac", "windows", "linux"].contains(&v) {
+            return bad(crate::tr!("unknown platform {name}", name = format!("{v:?}")));
+        }
+    }
+    if let Some(v) = language {
+        let valid = v == "auto" || crate::i18n::PLUGIN_LANGUAGES.contains(&v) || crate::i18n::ui_languages().iter().any(|l| l == v);
+        if !valid {
+            return bad(crate::tr!("unknown language {name}", name = format!("{v:?}")));
+        }
+    }
+    if let Some(v) = touch_color {
+        let valid = v.len() == 7 && v.starts_with('#') && v[1..].chars().all(|c| c.is_ascii_hexdigit());
+        if !valid {
+            return bad(crate::tr!("touch_color must be #rrggbb"));
+        }
+    }
+    if let Some(v) = injector {
+        if !crate::input::Injector::CHOICES.contains(&v) {
+            return bad(crate::tr!("unknown input backend {name}", name = format!("{v:?}")));
+        }
+    }
+
     let mut e = sh.lock();
     // Plugins learn the language and platform only at start.
     let mut restart_plugins = false;
-    if let Some(v) = req.get("cmd_as_ctrl").and_then(|v| v.as_bool()) {
+    if let Some(v) = cmd_as_ctrl {
         e.settings.cmd_as_ctrl = v;
     }
-    if let Some(v) = req.get("checks_publish").and_then(|v| v.as_bool()) {
+    if let Some(v) = checks_publish {
         e.settings.checks_publish = v;
     }
-    if let Some(v) = req.get("checks_repo").and_then(|v| v.as_str()) {
-        let valid = v.is_empty() || (v.split('/').count() == 2 && v.chars().all(|c| c.is_ascii_alphanumeric() || "-_./".contains(c)));
-        if !valid {
-            return Err(ApiError(StatusCode::BAD_REQUEST, crate::tr!("invalid repository {name}", name = format!("{v:?}"))));
-        }
+    if let Some(v) = checks_repo {
         e.settings.checks_repo = v.to_string();
     }
-    if let Some(v) = req.get("platform").and_then(|v| v.as_str()) {
+    if let Some(v) = platform {
         restart_plugins |= e.settings.platform != v;
         e.settings.platform = v.to_string();
     }
-    if let Some(v) = req.get("language").and_then(|v| v.as_str()) {
-        let valid = v == "auto" || crate::i18n::PLUGIN_LANGUAGES.contains(&v) || crate::i18n::ui_languages().iter().any(|l| l == v);
-        if !valid {
-            return Err(ApiError(StatusCode::BAD_REQUEST, crate::tr!("unknown language {name}", name = format!("{v:?}"))));
-        }
+    if let Some(v) = language {
         restart_plugins |= e.settings.language != v;
         e.settings.language = v.to_string();
         crate::i18n::set_language(&crate::i18n::resolve(v));
         e.rescan_plugins();
         e.emit(json!({"event": "state"}));
     }
-    if let Some(v) = req.get("touch_color").and_then(|v| v.as_str()) {
-        let valid = v.len() == 7 && v.starts_with('#') && v[1..].chars().all(|c| c.is_ascii_hexdigit());
-        if !valid {
-            return Err(ApiError(StatusCode::BAD_REQUEST, crate::tr!("touch_color must be #rrggbb")));
-        }
+    if let Some(v) = touch_color {
         e.settings.touch_color = v.to_lowercase();
         e.refresh_all();
     }
-    if let Some(v) = req.get("injector").and_then(|v| v.as_str()) {
-        if !crate::input::Injector::CHOICES.contains(&v) {
-            return Err(ApiError(StatusCode::BAD_REQUEST, crate::tr!("unknown input backend {name}", name = format!("{v:?}"))));
-        }
+    if let Some(v) = injector {
         e.settings.injector = v.to_string();
         let active = e.input.set_backend(v);
         e.log("info", crate::tr!("Input backend: {name}", name = active));

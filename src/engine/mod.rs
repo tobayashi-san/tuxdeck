@@ -40,7 +40,7 @@ pub use actions::{multi_lists, set_multi_lists, with_new_ids};
 use actions::{nested_entry_mut, KeyLogicState};
 pub use display::PreviewJob;
 use system::{expand_home, is_executable, play_audio};
-pub use system::{kill_processes, open_url, set_runtime, spawn_detached, spawn_task};
+pub use system::{kill_processes, open_url, scopes_available, set_runtime, spawn_detached, spawn_program, spawn_task};
 
 pub type Shared = Arc<Mutex<Engine>>;
 
@@ -199,6 +199,9 @@ pub struct PluginConn {
     pub restarts: u32,
     /// When the current process was started.
     pub started: Option<Instant>,
+    /// Secret the plugin registers with (its `-pluginUUID`, new for every start): other
+    /// local programs can reach the SDK port too, but can't pose as the plugin.
+    pub key: Option<String>,
 }
 
 pub struct Engine {
@@ -212,6 +215,12 @@ pub struct Engine {
     pub input: InputWorker,
     /// Secret of the local HTTP API (see `Paths::api_token`).
     pub api_token: String,
+    /// Session cookie value of the browser UI (see `Paths::ui_session`).
+    pub ui_session: String,
+    /// Port of the plugin file server (`web::plugin_router`), 0 until it listens.
+    pub plugin_port: u16,
+    /// Secret of the current HTML plugin host page (`/plugin-host?k=…`).
+    pub html_host_key: String,
     pub events: broadcast::Sender<String>,
     pub runtime: HashMap<String, Runtime>,
     pub contexts: HashMap<String, Loc>,
@@ -219,6 +228,11 @@ pub struct Engine {
     /// What each plugin did over the SDK (Linux check, diagnostics).
     pub plugin_stats: HashMap<String, PluginStats>,
     pub pis: HashMap<String, UnboundedSender<String>>,
+    /// Property inspectors register with an alias instead of their action's context
+    /// (handed out by `/api/pi`, which needs the API token): (alias, context), newest last.
+    pub pi_aliases: Vec<(String, String)>,
+    /// Alias of each connected property inspector (context -> alias).
+    pub pi_alias: HashMap<String, String>,
     pub self_ref: Option<std::sync::Weak<Mutex<Engine>>>,
     /// Window class of the focused application (smart profiles).
     pub active_app: String,
@@ -269,6 +283,10 @@ impl Engine {
             tracing::error!("cannot store the API token: {e}");
             format!("{}{}", uuid::Uuid::new_v4().simple(), uuid::Uuid::new_v4().simple())
         });
+        let ui_session = paths.ui_session().unwrap_or_else(|e| {
+            tracing::error!("cannot store the UI session: {e}");
+            format!("{}{}", uuid::Uuid::new_v4().simple(), uuid::Uuid::new_v4().simple())
+        });
         let mut e = Engine {
             paths,
             settings,
@@ -277,12 +295,17 @@ impl Engine {
             devices: BTreeMap::new(),
             input,
             api_token,
+            ui_session,
+            plugin_port: 0,
+            html_host_key: String::new(),
             events,
             runtime: HashMap::new(),
             contexts: HashMap::new(),
             plugin_conns: HashMap::new(),
             plugin_stats: HashMap::new(),
             pis: HashMap::new(),
+            pi_aliases: Vec::new(),
+            pi_alias: HashMap::new(),
             self_ref: None,
             active_app: String::new(),
             key_logic: HashMap::new(),

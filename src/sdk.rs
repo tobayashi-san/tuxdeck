@@ -26,11 +26,11 @@ pub async fn serve(shared: Shared, port: u16) -> Result<()> {
 }
 
 async fn ws_handler(ws: WebSocketUpgrade, headers: axum::http::HeaderMap, State(sh): State<Shared>) -> Response {
-    // Plugins (Node) send no Origin; property inspectors and HTML plugins come
-    // from the UI origin. Anything else is a foreign web page.
-    let ui_port = sh.lock().settings.ui_port;
+    // Plugins (Node) send no Origin; property inspectors and HTML plugins come from the
+    // plugin file origin (`web::plugin_router`). Anything else is a foreign web page.
+    let port = sh.lock().plugin_port;
     if let Some(o) = headers.get(axum::http::header::ORIGIN).and_then(|v| v.to_str().ok()) {
-        let ok = [format!("http://127.0.0.1:{ui_port}"), format!("http://localhost:{ui_port}")].iter().any(|x| x == o);
+        let ok = [format!("http://127.0.0.1:{port}"), format!("http://localhost:{port}")].iter().any(|x| x == o);
         if !ok {
             tracing::warn!("rejected SDK connection from origin {o}");
             return axum::http::StatusCode::FORBIDDEN.into_response();
@@ -40,22 +40,35 @@ async fn ws_handler(ws: WebSocketUpgrade, headers: axum::http::HeaderMap, State(
 }
 
 enum Peer {
-    Plugin(String),
-    Pi(String),
+    /// (plugin UUID, registration secret)
+    Plugin(String, String),
+    /// (action context, alias)
+    Pi(String, String),
 }
 
 async fn connection(socket: WebSocket, sh: Shared) {
     let (mut sink, mut stream) = socket.split();
     // The first message must be the registration.
+    // Plugins register with the secret they were started with, property inspectors with
+    // the alias the UI got from `/api/pi`. Anything else is refused: the port is open to
+    // every local program.
     let peer = loop {
         match stream.next().await {
             Some(Ok(Message::Text(t))) => {
                 let Ok(v) = serde_json::from_str::<Value>(&t) else { continue };
                 let uuid = v.get("uuid").and_then(|u| u.as_str()).unwrap_or("").to_string();
-                match v.get("event").and_then(|e| e.as_str()) {
-                    Some("registerPlugin") => break Peer::Plugin(uuid),
-                    Some("registerPropertyInspector") => break Peer::Pi(uuid),
+                let e = sh.lock();
+                let peer = match v.get("event").and_then(|e| e.as_str()) {
+                    Some("registerPlugin") => e.plugin_by_key(&uuid).map(|p| Peer::Plugin(p, uuid)),
+                    Some("registerPropertyInspector") => e.pi_context(&uuid).map(|c| Peer::Pi(c, uuid)),
                     _ => continue,
+                };
+                match peer {
+                    Some(p) => break p,
+                    None => {
+                        tracing::warn!("SDK registration with an unknown id refused");
+                        return;
+                    }
                 }
             }
             Some(Ok(_)) => continue,
@@ -66,12 +79,13 @@ async fn connection(socket: WebSocket, sh: Shared) {
     {
         let mut e = sh.lock();
         match &peer {
-            Peer::Plugin(uuid) => {
+            Peer::Plugin(uuid, _) => {
                 tracing::info!("plugin registered: {uuid}");
                 e.plugin_registered(uuid, tx.clone());
             }
-            Peer::Pi(ctx) => {
+            Peer::Pi(ctx, alias) => {
                 e.pis.insert(ctx.clone(), tx.clone());
+                e.pi_alias.insert(ctx.clone(), alias.clone());
                 if let Some((loc, inst)) = e.lookup(ctx) {
                     if let Some(pl) = e.registry.plugin_for_action(&inst.uuid).map(|p| p.uuid.clone()) {
                         *e.plugin_stats.entry(pl.clone()).or_default().inspectors.entry(ctx.clone()).or_default() += 1;
@@ -95,20 +109,25 @@ async fn connection(socket: WebSocket, sh: Shared) {
             Message::Close(_) => break,
             _ => continue,
         };
-        let Ok(v) = serde_json::from_str::<Value>(&text) else { continue };
+        let Ok(mut v) = serde_json::from_str::<Value>(&text) else { continue };
         tracing::trace!(target: "sdk", "<- {}", text.chars().take(2000).collect::<String>());
         let sh2 = sh.clone();
-        let (owner, is_pi) = match &peer {
-            Peer::Plugin(u) => (u.clone(), false),
-            Peer::Pi(c) => (c.clone(), true),
+        let (owner, alias, is_pi) = match &peer {
+            Peer::Plugin(u, key) => (u.clone(), key, false),
+            Peer::Pi(c, alias) => (c.clone(), alias, true),
         };
+        // The registration id as context (plugins: global settings; inspectors: their
+        // action) stands for the real one.
+        if v.get("context").and_then(|c| c.as_str()) == Some(alias.as_str()) {
+            v["context"] = Value::String(owner.clone());
+        }
         // Handlers may do blocking work (key injection, rendering).
         let _ = tokio::task::spawn_blocking(move || sh2.lock().handle_sdk(&owner, is_pi, v)).await;
     }
     writer.abort();
     let mut e = sh.lock();
     match &peer {
-        Peer::Plugin(uuid) => {
+        Peer::Plugin(uuid, _) => {
             if let Some(c) = e.plugin_conns.get_mut(uuid) {
                 if c.tx.as_ref().map(|t| t.same_channel(&tx)).unwrap_or(false) {
                     c.tx = None;
@@ -116,9 +135,10 @@ async fn connection(socket: WebSocket, sh: Shared) {
             }
             tracing::info!("plugin disconnected: {uuid}");
         }
-        Peer::Pi(ctx) => {
+        Peer::Pi(ctx, _) => {
             if e.pis.get(ctx).map(|t| t.same_channel(&tx)).unwrap_or(false) {
                 e.pis.remove(ctx);
+                e.pi_alias.remove(ctx);
             }
             if let Some((loc, inst)) = e.lookup(ctx) {
                 if let Some(pl) = e.registry.plugin_for_action(&inst.uuid).map(|p| p.uuid.clone()) {
@@ -210,7 +230,8 @@ pub fn start_plugins(sh: &Shared) {
             Runtime::Executable(bin) => Command::new(bin),
             _ => continue,
         };
-        cmd.args(["-port", &port.to_string(), "-pluginUUID", &p.uuid, "-registerEvent", "registerPlugin", "-info", &info])
+        let key = e.new_plugin_key(&p.uuid);
+        cmd.args(["-port", &port.to_string(), "-pluginUUID", &key, "-registerEvent", "registerPlugin", "-info", &info])
             .current_dir(&p.dir)
             .stdin(Stdio::null())
             .process_group(0);
@@ -332,7 +353,8 @@ fn start_html_host_locked(mut e: parking_lot::MutexGuard<'_, crate::engine::Engi
     for f in ["Current Session", "Current Tabs", "Last Session", "Last Tabs"] {
         let _ = std::fs::remove_file(profile_dir.join("Default").join(f));
     }
-    let url = format!("http://127.0.0.1:{}/plugin-host", e.settings.ui_port);
+    e.html_host_key = uuid::Uuid::new_v4().simple().to_string();
+    let url = format!("http://127.0.0.1:{}/plugin-host?k={}", e.plugin_port, e.html_host_key);
     let mut cmd = Command::new(browser);
     cmd.args([
         "--headless=new",

@@ -131,7 +131,8 @@ impl Engine {
                "settings": {"cmd_as_ctrl": self.settings.cmd_as_ctrl, "platform": self.settings.platform, "language": self.settings.language,
                             "ui_language": crate::i18n::current(), "ui_languages": crate::i18n::ui_languages(),
                             "touch_color": self.settings.touch_color, "injector": self.settings.injector,
-                            "injector_active": self.input.backend_name(), "injector_choices": Injector::CHOICES}})
+                            "injector_active": self.input.backend_name(), "injector_choices": Injector::CHOICES,
+                            "plugin_port": self.plugin_port}})
     }
 
     pub fn page_json(&self, profile: &str, page: &str) -> Option<Value> {
@@ -223,7 +224,9 @@ impl Engine {
     pub(super) fn remove_instance_inner(&mut self, profile: &str, inst: &ActionInstance, visited: &mut HashSet<String>) {
         if inst.uuid == OPEN_CHILD {
             // Folders may (via edited settings) point at each other or at themselves.
-            let folder = inst.settings.get("ProfileUUID").and_then(|v| v.as_str()).map(|s| s.to_lowercase());
+            // In the form page ids have (the parser also takes `{…}`, `urn:uuid:…`, no hyphens).
+            let folder =
+                inst.settings.get("ProfileUUID").and_then(|v| v.as_str()).and_then(|s| uuid::Uuid::parse_str(s).ok()).map(|u| u.hyphenated().to_string());
             // A folder key pointing at a top-level page must not delete that page's keys.
             let top_level = |f: &String| self.profiles.get(profile).is_some_and(|p| p.manifest.pages.pages.contains(f));
             if let Some(folder) = folder.filter(|f| !top_level(f) && visited.insert(f.clone())) {

@@ -309,9 +309,9 @@ pub(crate) fn start_check_with(sh: &Shared, key: String, source: CheckSource, ex
         let paths = sh.lock().paths.clone();
         let node = crate::sdk::node_binary();
         let r = match &source {
-            CheckSource::Dir(d) => crate::linuxcheck::run(&paths, &node, crate::linuxcheck::Source::Dir(d), extra),
+            CheckSource::Dir(d) => crate::linuxcheck::run(&paths, &node, crate::linuxcheck::Source::Dir(d), &key, extra),
             CheckSource::Archive(f) => {
-                let r = crate::linuxcheck::run(&paths, &node, crate::linuxcheck::Source::Archive(f), extra);
+                let r = crate::linuxcheck::run(&paths, &node, crate::linuxcheck::Source::Archive(f), &key, extra);
                 let _ = std::fs::remove_file(f);
                 r
             }

@@ -85,9 +85,9 @@ fn copy_dir(src: &Path, dst: &Path) -> Result<()> {
 /// Import resources from `Stream_Deck_*.pkg`, an extracted payload, or a
 /// `Stream Deck.app` directory.
 pub fn import_elgato(paths: &Paths, source: &Path) -> Result<PathBuf> {
-    let tmp = std::env::temp_dir().join(format!("tuxdeck-import-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&tmp);
-    fs::create_dir_all(&tmp)?;
+    // A new private folder with an unguessable name: another user can't plant one in /tmp.
+    let tmp = std::env::temp_dir().join(format!("tuxdeck-import-{}", uuid::Uuid::new_v4().simple()));
+    std::os::unix::fs::DirBuilderExt::mode(&mut fs::DirBuilder::new(), 0o700).create(&tmp)?;
     // The extracted installer is removed on failure as well.
     let r = import_elgato_via(paths, source, &tmp);
     let _ = fs::remove_dir_all(&tmp);

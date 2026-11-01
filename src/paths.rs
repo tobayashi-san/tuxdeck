@@ -22,7 +22,21 @@ impl Paths {
         for d in [p.profiles(), p.user_plugins(), p.builtin_plugins(), p.config.clone()] {
             let _ = std::fs::create_dir_all(d);
         }
+        p.make_private();
         p
+    }
+
+    /// Only the user may enter the data and configuration folders: they hold plugin
+    /// settings with secrets (API tokens, passwords), backups of them and the API token.
+    pub fn make_private(&self) {
+        use std::os::unix::fs::PermissionsExt as _;
+        for d in [&self.data, &self.config] {
+            if let Ok(m) = std::fs::metadata(d) {
+                if m.permissions().mode() & 0o077 != 0 {
+                    let _ = std::fs::set_permissions(d, std::fs::Permissions::from_mode(0o700));
+                }
+            }
+        }
     }
     pub fn profiles(&self) -> PathBuf {
         self.data.join("ProfilesV2")
@@ -84,9 +98,19 @@ impl Paths {
     /// Secret for the local HTTP API (created on first use, readable only by the user):
     /// other users and programs on the machine can reach 127.0.0.1 as well.
     pub fn api_token(&self) -> std::io::Result<String> {
+        self.secret("api-token")
+    }
+
+    /// Value of the browser UI's session cookie. Separate from the API token, which
+    /// never leaves the user's files (the browser gets a one-time login code instead).
+    pub fn ui_session(&self) -> std::io::Result<String> {
+        self.secret("ui-session")
+    }
+
+    fn secret(&self, name: &str) -> std::io::Result<String> {
         use std::io::Write as _;
         use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
-        let file = self.config.join("api-token");
+        let file = self.config.join(name);
         // `mode` only applies to new files: also restrict one created otherwise (copied, restored).
         let private = |f: &std::fs::File| -> std::io::Result<()> {
             if f.metadata()?.permissions().mode() & 0o077 != 0 {
@@ -187,6 +211,10 @@ pub struct Settings {
     pub ui_port: u16,
     #[serde(default = "sdk_port")]
     pub sdk_port: u16,
+    /// Port of the plugin file server: 0 = the UI port + 2. Kept once chosen, because the
+    /// plugins' browser storage belongs to it.
+    #[serde(default)]
+    pub plugin_port: u16,
     /// LED color of the Neo touch points when navigation is possible.
     #[serde(default = "white")]
     pub touch_color: String,
@@ -387,6 +415,25 @@ mod tests {
         std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o644)).unwrap();
         assert_eq!(p.api_token().unwrap(), new);
         assert_eq!(std::fs::metadata(&file).unwrap().permissions().mode() & 0o777, 0o600);
+        // The UI session is a separate secret.
+        let session = p.ui_session().unwrap();
+        assert!(session.len() == 64 && session != new);
+        assert_eq!(std::fs::metadata(p.config.join("ui-session")).unwrap().permissions().mode() & 0o777, 0o600);
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn folders_are_private() {
+        let d = tmp("private");
+        let p = paths(&d);
+        for dir in [&p.data, &p.config] {
+            std::fs::create_dir_all(dir).unwrap();
+            std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        p.make_private();
+        for dir in [&p.data, &p.config] {
+            assert_eq!(std::fs::metadata(dir).unwrap().permissions().mode() & 0o777, 0o700, "{}", dir.display());
+        }
         let _ = std::fs::remove_dir_all(&d);
     }
 

@@ -127,7 +127,7 @@ fn main() -> Result<()> {
             let api = hidapi::HidApi::new()?;
             for info in device::enumerate(&api) {
                 match device::Deck::open(&api, info) {
-                    Ok(d) => println!("{}  serial {}  firmware {}  {}", d.model.name, d.serial, d.firmware, d.path),
+                    Ok(d) => println!("{}  serial {}  firmware {}  {}", d.model.name, short_serial(&d.serial), d.firmware, d.path),
                     Err(e) => println!("{:04x}:{:04x} {}: {e:#}", info.vendor_id(), info.product_id(), info.path().to_string_lossy()),
                 }
             }
@@ -150,7 +150,14 @@ fn daemon_running(port: u16) -> bool {
 fn open_ui(paths: &paths::Paths) -> Result<()> {
     let s = paths::Settings::load(paths);
     start_daemon_if_needed(s.ui_port)?;
-    let url = format!("http://127.0.0.1:{}/?token={}", s.ui_port, paths.api_token()?);
+    // Without a code (e.g. an older daemon still running) the UI explains how to get in.
+    let url = match login_code(paths, s.ui_port) {
+        Ok(code) => format!("http://127.0.0.1:{}/?code={code}", s.ui_port),
+        Err(e) => {
+            tracing::warn!("no login code: {e:#}");
+            format!("http://127.0.0.1:{}/", s.ui_port)
+        }
+    };
     if let Some(b) = plugins::html_browser() {
         let mut c = std::process::Command::new(b);
         c.arg(format!("--app={url}")).arg("--class=tuxdeck");
@@ -173,6 +180,27 @@ fn open_ui(paths: &paths::Paths) -> Result<()> {
         }
     }
     engine::open_url(&url)
+}
+
+/// The end of a serial number: enough to tell decks apart in `list`/`probe` output that
+/// people paste into public bug reports.
+fn short_serial(serial: &str) -> String {
+    let n = serial.chars().count();
+    if n <= 4 {
+        return serial.to_string();
+    }
+    format!("…{}", serial.chars().skip(n - 4).collect::<String>())
+}
+
+/// A one-time login code from the running daemon (the browser must not get the API token:
+/// its command line is visible to every user on the machine).
+fn login_code(paths: &paths::Paths, port: u16) -> Result<String> {
+    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+    rt.block_on(async {
+        let r = net::local().post(format!("http://127.0.0.1:{port}/api/login-code")).header("x-tuxdeck-token", paths.api_token()?).send().await?;
+        let v: serde_json::Value = r.error_for_status()?.json().await?;
+        v["code"].as_str().map(str::to_string).context("no login code")
+    })
 }
 
 fn start_daemon_if_needed(port: u16) -> Result<()> {
@@ -201,7 +229,7 @@ fn open_url_cmd(paths: &paths::Paths, url: &str) -> Result<()> {
     start_daemon_if_needed(s.ui_port)?;
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
     let res: Result<serde_json::Value> = rt.block_on(async {
-        let r = net::http()
+        let r = net::local()
             .post(format!("http://127.0.0.1:{}/api/deeplink", s.ui_port))
             .header("x-tuxdeck-token", paths.api_token()?)
             .json(&serde_json::json!({"url": url}))
@@ -236,7 +264,7 @@ fn probe(seconds: u64) -> Result<()> {
     let infos = device::enumerate(&api);
     let info = infos.first().context("no Stream Deck found")?;
     let deck = device::Deck::open(&api, info)?;
-    println!("{} serial {} firmware {}", deck.model.name, deck.serial, deck.firmware);
+    println!("{} serial {} firmware {}", deck.model.name, short_serial(&deck.serial), deck.firmware);
     deck.set_brightness(70)?;
     for k in 0..deck.model.key_count() {
         let spec = render::KeySpec { background: Some(format!("hsl({}, 70%, 35%)", k * 45)), big_text: Some((k + 1).to_string()), ..Default::default() };
@@ -456,14 +484,41 @@ fn run(paths: paths::Paths, open_browser: bool) -> Result<()> {
     engine::set_runtime(rt.handle().clone());
     rt.block_on(async move {
         let (ev_tx, _) = tokio::sync::broadcast::channel(512);
-        let engine = Engine::new(paths, ev_tx);
+        let mut engine = Engine::new(paths, ev_tx);
+        // Find out once, off the key path, whether programs can get their own scope.
+        std::thread::spawn(engine::scopes_available);
         let (ui_port, sdk_port) = (engine.settings.ui_port, engine.settings.sdk_port);
         // Bind the UI port first: a second instance must fail before touching devices.
         let listener = tokio::net::TcpListener::bind(("127.0.0.1", ui_port))
             .await
             .with_context(|| format!("UI port {ui_port} is in use – is TuxDeck already running?"))?;
+        // Plugin files (property inspectors, HTML plugins, icon packs) come from their own
+        // origin without the API: next to the UI port if free, else any free port.
+        let wanted = match engine.settings.plugin_port {
+            0 => ui_port.saturating_add(2),
+            p => p,
+        };
+        let free = |p: u16| p != sdk_port && p != ui_port;
+        let plugin_listener = match tokio::net::TcpListener::bind(("127.0.0.1", wanted)).await {
+            Ok(l) if free(wanted) => l,
+            _ => tokio::net::TcpListener::bind(("127.0.0.1", 0)).await.context("no port for the plugin files")?,
+        };
+        let plugin_port = plugin_listener.local_addr()?.port();
+        // Keep a port chosen by chance: the plugins' browser storage belongs to it.
+        if plugin_port != wanted {
+            tracing::warn!("plugin files on port {plugin_port} ({wanted} is not available)");
+            engine.settings.plugin_port = plugin_port;
+            engine.settings.save(&engine.paths);
+        }
         let shared: Shared = Arc::new(Mutex::new(engine));
         shared.lock().self_ref = Some(Arc::downgrade(&shared));
+        shared.lock().plugin_port = plugin_port;
+        let plugin_app = web::plugin_router(shared.clone());
+        tokio::spawn(async move {
+            if let Err(e) = axum::serve(plugin_listener, plugin_app).await {
+                tracing::error!("plugin file server: {e:#}");
+            }
+        });
 
         // Plugin SDK server + plugin processes
         let sh = shared.clone();
@@ -553,8 +608,7 @@ fn run(paths: paths::Paths, open_browser: bool) -> Result<()> {
         let url = format!("http://127.0.0.1:{ui_port}/");
         tracing::info!("configuration UI: {url} (open it with `tuxdeck ui`)");
         if open_browser {
-            let token = shared.lock().api_token.clone();
-            let _ = engine::open_url(&format!("{url}?token={token}"));
+            let _ = engine::open_url(&format!("{url}?code={}", web::login_code()));
         }
         let app = web::router(shared.clone());
         {

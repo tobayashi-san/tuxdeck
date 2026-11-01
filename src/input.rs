@@ -394,7 +394,7 @@ pub fn hypr_instance() -> Option<String> {
         roots.push(std::path::PathBuf::from(rt).join("hypr"));
     }
     roots.push(std::path::PathBuf::from("/tmp/hypr"));
-    let live = |sig: &str| roots.iter().any(|r| r.join(sig).join(".socket.sock").exists());
+    let live = |sig: &str| roots.iter().any(|r| owned(&r.join(sig).join(".socket.sock")));
     if let Some(sig) = env.as_deref().filter(|s| live(s)) {
         return Some(sig.to_string());
     }
@@ -403,11 +403,20 @@ pub fn hypr_instance() -> Option<String> {
         .filter_map(|r| std::fs::read_dir(r).ok())
         .flatten()
         .flatten()
-        .filter(|d| d.path().join(".socket.sock").exists())
+        .filter(|d| owned(&d.path().join(".socket.sock")))
         .max_by_key(|d| d.metadata().and_then(|m| m.modified()).ok())
         .map(|d| d.file_name().to_string_lossy().into_owned());
     // Keep the configured one if nothing better is found (e.g. no runtime dir access).
     newest.or(env)
+}
+
+/// A Hyprland socket of this user (`/tmp/hypr` is writable for everyone).
+pub fn owned(socket: &std::path::Path) -> bool {
+    use std::os::unix::fs::{FileTypeExt as _, MetadataExt as _};
+    let me = unsafe { libc::getuid() };
+    // No symlinks, and the instance folder must be ours too (it could be swapped otherwise).
+    let mine = |p: &std::path::Path| std::fs::symlink_metadata(p).is_ok_and(|m| m.uid() == me && !m.file_type().is_symlink());
+    std::fs::symlink_metadata(socket).is_ok_and(|m| m.file_type().is_socket()) && mine(socket) && socket.parent().is_some_and(mine)
 }
 
 /// `hyprctl` talking to the current Hyprland instance.
@@ -431,11 +440,13 @@ fn hyprctl(expr: &str) -> Result<()> {
     check_hyprctl(out.status.success(), &out.stdout)
 }
 
-/// `hyprctl dispatch` reports some failures with exit code 0 and an `error…` reply.
+/// `hyprctl dispatch` exits with 0 on failures too: only `ok` (or nothing) is success.
+/// 0.55+ answers `error: …`, older versions e.g. `Invalid dispatcher` to the Lua syntax.
 fn check_hyprctl(success: bool, stdout: &[u8]) -> Result<()> {
     let text = String::from_utf8_lossy(stdout);
-    if !success || text.trim_start().starts_with("error") {
-        bail!("hyprctl: {}", text.trim());
+    let reply = text.trim();
+    if !success || !(reply.is_empty() || reply.eq_ignore_ascii_case("ok")) {
+        bail!("hyprctl: {reply}");
     }
     Ok(())
 }
@@ -1049,6 +1060,10 @@ mod tests {
         let e = check_hyprctl(true, b"  error: invalid dispatcher\n").unwrap_err();
         assert_eq!(e.to_string(), "hyprctl: error: invalid dispatcher");
         assert!(check_hyprctl(false, b"ok").is_err());
+        // Real replies (exit code 0): Hyprland <= 0.54 to the Lua syntax, 0.55 to errors.
+        assert_eq!(check_hyprctl(true, b"Invalid dispatcher\n").unwrap_err().to_string(), "hyprctl: Invalid dispatcher");
+        assert!(check_hyprctl(true, b"Error: [string \"return hl.dispatch(...)\"]:1: bad\n").is_err());
+        assert!(check_hyprctl(true, b"error: [string \"return hl.dispatch(hl.dsp.x())\"]:1: attempt to call a nil value\n").is_err());
     }
 
     #[test]
@@ -1141,7 +1156,7 @@ mod tests {
         assert_eq!(i.hypr_lua, Some(true));
 
         // Old Hyprland: the Lua dispatcher is unknown -> legacy syntax, remembered.
-        let old = |a: &[String]| if a[2].starts_with("hl.dsp") { anyhow::bail!("hyprctl: Invalid dispatcher") } else { Ok(()) };
+        let old = |a: &[String]| check_hyprctl(true, if a[2].starts_with("hl.dsp") { b"Invalid dispatcher\n" } else { b"ok\n" });
         let mut i = inj(Backend::Hyprland);
         assert_eq!(record(old, || i.tap(&c).unwrap()), [lua_tap, legacy]);
         assert_eq!(i.hypr_lua, Some(false));

@@ -42,7 +42,7 @@ fn hypr_socket() -> Option<PathBuf> {
         dirs.push(PathBuf::from(rt).join("hypr"));
     }
     dirs.push(PathBuf::from("/tmp/hypr"));
-    dirs.into_iter().map(|d| d.join(&sig).join(".socket2.sock")).find(|p| p.exists())
+    dirs.into_iter().map(|d| d.join(&sig).join(".socket2.sock")).find(|p| crate::input::owned(p))
 }
 
 fn hypr_active_class() -> Option<String> {

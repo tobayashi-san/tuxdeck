@@ -233,6 +233,7 @@ async function exercise(model, actions, browser) {
   if (!registered) {
     const log = d.pluginLog(uuid).trim().split('\n').slice(-4).join(' | ');
     check('starts', false, log ? `does not connect; log: ${log}` : 'does not connect to TuxDeck');
+    debug('daemon log:', d.lines.slice(-25).join('\n'));
     return d;
   }
   check('starts', true);
@@ -296,7 +297,7 @@ async function exercise(model, actions, browser) {
   } else if (!browser) {
     check('inspector', null, 'no Chromium-based browser to test with');
   } else {
-    await browser.send('Page.navigate', { url: d.url(`/?token=${d.token}`) });
+    await browser.send('Page.navigate', { url: d.url(`/?code=${(await d.api('/api/login-code', 'POST')).code}`) });
     const loaded = await waitFor(() => browser.eval(`document.querySelectorAll('#device .slot').length > 0`), 15000);
     debug('UI loaded:', !!loaded, await browser.eval('location.href + " " + document.title + " " + (document.body?.innerText || "").slice(0, 200).replace(/\\s+/g, " ")'));
     const failed = [];
@@ -316,8 +317,10 @@ async function exercise(model, actions, browser) {
     check('inspector', failed.length ? false : true, failed.join(' | '));
   }
 
-  // Errors the plugin wrote to its log.
-  const errors = d.pluginLog(uuid).split('\n').filter((l) => /\b(Error|TypeError|ReferenceError|SyntaxError|Unhandled|ENOENT|EACCES|panic)\b/.test(l));
+  // Errors the plugin wrote to its log. The sandbox has no internet: failed lookups and
+  // connections are expected there and say nothing about Linux support.
+  const offline = /\b(EAI_AGAIN|ENOTFOUND|ENETUNREACH|ECONNREFUSED|EHOSTUNREACH|getaddrinfo|fetch failed)\b/;
+  const errors = d.pluginLog(uuid).split('\n').filter((l) => /\b(Error|TypeError|ReferenceError|SyntaxError|Unhandled|ENOENT|EACCES|panic)\b/.test(l) && !offline.test(l));
   check('log', errors.length === 0, errors.slice(0, 3).map((l) => l.trim().slice(0, 200)).join(' | '));
   return d;
 }

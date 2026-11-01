@@ -446,105 +446,43 @@ async function buildPI(box, target, myKey) {
     return;
   }
   if (cur.key !== myKey) return;
-  const frame = h('iframe.pi-frame', { src: info.url, title: t('Properties (Property Inspector)') });
-  let ro = null;
-  let mo = null;
-  let raf = 0;
-  const fit = () => {
-    try {
-      const w = frame.contentWindow;
-      const doc = frame.contentDocument;
-      const body = doc?.body;
-      if (!body) return;
-      const cs = w.getComputedStyle(body);
-      // Elgato's sdpi.css pins html/body/.sdpi-wrapper to 100 % height and scrolls inside, so
-      // body size == iframe size. Measure the real content extent instead (recursing into
-      // scroll containers), then add the body's bottom padding/margin.
-      const bottom = contentBottom(body, w, doc.scrollingElement?.scrollTop || 0, 0);
-      const hgt = Math.max(
-        bottom + parseFloat(cs.paddingBottom || 0) + parseFloat(cs.marginBottom || 0),
-        cs.overflowY === 'visible' ? body.scrollHeight : 0);
-      let target = Math.max(120, Math.ceil(hgt));
-      // Correct for what the measurement missed (e.g. trailing margins inside the wrapper):
-      // if a top-level scroll container still overflows at the current size, grow by that amount.
-      const cur = parseFloat(frame.style.height) || 0;
-      if (cur && Math.abs(cur - target) < 2) {
-        let over = 0;
-        for (const el of [body, ...body.children]) {
-          if (/(auto|scroll)/.test(w.getComputedStyle(el).overflowY)) over = Math.max(over, el.scrollHeight - el.clientHeight);
-        }
-        target += over;
-      }
-      const px = target + 'px';
-      if (frame.style.height !== px) frame.style.height = px;
-    } catch { /* cross-origin – keep size */ }
-  };
-  const schedule = () => {
-    cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => { fit(); setTimeout(fit, 120); });
-  };
-  frame.addEventListener('load', () => {
-    ro?.disconnect();
-    mo?.disconnect();
-    const w = frame.contentWindow;
-    try {
-      if (typeof w.connectElgatoStreamDeckSocket === 'function') {
-        w.connectElgatoStreamDeckSocket(info.port, info.uuid, info.registerEvent,
-          JSON.stringify(info.info), JSON.stringify(info.actionInfo));
-      } else {
-        console.info('Property Inspector without connectElgatoStreamDeckSocket', info.url);
-      }
-    } catch (e) {
-      console.error('Property Inspector error', e);
-      toast(t('Could not connect the property inspector: {msg}', { msg: e.message }), 'warn');
+  // The inspector runs on the plugin file origin (no access to the UI or its API) and is
+  // reached through the bridge script the server adds to its page (src/pi-bridge.js).
+  const frame = h('iframe.pi-frame', {
+    src: info.url,
+    title: t('Properties (Property Inspector)'),
+    sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads',
+  });
+  const origin = new URL(info.url).origin;
+  const onMessage = (e) => {
+    if (e.source !== frame.contentWindow || e.origin !== origin) return;
+    const m = e.data || {};
+    if (m.tuxdeck === 'height' && Number.isFinite(m.px)) {
+      frame.style.height = Math.min(Math.max(120, Math.round(m.px)), 20000) + 'px';
+    } else if (m.tuxdeck === 'connected') {
+      frame.dataset.state = 'connected';
+    } else if (m.tuxdeck === 'missing') {
+      frame.dataset.state = 'missing';
+      console.info('Property Inspector without connectElgatoStreamDeckSocket', info.url);
+    } else if (m.tuxdeck === 'error') {
+      frame.dataset.state = 'error';
+      console.error('Property Inspector error', m.message);
+      toast(t('Could not connect the property inspector: {msg}', { msg: String(m.message || '') }), 'warn');
     }
-    try {
-      const doc = frame.contentDocument;
-      const body = doc?.body;
-      if (body) {
-        const RO = w.ResizeObserver || ResizeObserver;
-        ro = new RO(schedule);
-        ro.observe(body);
-        for (const c of body.children) ro.observe(c);
-        const MO = w.MutationObserver || MutationObserver;
-        mo = new MO(schedule);
-        mo.observe(body, { subtree: true, childList: true, attributes: true, characterData: true });
-        // Tab switches, accordions, late images/fonts
-        for (const ev of ['click', 'input', 'change', 'transitionend']) doc.addEventListener(ev, schedule, true);
-        doc.addEventListener('load', schedule, true);
-      }
-    } catch { /* ignore */ }
-    fit();
-    setTimeout(fit, 300);
+  };
+  window.addEventListener('message', onMessage);
+  frame.addEventListener('load', () => {
+    frame.contentWindow?.postMessage({
+      tuxdeck: 'connect',
+      args: [info.port, info.uuid, info.registerEvent, JSON.stringify(info.info), JSON.stringify(info.actionInfo)],
+    }, origin);
   });
   cur.teardown.push(() => {
-    ro?.disconnect();
-    mo?.disconnect();
-    cancelAnimationFrame(raf);
+    window.removeEventListener('message', onMessage);
     frame.src = 'about:blank';
     frame.remove();
   });
   box.replaceChildren(frame);
-}
-
-/** Lowest content edge below `el` (viewport coords + offset), looking inside scroll containers. */
-function contentBottom(el, win, offset, depth) {
-  let bottom = 0;
-  for (const c of el.children) {
-    if (/^(SCRIPT|STYLE|LINK|TEMPLATE|META|NOSCRIPT)$/.test(c.tagName)) continue;
-    const cs = win.getComputedStyle(c);
-    if (cs.display === 'none' || cs.position === 'fixed' || cs.position === 'absolute') continue;
-    let b;
-    if (/(auto|scroll)/.test(cs.overflowY) && depth < 4 && c.children.length) {
-      b = contentBottom(c, win, offset + c.scrollTop, depth + 1)
-        + parseFloat(cs.paddingBottom || 0) + parseFloat(cs.borderBottomWidth || 0);
-      b = Math.max(b, c.getBoundingClientRect().top + offset);
-    } else {
-      b = c.getBoundingClientRect().bottom + offset;
-    }
-    bottom = Math.max(bottom, b + parseFloat(cs.marginBottom || 0));
-  }
-  return bottom;
 }
 
 // ---- schema form -----------------------------------------------------------------------------

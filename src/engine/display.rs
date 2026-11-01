@@ -218,8 +218,8 @@ impl Engine {
 
     pub(super) fn resolve_page_icon(&self, profile: &str, page: &str, icon: &str) -> Option<ImageData> {
         let p = self.profiles.get(profile)?;
-        for base in [p.page_dir(page), p.dir.clone()] {
-            if let Some(d) = ImageData::from_file(&base.join(icon)) {
+        for base in p.page_dir(page).into_iter().chain([p.dir.clone()]) {
+            if let Some(d) = crate::profile::inside(&base, icon).and_then(|f| ImageData::from_file(&f)) {
                 return Some(d);
             }
         }
@@ -255,7 +255,7 @@ impl Engine {
                     return ImageData::from_data_url(img);
                 }
                 let p = self.profiles.get(profile)?;
-                ImageData::from_file(&p.page_dir(page).join(img)).or_else(|| ImageData::from_file(&p.dir.join(img)))
+                p.page_dir(page).into_iter().chain([p.dir.clone()]).find_map(|b| crate::profile::inside(&b, img).and_then(|f| ImageData::from_file(&f)))
             })
             .or_else(|| {
                 let pl = plugin?;
@@ -395,7 +395,7 @@ impl Engine {
                 return ImageData::from_data_url(img);
             }
             let p = self.profiles.get(profile)?;
-            ImageData::from_file(&p.page_dir(page).join(img)).or_else(|| ImageData::from_file(&p.dir.join(img)))
+            p.page_dir(page).into_iter().chain([p.dir.clone()]).find_map(|b| crate::profile::inside(&b, img).and_then(|f| ImageData::from_file(&f)))
         });
         let from_plugin =
             |rel: Option<String>| -> Option<ImageData> { plugins::resolve_image(plugin_dir.as_deref()?, &rel?).and_then(|p| ImageData::from_file(&p)) };

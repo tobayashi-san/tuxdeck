@@ -22,6 +22,12 @@ use std::path::{Path, PathBuf};
 /// Alphabet the official app uses to name page directories (base32 without `U`).
 const PAGE_ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHIJKLMNOPQRSTVW";
 
+/// A relative path from profile data (image names, …) that stays inside its base folder.
+pub fn inside(base: &Path, rel: &str) -> Option<PathBuf> {
+    let r = Path::new(rel);
+    r.components().all(|c| matches!(c, std::path::Component::Normal(_) | std::path::Component::CurDir)).then(|| base.join(r))
+}
+
 /// Encode a page UUID to its directory name (e.g. `J8TTF15EM553B1GO54W7BO0COCZ`).
 pub fn encode_page_dir(page_id: &str) -> Result<String> {
     let u = uuid::Uuid::parse_str(page_id).with_context(|| format!("invalid page id {page_id}"))?;
@@ -267,10 +273,12 @@ pub struct Profile {
 }
 
 impl Profile {
-    pub fn page_dir(&self, page_id: &str) -> PathBuf {
-        let name =
-            if self.manifest.version.starts_with('3') { page_id.to_uppercase() } else { encode_page_dir(page_id).unwrap_or_else(|_| page_id.to_string()) };
-        self.dir.join("Profiles").join(name)
+    /// Directory of a page. Page ids are UUIDs; anything else (e.g. a crafted folder target
+    /// in an imported profile) has no directory, so it can never point outside the profile.
+    pub fn page_dir(&self, page_id: &str) -> Option<PathBuf> {
+        let id = uuid::Uuid::parse_str(page_id).ok()?.hyphenated().to_string();
+        let name = if self.manifest.version.starts_with('3') { id.to_uppercase() } else { encode_page_dir(&id).ok()? };
+        Some(self.dir.join("Profiles").join(name))
     }
 
     pub fn load(dir: &Path) -> Result<Profile> {
@@ -337,7 +345,7 @@ impl Profile {
 
     pub fn save_page(&self, page_id: &str) -> Result<()> {
         let page = self.pages.get(page_id).context("unknown page")?;
-        let dir = self.page_dir(page_id);
+        let dir = self.page_dir(page_id).context("invalid page id")?;
         fs::create_dir_all(dir.join("Images"))?;
         write_atomic(&dir.join("manifest.json"), &serde_json::to_vec(page)?)
     }
@@ -351,7 +359,10 @@ impl Profile {
     }
 
     pub fn delete_page_dir(&self, page_id: &str) {
-        let _ = fs::remove_dir_all(self.page_dir(page_id));
+        match self.page_dir(page_id) {
+            Some(dir) => drop(fs::remove_dir_all(dir)),
+            None => tracing::warn!("not deleting page {page_id:?}: not a page id"),
+        }
     }
 
     /// Application linked to this profile (smart profile), `AppIdentifier` in the manifest.
@@ -495,5 +506,21 @@ mod tests {
         assert_eq!(encode_page_dir("9a3bd784-aeb1-4a35-8618-293e75e00cc3").unwrap(), "J8TTF15EM553B1GO54W7BO0COCZ");
         assert_eq!(encode_page_dir("5211d3c8-731e-42c4-b6e7-dc1d5135ac96").unwrap(), "A88T7I3J3P1C9DN7RGEL2DDCIOZ");
         assert_eq!(decode_page_dir("9GDVDHMPPD77F4S4WSH81KIWN0Z").unwrap(), "4c1be6c6-d9cb-4e77-9384-ff2280d25fb8");
+    }
+
+    #[test]
+    fn only_page_ids_have_a_directory() {
+        let mut p = Profile::new(Path::new("/x"), "P", "20GBJ9901");
+        let id = "9a3bd784-aeb1-4a35-8618-293e75e00cc3";
+        assert_eq!(p.page_dir(id).unwrap(), Path::new("/x").join(format!("{}.sdProfile/Profiles/J8TTF15EM553B1GO54W7BO0COCZ", p.id)));
+        p.manifest.version = "3.0".into();
+        assert_eq!(p.page_dir(&id.to_uppercase()).unwrap().file_name().unwrap(), "9A3BD784-AEB1-4A35-8618-293E75E00CC3");
+        for bad in ["", ".", "..", "/tmp/x", "../../x", "a/b", "9a3bd784/../../x"] {
+            assert_eq!(p.page_dir(bad), None, "{bad}");
+        }
+        assert_eq!(inside(Path::new("/b"), "Images/a.png").unwrap(), Path::new("/b/Images/a.png"));
+        for bad in ["/etc/passwd", "../a.png", "Images/../../a.png"] {
+            assert_eq!(inside(Path::new("/b"), bad), None, "{bad}");
+        }
     }
 }

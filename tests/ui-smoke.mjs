@@ -171,8 +171,13 @@ const PLUGIN = zip({
 const ws = new WebSocket('ws://127.0.0.1:' + arg('-port'));
 ws.onopen = () => ws.send(JSON.stringify({ event: arg('-registerEvent'), uuid: arg('-pluginUUID') }));`,
   'com.ui.counter.sdPlugin/img.svg': SVG('#2266aa'),
+  // The inspector also tries what third-party inspector code must not do: use the UI's API.
   'com.ui.counter.sdPlugin/pi/pi.html': '<!doctype html><title>pi</title><body><p id="pi-ok">PI</p><script>function connectElgatoStreamDeckSocket(port, uuid, ev) {'
-    + ' const ws = new WebSocket("ws://127.0.0.1:" + port); ws.onopen = () => ws.send(JSON.stringify({ event: ev, uuid })); document.title = "connected"; }</script>',
+    + ' const ws = new WebSocket("ws://127.0.0.1:" + port); ws.onopen = async () => { ws.send(JSON.stringify({ event: ev, uuid }));'
+    + ' const ui = new URL(document.referrer).origin; let probe;'
+    + ' try { const r = await fetch(ui + "/api/state", { credentials: "include" }); probe = "status " + r.status; } catch { probe = "blocked"; }'
+    + ' const own = (await fetch("/api/state")).status;'
+    + ' ws.send(JSON.stringify({ event: "setSettings", context: uuid, payload: { probe, own } })); }; document.title = "connected"; }</script>',
 });
 
 const iconPack = (id, name, icons) => zip({
@@ -288,6 +293,9 @@ class Daemon {
   }
 
   url(p = '/') { return `http://127.0.0.1:${this.port}${p}`; }
+
+  /** The UI with a one-time login code (like `tuxdeck ui`). */
+  async loginUrl() { return this.url(`/?code=${(await this.api('/api/login-code', 'POST')).code}`); }
 
   async api(p, method = 'GET', body, headers = {}) {
     const init = { method, headers: { 'x-tuxdeck-token': this.token, ...headers } };
@@ -701,7 +709,7 @@ const UNLABELLED_BUTTONS = `[...document.querySelectorAll('button, [role=button]
 // -------------------------------------------------------------------------------- suites
 
 async function suiteNeo(d, b) {
-  await b.open(d.url(`/?token=${d.token}`));
+  await b.open(await d.loginUrl());
 
   await test('loads: device grid, live connection, no errors', async () => {
     assert(await b.count(`#device .slot[data-controller="Keypad"]`) === 8, '8 keys');
@@ -1344,7 +1352,7 @@ async function suiteNeo(d, b) {
 
 /** Profiles: create, switch, rename, smart profile, delete, export; samples; conversion; backups. */
 async function suiteProfiles(d, b) {
-  await b.open(d.url(`/?token=${d.token}`));
+  await b.open(await d.loginUrl());
   const st0 = await d.state();
   const DEFAULT = st0.devices[0].profile;
   const profile = async (id) => (await d.state()).profiles.find((p) => p.id === id);
@@ -1612,7 +1620,7 @@ async function suiteProfiles(d, b) {
 async function suiteMarket(d, b) {
   await d.api('/api/import', 'POST', PLUGIN, { 'x-filename': 'com.ui.counter.streamDeckPlugin', 'content-type': 'application/octet-stream' });
   await d.api('/api/import', 'POST', ICONPACK, { 'x-filename': 'com.ui.icons.streamDeckIconPack', 'content-type': 'application/octet-stream' });
-  await b.open(d.url(`/?token=${d.token}`));
+  await b.open(await d.loginUrl());
   const cards = `document.querySelectorAll('#market .mk-grid > .mk-card')`;
   const cardNames = `[...${cards}].map((c) => c.querySelector('.mk-card-name').textContent)`;
   const card = (id) => `#market .mk-card[data-id="${id}"]`;
@@ -1748,11 +1756,20 @@ async function suiteMarket(d, b) {
 
   await test('editor: a plugin action opens its property inspector', async () => {
     await b.waitFor(`!!document.querySelector('.action-item[data-uuid="com.ui.counter.count"]')`, 'plugin action listed');
+    // The inspector's refused API request is logged by the browser: expected here.
+    b.quiet = true;
     await placeAndEdit(b, d, 'Keypad', '3,1', 'com.ui.counter.count');
     await b.waitFor(`!!document.querySelector('#editor iframe.pi-frame')`, 'property inspector');
     assert((await b.eval(`document.querySelector('#editor iframe.pi-frame').src`)).includes('com.ui.counter.sdPlugin/pi/pi.html'), 'PI url');
-    await b.waitFor(`document.querySelector('#editor iframe.pi-frame').contentDocument?.title === 'connected'`, 'PI connected', 10000);
+    await b.waitFor(`document.querySelector('#editor iframe.pi-frame')?.dataset.state === 'connected'`, 'PI connected', 10000);
     eq(await b.text('#editor .ed-name'), 'Counter');
+    // It runs on the plugin file origin: the UI's API is out of reach (and that origin has none).
+    assert(!(await b.eval(`document.querySelector('#editor iframe.pi-frame').src`)).startsWith(d.url('/')), 'own origin');
+    await until(async () => (await d.action('Keypad', '3,1'))?.Settings?.probe, 'the inspector registered and reported', 10000);
+    const { probe, own } = (await d.action('Keypad', '3,1')).Settings;
+    eq([probe, own], ['blocked', 404]);
+    await until(async () => Object.keys((await d.api('/api/plugins/com.ui.counter/diagnostics')).stats?.inspectors || {}).length > 0, 'counted as connected');
+    b.quiet = false;
   });
 
   await test('editor: an icon from an icon pack (search, pick)', async () => {
@@ -1820,7 +1837,7 @@ async function suitePlus(d, b) {
     await b.send('Page.navigate', { url: d.url('/') });
     await b.waitFor(`!!document.querySelector('.no-access')`, 'no-access notice');
     // With the token (as `tuxdeck ui` opens it) the UI works.
-    await b.open(d.url(`/?token=${d.token}`));
+    await b.open(await d.loginUrl());
     b.quiet = false;
   });
 
@@ -1872,7 +1889,7 @@ async function suitePlus(d, b) {
 /** Decks without info bar or dials: geometry, arrow keys, catalogue. */
 function suiteGrid(cols, rows) {
   return async (d, b) => {
-    await b.open(d.url(`/?token=${d.token}`));
+    await b.open(await d.loginUrl());
     const model = d.model;
     await test(`${model}: ${cols}×${rows} keys, no info bar, no dials`, async () => {
       eq(await b.count('#device .keygrid > .slot'), cols * rows);

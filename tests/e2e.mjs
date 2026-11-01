@@ -275,6 +275,8 @@ class Daemon {
     const env = {
       ...process.env,
       TUXDECK_VIRTUAL_DEVICE: this.model, TUXDECK_DRY_RUN: '1', TUXDECK_NO_URL_HANDLER: '1', TUXDECK_NO_WINDOW_WATCH: '1',
+      // Linux checks run without bubblewrap unless one is given (TUXDECK_BWRAP).
+      ...(process.env.TUXDECK_BWRAP ? {} : { TUXDECK_NO_SANDBOX: '1' }),
       TUXDECK_DATA_DIR: data, TUXDECK_CONFIG_DIR: config, HOME: home, RUST_LOG: 'info', NO_COLOR: '1',
       ...CATALOGUE.env(),
       // Deterministic language: English (the default) regardless of the machine's locale.
@@ -1192,9 +1194,12 @@ async function suiteNeoPlugins(d) {
     await sleep(200);
     assert(!before.equals(await d.render('Keypad', '3,1')), 'title/overlay rendered');
     const pi = await d.get(`/api/pi/${P}/${page0}?controller=Keypad&coord=3,1`);
-    assert(pi.url.startsWith('/plugins/com.e2e.counter.sdPlugin/'), `PI url ${pi.url}`);
-    const html = await d.get(pi.url);
-    assert(html.toString().includes('connectElgatoStreamDeckSocket'), 'PI served');
+    // On the plugin file origin, not the UI's.
+    const pp = (await d.state()).settings.plugin_port;
+    assert(pi.url.startsWith(`http://127.0.0.1:${pp}/plugins/com.e2e.counter.sdPlugin/`), `PI url ${pi.url}`);
+    const html = await (await fetch(pi.url)).text();
+    assert(html.includes('connectElgatoStreamDeckSocket') && html.includes('<script src="/__tuxdeck/pi-bridge.js">'), 'PI served with the bridge');
+    assert((await (await fetch(new URL('/__tuxdeck/pi-bridge.js', pi.url))).text()).includes("tuxdeck: 'connected'"), 'bridge script');
     const listed = await d.get('/api/plugins');
     assert(listed.some((p) => p.uuid === 'com.e2e.counter' && p.runs_on_linux), 'installed list');
   });
@@ -1251,7 +1256,7 @@ async function suiteNeoPlugins(d) {
     const m0 = d.mark();
     await d.slot('Keypad', '2,1', 'com.e2e.counter.count');
     const ctx = (await d.waitLog(/\[com\.e2e\.counter\] appear Keypad 2,1 /, m0, 8000)).split(' ').pop();
-    const pi = await driver(ctx, 'com.e2e.counter.count');
+    const pi = await driver(ctx, 'com.e2e.counter.count', 'Keypad', '2,1');
     const drive = pi.send;
     // A title edit is reported to the plugin.
     let m = d.mark();
@@ -1282,10 +1287,10 @@ async function suiteNeoPlugins(d) {
   });
 
   /** Property inspector connection that makes the test plugin send SDK messages. */
-  async function driver(ctx, action) {
+  async function driver(ctx, action, controller, coord) {
     const pi = new WebSocket(`ws://127.0.0.1:${d.sdk}`);
     await new Promise((r, j) => { pi.onopen = r; pi.onerror = j; });
-    pi.send(JSON.stringify({ event: 'registerPropertyInspector', uuid: ctx }));
+    pi.send(JSON.stringify({ event: 'registerPropertyInspector', uuid: await piAlias(d, controller, coord) }));
     return {
       send: (msgs) => pi.send(JSON.stringify({ event: 'sendToPlugin', action, context: ctx, payload: { send: msgs } })),
       close: () => pi.close(),
@@ -1297,7 +1302,7 @@ async function suiteNeoPlugins(d) {
     await d.slot('Neo', '1,0', 'com.e2e.counter.count');
     const ctx = (await d.waitLog(/\[com\.e2e\.counter\] appear Neo /, m, 8000)).split(' ').pop();
     const black = await d.render('Neo', '1,0');
-    const drv = await driver(ctx, 'com.e2e.counter.count');
+    const drv = await driver(ctx, 'com.e2e.counter.count', 'Neo', '1,0');
     drv.send([
       { event: 'setFeedbackLayout', context: ctx, payload: { layout: { id: 'neo', items: [{ key: 'bar', type: 'pixmap', rect: [0, 0, 232, 50] }] } } },
       { event: 'setFeedback', context: ctx, payload: { bar: `data:image/svg+xml,${encodeURIComponent(SVG('#ff0000'))}` } },
@@ -1340,7 +1345,7 @@ async function suiteNeoPlugins(d) {
     const m = d.mark();
     await d.slot('Keypad', '2,1', 'com.e2e.prof.act');
     const ctx = (await d.waitLog(/\[com\.e2e\.prof\] appear Keypad 2,1 /, m, 8000)).split(' ').pop();
-    const drv = await driver(ctx, 'com.e2e.prof.act');
+    const drv = await driver(ctx, 'com.e2e.prof.act', 'Keypad', '2,1');
     const sw = (payload) => drv.send([{ event: 'switchToProfile', context: 'com.e2e.prof', device: d.dev.id, payload }]);
     sw({ profile: (await d.state()).profiles.find((p) => p.id === P).name });
     await sleep(300);
@@ -1402,6 +1407,12 @@ async function suiteNeoSystem(d) {
     const s = (await d.state()).settings;
     eq(s.injector, 'auto');
     assert(s.injector_choices.includes('hyprctl') && typeof s.injector_active === 'string', 'choices');
+    // A rejected request changes nothing, also not its valid parts; wrong types are rejected.
+    const before = (await d.state()).settings;
+    for (const bad of [{ cmd_as_ctrl: !before.cmd_as_ctrl, touch_color: 'nope' }, { platform: 'beos' }, { touch_color: 7 }, { cmd_as_ctrl: 'yes' }]) {
+      eq(await d.status('POST', '/api/settings', bad), 400, JSON.stringify(bad));
+    }
+    eq((await d.state()).settings, before, 'unchanged');
   });
 
   await test('language: system default, switching, German messages', async () => {
@@ -1436,8 +1447,8 @@ async function suiteNeoSystem(d) {
     eq((await raw({})).status, 401, 'no token');
     eq((await raw({ 'x-tuxdeck-token': 'wrong' })).status, 401, 'wrong token');
     eq((await raw({}, '/')).status, 200, 'the UI page itself is public');
-    // The app menu opens /?token=…: it becomes a cookie and the URL is cleaned.
-    const r = await raw({}, `/?token=${d.token}`);
+    // The app menu opens /?code=<one-time code>: it becomes a cookie and the URL is cleaned.
+    const r = await raw({}, `/?code=${(await d.post('/api/login-code')).code}`);
     eq([r.status, r.headers.location], [303, '/']);
     const cookie = r.headers['set-cookie'][0].split(';')[0];
     assert(/HttpOnly/.test(r.headers['set-cookie'][0]), 'HttpOnly cookie');
@@ -1537,7 +1548,7 @@ async function suitePlus(d) {
     // A layout the plugin doesn't have is reported; "" (keys without a strip) is ignored.
     const pi = new WebSocket(`ws://127.0.0.1:${d.sdk}`);
     await new Promise((r, j) => { pi.onopen = r; pi.onerror = j; });
-    pi.send(JSON.stringify({ event: 'registerPropertyInspector', uuid: ctx }));
+    pi.send(JSON.stringify({ event: 'registerPropertyInspector', uuid: await piAlias(d, 'Encoder', '2,0') }));
     m = d.mark();
     pi.send(JSON.stringify({ event: 'sendToPlugin', action: 'com.e2e.counter.count', context: ctx, payload: { send: [
       { event: 'setFeedbackLayout', context: ctx, payload: { layout: '' } },
@@ -1642,7 +1653,7 @@ async function suiteCompat(d) {
   });
 
   await test('api: an explicit token header wins over a stale cookie', async () => {
-    eq(await d.status('GET', '/api/state', undefined, { cookie: 'tuxdeck_token=stale' }), 200);
+    eq(await d.status('GET', '/api/state', undefined, { cookie: `tuxdeck_session_${d.port}=stale` }), 200);
   });
 
   await test('samples: the Work profile is created with its icons and working keys', async () => {
@@ -1956,7 +1967,7 @@ const inst = (uuid, settings = {}, title, extra = {}) => ({
 });
 
 /** A format 3.0 profile archive. `pages`/`def` (template page): [{id?, keys: {Keypad: {coord: inst}, Neo: …}}]. */
-function profileZip({ name = 'Crafted', model = '20GBJ9901', pages, def = null, folders = [] }) {
+function profileZip({ name = 'Crafted', model = '20GBJ9901', pages, def = null, folders = [], version = '3.0' }) {
   const id = randomUUID().toUpperCase();
   const root = `${id}.sdProfile`;
   const withId = (p) => ({ ...p, id: p.id || randomUUID() });
@@ -1964,7 +1975,7 @@ function profileZip({ name = 'Crafted', model = '20GBJ9901', pages, def = null, 
   const tpl = def && withId(def);
   const files = {
     [`${root}/manifest.json`]: JSON.stringify({
-      Device: { Model: model, UUID: '' }, Name: name, Version: '3.0',
+      Device: { Model: model, UUID: '' }, Name: name, Version: version,
       Pages: { Current: top[0].id, Default: tpl ? tpl.id : '', Pages: top.map((p) => p.id) },
     }),
   };
@@ -2003,8 +2014,16 @@ async function suiteApi(d) {
     eq(await status('/api/state', { authorization: T }), 401, 'bearer prefix needed');
     eq(await status(`/api/state?token=${T}`), 200, 'query (WebSocket clients)');
     eq(await status('/api/state?token=nope'), 401, 'wrong query token');
-    eq(await status('/api/state', { cookie: `theme=dark; tuxdeck_token=${T}` }), 200, 'cookie among others');
-    eq(await status('/api/state', { cookie: 'tuxdeck_token=nope' }), 401, 'wrong cookie');
+    const S = fs.readFileSync(path.join(d.config, 'ui-session'), 'utf8').trim();
+    eq(await status('/api/state', { cookie: `theme=dark; tuxdeck_session_${d.port}=${S}` }), 200, 'session cookie among others');
+    eq(await status('/api/state', { cookie: `tuxdeck_session_${d.port}=nope` }), 401, 'wrong cookie');
+    eq(await status('/api/state', { cookie: `tuxdeck_token=${T}` }), 401, 'the API token is no cookie value');
+    eq(await status('/api/state', { cookie: `tuxdeck_session_${d.port + 1}=${S}` }), 401, 'cookie of another port');
+    // Browsers send the cookie with requests of other pages on 127.0.0.1 too (same site).
+    const sess = { cookie: `tuxdeck_session_${d.port}=${S}` };
+    eq(await status('/api/state', { ...sess, 'sec-fetch-site': 'same-origin' }), 200, 'from the UI page');
+    eq(await status('/api/state', { ...sess, 'sec-fetch-site': 'same-site' }), 401, 'from another port');
+    eq(await status('/api/state', { ...sess, 'sec-fetch-site': 'cross-site' }), 401, 'from another site');
     eq(await status('/api/state', { 'x-tuxdeck-token': '' }), 401, 'empty token');
     const r = await d.raw('/api/profiles', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"name":"x","model":"20GBJ9901"}' });
     eq(r.status, 401, 'writes need the token too');
@@ -2029,15 +2048,27 @@ async function suiteApi(d) {
     eq((await d.state()).settings.touch_color, before, 'setting unchanged');
   });
 
-  await test('security: ?token= on pages becomes a cookie; other parameters stay, wrong tokens do not', async () => {
-    let r = await d.raw(`/?token=${T}&view=plugins`);
+  await test('security: a one-time ?code= on pages becomes the session cookie; the API token in the URL does not', async () => {
+    const code = async () => (await d.post('/api/login-code')).code;
+    eq(await status('/api/login-code', { 'x-tuxdeck-token': T }), 405, 'GET is no way to a code');
+    eq((await d.raw('/api/login-code', { method: 'POST' })).status, 401, 'a code needs the token');
+    let c = await code();
+    let r = await d.raw(`/?code=${c}&view=plugins`);
     eq([r.status, r.headers.location], [303, '/?view=plugins']);
-    r = await d.raw(`/settings?lang=de&token=${T}`);
+    const S = fs.readFileSync(path.join(d.config, 'ui-session'), 'utf8').trim();
+    eq(r.headers['set-cookie'][0].split(';')[0], `tuxdeck_session_${d.port}=${S}`);
+    r = await d.raw(`/?code=${c}`);
+    eq([r.status, r.headers['set-cookie']], [200, undefined], 'a code works once');
+    c = await code();
+    r = await d.raw(`/settings?lang=de&code=${c}`);
     eq([r.status, r.headers.location], [303, '/settings?lang=de']);
     const cookie = r.headers['set-cookie'][0];
     assert(/SameSite=Strict/.test(cookie) && /Path=\//.test(cookie) && /HttpOnly/.test(cookie), cookie);
-    r = await d.raw('/?token=nope');
-    eq([r.status, r.headers['set-cookie']], [200, undefined], 'no cookie for a wrong token');
+    assert(!cookie.includes(T), 'the cookie is not the API token');
+    for (const q of ['/?code=nope', `/?token=${T}`]) {
+      r = await d.raw(q);
+      eq([r.status, r.headers['set-cookie']], [200, undefined], `no cookie for ${q}`);
+    }
     r = await d.raw(`/api/state?token=${T}`);
     eq([r.status, r.headers['set-cookie']], [200, undefined], 'API: no redirect, no cookie');
   });
@@ -2048,8 +2079,66 @@ async function suiteApi(d) {
     eq(await wsHandshake(d.port, `/api/events?token=${T}`), 101, 'events with token');
     eq(await wsHandshake(d.port, `/api/events?token=${T}`, { origin: 'http://evil.example' }), 403, 'events from a foreign page');
     eq(await wsHandshake(d.sdk, '/', { origin: 'http://evil.example' }), 403, 'SDK from a foreign page');
-    eq(await wsHandshake(d.sdk, '/', { origin: `http://localhost:${d.port}` }), 101, 'SDK from the UI (property inspectors)');
+    const pp = (await d.state()).settings.plugin_port;
+    eq(await wsHandshake(d.sdk, '/', { origin: `http://localhost:${pp}` }), 101, 'SDK from the plugin file origin (property inspectors)');
+    eq(await wsHandshake(d.sdk, '/', { origin: `http://127.0.0.1:${d.port}` }), 403, 'SDK from the UI origin');
     eq(await wsHandshake(d.sdk, '/'), 101, 'SDK without Origin (plugins)');
+  });
+
+  await test('security: plugin files run on their own origin without API; on the UI origin they are inert', async () => {
+    const pp = (await d.state()).settings.plugin_port;
+    assert(pp && pp !== d.port, 'own port');
+    const plug = (p, headers = {}) => new Promise((res, rej) => {
+      http.get({ host: '127.0.0.1', port: pp, path: p, headers }, (r) => {
+        const chunks = [];
+        r.on('data', (c) => chunks.push(c));
+        r.on('end', () => res({ status: r.statusCode, headers: r.headers, body: Buffer.concat(chunks).toString() }));
+      }).on('error', rej);
+    });
+    for (const p of ['/api/state', `/api/state?token=${T}`, '/', '/index.html']) eq((await plug(p, { 'x-tuxdeck-token': T })).status, 404, `${p} on the plugin port`);
+    eq((await plug('/plugin-host', { host: `evil.example:${pp}` })).status, 403, 'DNS rebinding');
+    // The plugin host page hands out registration secrets: only with its own key.
+    eq((await plug('/plugin-host')).status, 404, 'plugin host without its key');
+    eq((await plug('/plugin-host?k=guess')).status, 404, 'plugin host with a wrong key');
+    eq((await plug('/x', { 'service-worker': 'script' })).status, 403, 'no service workers');
+    // Plugin data: images for inspectors yes, settings and tokens no (any local user could ask).
+    const pd = path.join(d.data, 'plugin-data', 'Data', 'com.e2e.secret');
+    fs.mkdirSync(pd, { recursive: true });
+    fs.writeFileSync(path.join(pd, 'token.json'), '{"token":"x"}');
+    fs.writeFileSync(path.join(pd, 'bg.svg'), SVG('#123456'));
+    for (const [p, want] of [['/plugins/Data/com.e2e.secret/token.json', 404], ['/plugins/Data/com.e2e.secret/bg.svg', 200],
+      [encodeURI(path.join(pd, 'token.json')), 404], [encodeURI(path.join(pd, 'bg.svg')), 200]]) {
+      eq((await plug(p)).status, want, p);
+      eq((await d.raw(p)).status === 200 && p.endsWith('.json'), false, `${p} on the UI port`);
+    }
+    // The login redirect stays on this site.
+    const c = (await d.post('/api/login-code')).code;
+    eq((await d.raw(`//evil.example/?code=${c}`)).headers.location, '/evil.example/');
+    const bridge = await plug('/__tuxdeck/pi-bridge.js');
+    assert(bridge.body.includes(`http://127.0.0.1:${d.port}`), 'bridge knows the UI origin');
+    assert(/frame-ancestors 'self' http:\/\/127\.0\.0\.1:/.test(bridge.headers['content-security-policy']), 'only framed by the UI');
+    assert(!(await d.raw('/plugin-host')).body.toString().includes('TuxDeck plugin host'), 'no plugin host on the UI port');
+    // Plugin files on the UI port (icons in the UI) can't run as pages there.
+    const url = JSON.stringify(await d.get('/api/actions')).match(/"(\/plugin-files\/[^"]+)"/)?.[1];
+    assert(url, 'an action icon URL');
+    const icon = await d.raw(url);
+    eq([icon.status, icon.headers['content-security-policy'], icon.headers['x-content-type-options']], [200, 'sandbox', 'nosniff'], url);
+    eq((await plug(url)).status, 200, 'the same file on the plugin port');
+  });
+
+  await test('security: the plugin SDK accepts only the start secret of a plugin and aliases from /api/pi', async () => {
+    // Other local programs know plugin UUIDs and could guess contexts, but not these.
+    for (const reg of [{ event: 'registerPlugin', uuid: 'com.e2e.counter' }, { event: 'registerPropertyInspector', uuid: '0123456789ABCDEF0123456789ABCDEF' }]) {
+      const ws = new WebSocket(`ws://127.0.0.1:${d.sdk}`);
+      const got = [];
+      ws.onmessage = (e) => got.push(e.data);
+      await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
+      const closed = new Promise((r) => { ws.onclose = r; });
+      ws.send(JSON.stringify(reg));
+      ws.send(JSON.stringify({ event: 'getGlobalSettings', context: reg.uuid }));
+      await Promise.race([closed, sleep(3000).then(() => { throw new Error(`${reg.event}: not closed`); })]);
+      eq(got, [], `${reg.event}: nothing answered`);
+    }
   });
 
   await test('UI files: index, assets, translations; unknown files 404, unknown API routes are JSON 404', async () => {
@@ -2382,6 +2471,46 @@ async function suiteProfiles(d) {
     eq(await d.status('POST', '/api/import', only, { 'x-filename': 'evil.streamDeckProfile' }), 400);
     eq(fs.readdirSync(profilesDir).length, before + 1, 'no leftover directory');
     await d.del(`/api/profiles/${r.id}`);
+  });
+
+  await test('import: a folder key whose target is a path cannot delete anything outside the profile', async () => {
+    const m = marker();
+    // Relative to a page folder, `../../../X` is <data>/X.
+    const canary = (n) => {
+      const dir = path.join(d.data, `${m}-${n}`);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, 'keep.txt'), 'x');
+      return dir;
+    };
+    const abs = canary('abs');
+    const rel = canary('rel');
+    const folder = (target) => inst(`${B}profile.openchild`, { ProfileUUID: target }, 'F');
+    // Format 2 keeps the value as it is, format 3 upper-cases it.
+    for (const version of ['2.0', '3.0']) {
+      const target = (p) => (version === '3.0' ? p.toUpperCase() : p);
+      const imp = await importZip(profileZip({
+        version,
+        pages: [{ keys: { Keypad: { '0,0': folder(target(abs)), '1,0': folder(target(`../../../${path.basename(rel)}`)), '2,0': folder(''), '3,0': folder('.') } } }],
+      }));
+      const page = (await d.state()).profiles.find((p) => p.id === imp.id).pages[0];
+      for (const coord of ['0,0', '1,0', '2,0', '3,0']) {
+        eq(await d.status('DELETE', `/api/pages/${imp.id}/${page}/slot?controller=Keypad&coord=${coord}`), 200, `${version} ${coord}`);
+      }
+      await d.del(`/api/profiles/${imp.id}`);
+      for (const dir of [abs, rel]) assert(fs.existsSync(path.join(dir, 'keep.txt')), `${version}: ${dir} kept`);
+    }
+    assert(fs.existsSync(profilesDir) && fs.readdirSync(profilesDir).length > 0, 'other profiles kept');
+    // Another spelling of a top-level page's id must not delete that page.
+    const second = randomUUID();
+    const imp = await importZip(profileZip({
+      pages: [{ keys: { Keypad: { '0,0': folder(`urn:uuid:${second}`), '1,0': folder(`{${second.toUpperCase()}}`), '2,0': folder(second.replace(/-/g, '')) } } },
+        { id: second, keys: { Keypad: { '0,0': inst(WEBSITE, { path: 'kept.example' }, 'K') } } }],
+    }));
+    const pages = (await d.state()).profiles.find((p) => p.id === imp.id).pages;
+    for (const coord of ['0,0', '1,0', '2,0']) await d.del(`/api/pages/${imp.id}/${pages[0]}/slot?controller=Keypad&coord=${coord}`);
+    const kept = (await d.page(imp.id, second)).controllers.find((c) => c.Type === 'Keypad').Actions['0,0'];
+    eq(kept?.Settings.path, 'kept.example', 'top-level page kept');
+    await d.del(`/api/profiles/${imp.id}`);
   });
 
   await test('import: plugin and icon pack archives packed on Windows work, unsafe entries are skipped', async () => {
@@ -2850,15 +2979,24 @@ async function suiteBuiltins(d) {
   });
 }
 
+/** The id a property inspector of this key (on the deck's current page) registers with. */
+async function piAlias(d, controller, coord) {
+  const dev = await d.device();
+  return (await d.get(`/api/pi/${dev.profile}/${dev.page}?controller=${controller}&coord=${coord}`)).uuid;
+}
+
 /** Property inspector connection: drives the test plugin and records what the PI gets. */
-async function inspector(d, ctx, action) {
+async function inspector(d, ctx, action, controller, coord) {
   const ws = new WebSocket(`ws://127.0.0.1:${d.sdk}`);
   const got = [];
   ws.onmessage = (e) => got.push(JSON.parse(e.data));
   await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
-  ws.send(JSON.stringify({ event: 'registerPropertyInspector', uuid: ctx }));
+  const alias = await piAlias(d, controller, coord);
+  ws.send(JSON.stringify({ event: 'registerPropertyInspector', uuid: alias }));
   return {
     got,
+    /** The inspector's name for its action (instead of the context). */
+    alias,
     /** Make the plugin send these SDK messages. */
     plugin: (msgs) => ws.send(JSON.stringify({ event: 'sendToPlugin', action, context: ctx, payload: { send: msgs } })),
     /** Send a message as the property inspector. */
@@ -2942,7 +3080,7 @@ async function suiteSdk(d) {
     await d.press('Keypad', '2,0');
     await d.waitLog(ev('keyDown', kl), m);
     await d.waitLog(ev('keyUp', kl), m);
-    pi = await inspector(d, ctx, C);
+    pi = await inspector(d, ctx, C, 'Keypad', '0,0');
     await d.waitLog(ev('propertyInspectorDidAppear', ctx), m);
   });
 
@@ -3015,11 +3153,11 @@ async function suiteSdk(d) {
     assert(fs.readFileSync(path.join(d.data, 'logs/com.e2e.counter.log'), 'utf8').includes('into-the-log-file'), 'plugin log file');
     pi.plugin([{ event: 'sendToPropertyInspector', context: ctx, payload: { hello: 'pi' } }]);
     const msg = await pi.waitFor((x) => x.event === 'sendToPropertyInspector');
-    eq([msg.action, msg.context, msg.payload], [C, ctx, { hello: 'pi' }]);
+    eq([msg.action, msg.context, msg.payload], [C, pi.alias, { hello: 'pi' }], 'the inspector gets its alias as context');
     m = d.mark();
     pi.close();
     await d.waitLog(ev('propertyInspectorDidDisappear', ctx), m);
-    pi = await inspector(d, ctx, C);
+    pi = await inspector(d, ctx, C, 'Keypad', '0,0');
   });
 
   await test('isolation: other plugins cannot touch the actions; switchToProfile needs the plugin\'s own profiles', async () => {
@@ -3027,7 +3165,7 @@ async function suiteSdk(d) {
     await d.req('POST', '/api/import', pluginVariant('com.e2e.other'), { 'x-filename': 'other.streamDeckPlugin' });
     await d.slot('Keypad', '3,0', 'com.e2e.other.count');
     const octx = ctxOf(await d.waitLog(ev('willAppear', '\\S+', 'com\\.e2e\\.other'), m, 8000));
-    const opi = await inspector(d, octx, 'com.e2e.other.count');
+    const opi = await inspector(d, octx, 'com.e2e.other.count', 'Keypad', '3,0');
     const before = await d.render('Keypad', '0,0');
     opi.plugin([
       { event: 'setTitle', context: ctx, payload: { title: 'HACK' } },
@@ -3060,7 +3198,7 @@ async function suiteSdk(d) {
     const appear = await d.waitLog(new RegExp(`${ev('willAppear', '\\S+', 'com\\.e2e\\.states').source}.*"column":0,"row":1`), m, 8000);
     eq(payload(appear).state, 0, 'multi-state actions report their state');
     const sctx = ctxOf(appear);
-    const spi = await inspector(d, sctx, 'com.e2e.states.two');
+    const spi = await inspector(d, sctx, 'com.e2e.states.two', 'Keypad', '0,1');
     spi.plugin([{ event: 'setState', context: sctx, payload: { state: 1 } }]);
     await waitFor(async () => (await d.action('0,1')).State === 1, 2000, 'setState 1');
     spi.plugin([{ event: 'setState', context: sctx, payload: { state: 5 } }, { event: 'logMessage', payload: { message: 'after-bad-state' } }]);

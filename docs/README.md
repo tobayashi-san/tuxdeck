@@ -130,10 +130,20 @@ icon is in the icon theme); after installing you may need to log out and back in
 <details>
 <summary><b>It does not start with the session</b></summary>
 
-Check `systemctl --user status tuxdeck`. Some compositors (Hyprland, Sway) do not pass
-their environment to systemd on their own; add
-`dbus-update-activation-environment --systemd --all` to the compositor's autostart.
-Alternatively, without systemd: use `tuxdeck run --no-browser` as an autostart command.
+`systemctl --user enable tuxdeck` starts TuxDeck with `graphical-session.target`. GNOME, KDE
+Plasma and sessions started through uwsm or a systemd session target reach it; plain
+Hyprland, Sway, i3 and most other window managers don't, so there the service runs only
+after a manual start. Start it from your compositor's config instead (after the line that
+passes the environment to systemd, if you have one):
+
+| Desktop | Line |
+|---|---|
+| Hyprland | `exec-once = dbus-update-activation-environment --systemd --all && systemctl --user start tuxdeck` |
+| Sway, i3 | `exec dbus-update-activation-environment --systemd --all && systemctl --user start tuxdeck` |
+| Other (XDG autostart) | an autostart entry running `systemctl --user start tuxdeck` |
+
+Without systemd, run `tuxdeck run --no-browser` as the autostart command.
+`systemctl --user status tuxdeck` shows whether it is running.
 </details>
 
 ## Advanced
@@ -174,7 +184,7 @@ All optional; if one is missing, only the affected key reports an error.
 | Opening websites and files | `xdg-open` (`xdg-utils`) |
 | Node.js plugins | `node` (Node.js ≥ 20) |
 | HTML plugins | Chromium, Chrome, Brave, Edge or Vivaldi |
-| Linux check of plugins | `node`; `bwrap` (`bubblewrap`) isolates the plugin under test from your files |
+| Linux check of plugins | `node` and `bwrap` (`bubblewrap`): the plugin under test runs without network and sees only system folders, not your files |
 | Smart Profiles on X11 | `xprop` (`x11-utils`) |
 | Notifications | `notify-send` (`libnotify-bin`) |
 </details>
@@ -215,6 +225,7 @@ original. These files are not part of TuxDeck. Requires `bsdtar` (Debian/Ubuntu 
 | `~/.local/share/tuxdeck/Backups/` | automatic backups (daily, before restores) |
 | `~/.local/share/tuxdeck/linux-checks.json` | results of the Linux checks |
 | `~/.config/tuxdeck/api-token` | secret for the local API (mode 0600) |
+| `~/.config/tuxdeck/ui-session` | session cookie value of the browser UI (mode 0600) |
 | `~/.config/tuxdeck/settings.json` | settings, brightness, profile assignment, global plugin settings |
 
 Versions before 0.5 used the folders `streamdeck-linux`; they are moved on the first start.
@@ -259,14 +270,30 @@ active window; there the feature stays off.
 </details>
 
 <details>
+<summary><b>Network use</b></summary>
+
+TuxDeck itself only goes online for the plugin catalogue: the list and icons from
+`openactionapi.github.io`, plugin downloads and published Linux check results from GitHub
+(`api.github.com`, release downloads). For GitHub it uses `GITHUB_TOKEN`/`GH_TOKEN` or,
+if the GitHub CLI is logged in, its token (`gh auth token`), only to raise the download
+limit. Publishing your Linux check results to a repository (`checks_publish`, off by
+default, meant for maintainers) uploads them with `gh`. Nothing else is sent anywhere. Plugins are separate programs and may use the
+network as they like.
+</details>
+
+<details>
 <summary><b>Security</b></summary>
 
 The UI, API and plugin interface listen on `127.0.0.1` only. Requests with a foreign `Host`
 or `Origin` header (DNS rebinding, other websites in your browser) are rejected, because
 the API can install plugins and thus run code. The API additionally requires a secret
 token that only your user can read (`~/.config/tuxdeck/api-token`), so other users and
-programs on the same machine can't use it; the app menu entry and `tuxdeck ui` open the
-UI with it. Plugins run with your user's rights, like with the official app: install only
+programs on the same machine can't use it. The app menu entry and `tuxdeck ui` don't pass
+that token to the browser (its command line is visible to other users): they get a login
+code that works once and only for 30 seconds, and the browser keeps a separate session
+cookie. Plugins register with a secret they get when started (as the official app does,
+it is on their command line); property inspectors run on a separate port without access to
+the API. Plugins run with your user's rights, like with the official app: install only
 plugins you trust.
 </details>
 
