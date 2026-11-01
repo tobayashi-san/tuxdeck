@@ -1,3 +1,6 @@
+/* Icons: Elgato's open icon font (@elgato/icons, MIT; fonts/LICENSE-elgato-icons.txt). */
+@font-face { font-family: "elgato-icons"; src: url("fonts/elgato-icons.woff2") format("woff2"); font-display: block; }
+.ei { font-family: "elgato-icons" !important; font-style: normal; font-weight: normal; line-height: 1; display: inline-block; vertical-align: -0.15em; speak: never; }
 :root {
   --bg: #16171b;
   --panel: #202228;
@@ -835,3 +838,6 @@ dialog.modal:has(.samples) { max-width: min(760px, 94vw); }
 .sample-name { font-weight: 600; font-size: 14px; margin-top: 2px; }
 .sample-desc { color: var(--muted); font-size: 12px; }
 .warn-text { color: var(--warn); }
+/* Icon font sizes next to text and in icon buttons. */
+.btn .ei { font-size: 18px; margin-right: 2px; }
+.icon-btn .ei, #topbar .brightness .ei { font-size: 20px; }

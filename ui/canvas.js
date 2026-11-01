@@ -1,6 +1,6 @@
 // Device canvas: slots, selection, keyboard navigation, slot menu and operations.
 
-import { BACKTOPARENT, OPENCHILD, S, actionInfo, api, enc, geometryFor, h, instanceAccepts, instanceAt, isNeoGeometry, pagePath, profileById, renderUrl, slotKey, slotLabel } from './store.js';
+import { BACKTOPARENT, ICON, OPENCHILD, S, actionInfo, api, enc, geometryFor, h, instanceAccepts, instanceAt, isNeoGeometry, pagePath, profileById, renderUrl, slotKey, slotLabel } from './store.js';
 import { canTestPress, flushEditor, renderEditor } from './editor.js';
 import { confirmDialog, contextMenu, toast } from './dialogs.js';
 import { t } from './i18n.js';
@@ -105,7 +105,7 @@ function slotEl(controller, coord, kind) {
       onerror: (e) => { e.target.style.visibility = 'hidden'; },
     }));
   }
-  if (inst?.UUID === OPENCHILD) s.append(h('span.folder-badge', { 'aria-hidden': 'true' }, '📁'));
+  if (inst?.UUID === OPENCHILD) s.append(h('span.folder-badge.ei', { 'aria-hidden': 'true' }, ICON.folder));
   return s;
 }
 

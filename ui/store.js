@@ -215,6 +215,18 @@ export function debounce(fn, ms) {
 }
 
 /** Tiny DOM helper: h('div.cls#id', {attrs/on*}, ...children) */
+/** Code points of the Elgato icon font (`.ei`, see style.css). */
+export const ICON = {
+  settings: '\uef3a', menu: '\uee1b', plugin: '\ueee7', trash: '\uf00a', more: '\uee4b', close: '\ueb25',
+  left: '\ueb05', right: '\ueb08', up: '\uea5e', down: '\uea51', check: '\ueb01', brightness: '\ueaae',
+  play: '\ueee1', link: '\ueba7', folder: '\uebe9',
+};
+
+/** An icon of the Elgato icon font (decorative: the button carries the label). */
+export function icon(name) {
+  return h('span.ei', { 'aria-hidden': 'true' }, ICON[name]);
+}
+
 export function h(tag, props, ...children) {
   const m = tag.match(/^([a-z0-9-]+)?((?:[.#][\w-]+)*)$/i);
   const el = document.createElement(m[1] || 'div');

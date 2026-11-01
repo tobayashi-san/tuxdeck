@@ -232,6 +232,10 @@ pub struct Settings {
     /// `Engine::mark_old_imports`).
     #[serde(default)]
     pub import_marks: bool,
+    /// Keys with an icon of the starter or sample profiles from before the Elgato icons
+    /// got the new one (see `Engine::update_bundled_icons`).
+    #[serde(default)]
+    pub elgato_icons: bool,
     /// GitHub repository with the published Linux check results ("" = none).
     #[serde(default = "checks_repo")]
     pub checks_repo: String,

@@ -335,8 +335,59 @@ impl Engine {
         };
         e.reload_profiles();
         e.mark_old_imports();
+        e.update_bundled_icons();
         e.install_plugin_profiles();
         e
+    }
+
+    /// Keys that still show an icon of the starter or sample profiles from before TuxDeck
+    /// used Elgato's icons get the new icon of the same key, once. Only images that are
+    /// exactly one of those old icons change; a backup is made first.
+    fn update_bundled_icons(&mut self) {
+        if self.settings.elgato_icons {
+            return;
+        }
+        let replacement = |img: &str| -> Option<String> {
+            use base64::Engine as _;
+            let b64 = img.strip_prefix("data:image/svg+xml;base64,")?;
+            let bytes = base64::engine::general_purpose::STANDARD.decode(b64).ok()?;
+            let digest = bytes.iter().fold(0xcbf29ce484222325u64, |h, b| (h ^ *b as u64).wrapping_mul(0x100000001b3));
+            let (kind, name, _) = OLD_BUNDLED_ICONS.iter().find(|(_, _, d)| *d == digest)?;
+            match *kind {
+                "starter" => crate::resources::starter_icon_data_url(name),
+                _ => templates::icon_url(name),
+            }
+        };
+        let todo: Vec<(String, String)> = self
+            .profiles
+            .values()
+            .flat_map(|p| p.pages.iter().map(move |(id, pg)| (p, id, pg)))
+            .filter(|(_, _, pg)| pg.iter_actions().any(|(_, _, a)| a.states.iter().any(|s| s.image.as_deref().and_then(replacement).is_some())))
+            .map(|(p, id, _)| (p.id.clone(), id.clone()))
+            .collect();
+        if !todo.is_empty() {
+            if let Err(e) = crate::backup::before_change(&self.paths, "before-icons") {
+                tracing::warn!("no backup, icons not updated: {e:#}");
+                return;
+            }
+            for (profile, page) in &todo {
+                if let Some(pg) = self.profiles.get_mut(profile).and_then(|p| p.pages.get_mut(page)) {
+                    for c in pg.controllers.iter_mut() {
+                        for a in c.actions.values_mut() {
+                            for st in a.states.iter_mut() {
+                                if let Some(new) = st.image.as_deref().and_then(replacement) {
+                                    st.image = Some(new);
+                                }
+                            }
+                        }
+                    }
+                }
+                self.save_page(profile, page);
+            }
+            tracing::info!("updated the icons of {} pages to Elgato's icons", todo.len());
+        }
+        self.settings.elgato_icons = true;
+        self.settings.save(&self.paths);
     }
 
     /// Profiles imported before imports were marked: mark those that look like they come
@@ -434,3 +485,51 @@ impl Engine {
         self.emit(json!({"event": "log", "level": level, "message": msg}));
     }
 }
+
+/// The icons of the starter and sample profiles before TuxDeck used Elgato's icons:
+/// (kind, name, FNV-1a 64 of the SVG file) – see `Engine::update_bundled_icons`.
+const OLD_BUNDLED_ICONS: &[(&str, &str, u64)] = &[
+    ("starter", "brightness", 0x2fae30036200921b),
+    ("starter", "home", 0xcffdb11320051287),
+    ("starter", "lock", 0x4047975d5ce40ab5),
+    ("starter", "mute", 0x389f9d12bf317825),
+    ("starter", "next", 0x023532eaef442257),
+    ("starter", "play", 0xdeb0ba39673a0366),
+    ("starter", "previous", 0xe85cba9d1d2605ab),
+    ("starter", "sleep", 0xf47df090d32702d8),
+    ("starter", "timer", 0x79a695781d09d2c9),
+    ("starter", "volume-down", 0x3f993686ad87d104),
+    ("starter", "volume-up", 0x5c48b3cef52fcf66),
+    ("templates", "play-chat", 0x0f64a4920bbac71d),
+    ("templates", "play-deafen", 0xf78f6bab8acfb503),
+    ("templates", "play-games", 0x295aa44bb05d92e5),
+    ("templates", "play-launcher", 0xbeca9ecdcf357578),
+    ("templates", "play-mic", 0x1516bca4685af982),
+    ("templates", "play-mute", 0xd37a43edc4aa2a71),
+    ("templates", "play-next", 0xcdb354fafcebf0e3),
+    ("templates", "play-play", 0xa6045287ce49445f),
+    ("templates", "play-prev", 0x93dd16d82c19f207),
+    ("templates", "play-shuffle", 0xcbf5e73723130adf),
+    ("templates", "play-voice", 0x71bc87cd819b824b),
+    ("templates", "play-volume", 0xd338cb45c1ce33f1),
+    ("templates", "stream-chat", 0x2f534e85f7db1878),
+    ("templates", "stream-live", 0xf1c6bbe4aeb951bd),
+    ("templates", "stream-mic", 0x0998988b92d56a79),
+    ("templates", "stream-obs", 0x14dbc001cb3fc09f),
+    ("templates", "stream-record", 0x1a99c4139df4cf89),
+    ("templates", "stream-scene", 0x054d1b5e4d96a400),
+    ("templates", "stream-screenshot", 0x29bb2ab8f0f2b45a),
+    ("templates", "stream-webcam", 0xbadea676bc2ff700),
+    ("templates", "work-calc", 0xfdeb054f617b5363),
+    ("templates", "work-copy", 0x3395bad51b30bec0),
+    ("templates", "work-downloads", 0xd783c76e49d39f07),
+    ("templates", "work-editor", 0xe6e7db6eb57c009c),
+    ("templates", "work-files", 0x2d84612490c6b962),
+    ("templates", "work-lock", 0x2764cac528424c38),
+    ("templates", "work-mail", 0x9752e398e46f80a3),
+    ("templates", "work-paste", 0xac66ebda82aaead0),
+    ("templates", "work-screenshot", 0x4c5108cd35210e92),
+    ("templates", "work-terminal", 0xd44558fcdf9330f1),
+    ("templates", "work-timer", 0x8fbb630bdb3788de),
+    ("templates", "work-web", 0x782c6ebc5cae0163),
+];

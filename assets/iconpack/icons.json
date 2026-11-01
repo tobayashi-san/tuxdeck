@@ -1,629 +1,7586 @@
 [
  {
-  "path": "play.svg",
-  "name": "Play",
+  "path": "accessibility--filled.svg",
+  "name": "Accessibility (filled)",
   "tags": [
-   "media",
-   "start",
-   "go"
+   "accessibility",
+   "filled"
   ]
  },
  {
-  "path": "pause.svg",
-  "name": "Pause",
+  "path": "accessibility.svg",
+  "name": "Accessibility",
   "tags": [
-   "media",
-   "stop",
-   "hold"
+   "accessibility",
+   "outline"
   ]
  },
  {
-  "path": "stop.svg",
-  "name": "Stop",
+  "path": "accessories.svg",
+  "name": "Accessories",
   "tags": [
-   "media",
-   "end"
+   "accessories",
+   "outline"
   ]
  },
  {
-  "path": "record.svg",
-  "name": "Record",
+  "path": "action--filled.svg",
+  "name": "Action (filled)",
   "tags": [
-   "media",
-   "rec",
-   "capture"
+   "action",
+   "filled"
   ]
  },
  {
-  "path": "next.svg",
-  "name": "Next",
+  "path": "action-wheel--filled.svg",
+  "name": "Action Wheel (filled)",
   "tags": [
-   "media",
-   "skip",
-   "forward"
+   "action",
+   "wheel",
+   "filled"
   ]
  },
  {
-  "path": "previous.svg",
-  "name": "Previous",
+  "path": "action-wheel.svg",
+  "name": "Action Wheel",
   "tags": [
-   "media",
-   "back",
-   "rewind"
+   "action",
+   "wheel",
+   "outline"
   ]
  },
  {
-  "path": "fast-forward.svg",
-  "name": "Fast Forward",
+  "path": "action.svg",
+  "name": "Action",
   "tags": [
-   "media",
-   "speed"
+   "action",
+   "outline"
   ]
  },
  {
-  "path": "rewind.svg",
-  "name": "Rewind",
+  "path": "add-circle--filled.svg",
+  "name": "Add Circle (filled)",
   "tags": [
-   "media",
-   "speed",
-   "back"
+   "add",
+   "circle",
+   "filled"
   ]
  },
  {
-  "path": "shuffle.svg",
-  "name": "Shuffle",
+  "path": "add-circle.svg",
+  "name": "Add Circle",
   "tags": [
-   "media",
-   "random"
+   "add",
+   "circle",
+   "outline"
   ]
  },
  {
-  "path": "repeat.svg",
-  "name": "Repeat",
+  "path": "add.svg",
+  "name": "Add",
   "tags": [
-   "media",
-   "loop"
+   "add",
+   "outline"
   ]
  },
  {
-  "path": "volume-up.svg",
-  "name": "Volume Up",
+  "path": "adjust-horizontal--filled.svg",
+  "name": "Adjust Horizontal (filled)",
   "tags": [
-   "sound",
-   "audio",
-   "louder",
-   "speaker",
-   "plus"
+   "adjust",
+   "horizontal",
+   "filled"
   ]
  },
  {
-  "path": "volume-down.svg",
-  "name": "Volume Down",
+  "path": "adjust-horizontal.svg",
+  "name": "Adjust Horizontal",
   "tags": [
-   "sound",
-   "audio",
-   "quieter",
-   "speaker",
-   "minus"
+   "adjust",
+   "horizontal",
+   "outline"
   ]
  },
  {
-  "path": "mute.svg",
-  "name": "Mute",
+  "path": "adjust-vertical--filled.svg",
+  "name": "Adjust Vertical (filled)",
   "tags": [
-   "sound",
-   "audio",
-   "silent",
-   "off"
+   "adjust",
+   "vertical",
+   "filled"
   ]
  },
  {
-  "path": "microphone.svg",
-  "name": "Microphone",
+  "path": "adjust-vertical.svg",
+  "name": "Adjust Vertical",
   "tags": [
-   "mic",
-   "voice",
-   "record"
+   "adjust",
+   "vertical",
+   "outline"
   ]
  },
  {
-  "path": "mic-mute.svg",
-  "name": "Mic Mute",
+  "path": "align-bottom--filled.svg",
+  "name": "Align Bottom (filled)",
   "tags": [
-   "mic",
-   "voice",
-   "off",
-   "silent"
+   "align",
+   "bottom",
+   "filled"
   ]
  },
  {
-  "path": "headphones.svg",
-  "name": "Headphones",
+  "path": "align-bottom.svg",
+  "name": "Align Bottom",
   "tags": [
-   "audio",
-   "music",
-   "sound"
+   "align",
+   "bottom",
+   "outline"
   ]
  },
  {
-  "path": "music.svg",
-  "name": "Music",
+  "path": "align-horizontal-center--filled.svg",
+  "name": "Align Horizontal Center (filled)",
   "tags": [
-   "note",
-   "song",
-   "audio",
-   "sound"
+   "align",
+   "horizontal",
+   "center",
+   "filled"
   ]
  },
  {
-  "path": "power.svg",
-  "name": "Power",
+  "path": "align-horizontal-center.svg",
+  "name": "Align Horizontal Center",
   "tags": [
-   "on",
-   "off",
-   "shutdown",
-   "start"
+   "align",
+   "horizontal",
+   "center",
+   "outline"
   ]
  },
  {
-  "path": "sleep.svg",
-  "name": "Sleep",
+  "path": "align-left--filled.svg",
+  "name": "Align Left (filled)",
   "tags": [
-   "moon",
-   "night",
-   "standby",
-   "dnd"
+   "align",
+   "left",
+   "filled"
   ]
  },
  {
-  "path": "brightness.svg",
-  "name": "Brightness",
+  "path": "align-left.svg",
+  "name": "Align Left",
   "tags": [
-   "sun",
-   "light",
-   "display",
-   "day"
+   "align",
+   "left",
+   "outline"
   ]
  },
  {
-  "path": "settings.svg",
-  "name": "Settings",
+  "path": "align-right--filled.svg",
+  "name": "Align Right (filled)",
   "tags": [
-   "gear",
-   "cog",
-   "config",
-   "options",
-   "preferences"
+   "align",
+   "right",
+   "filled"
   ]
  },
  {
-  "path": "lock.svg",
-  "name": "Lock",
+  "path": "align-right.svg",
+  "name": "Align Right",
   "tags": [
-   "secure",
-   "password",
-   "private",
-   "closed"
+   "align",
+   "right",
+   "outline"
   ]
  },
  {
-  "path": "unlock.svg",
-  "name": "Unlock",
+  "path": "align-top--filled.svg",
+  "name": "Align Top (filled)",
   "tags": [
-   "secure",
-   "open",
-   "access"
+   "align",
+   "top",
+   "filled"
   ]
  },
  {
-  "path": "refresh.svg",
-  "name": "Refresh",
+  "path": "align-top.svg",
+  "name": "Align Top",
   "tags": [
-   "reload",
-   "sync",
-   "update",
-   "renew"
+   "align",
+   "top",
+   "outline"
   ]
  },
  {
-  "path": "search.svg",
-  "name": "Search",
+  "path": "align-vertical-center--filled.svg",
+  "name": "Align Vertical Center (filled)",
   "tags": [
-   "find",
-   "magnifier",
-   "zoom",
-   "look"
+   "align",
+   "vertical",
+   "center",
+   "filled"
   ]
  },
  {
-  "path": "battery.svg",
-  "name": "Battery",
+  "path": "align-vertical-center.svg",
+  "name": "Align Vertical Center",
   "tags": [
-   "power",
-   "charge",
-   "energy"
+   "align",
+   "vertical",
+   "center",
+   "outline"
   ]
  },
  {
-  "path": "wifi.svg",
-  "name": "Wifi",
+  "path": "analytics--filled.svg",
+  "name": "Analytics (filled)",
   "tags": [
-   "network",
-   "wireless",
-   "internet",
-   "signal"
+   "analytics",
+   "filled"
   ]
  },
  {
-  "path": "bluetooth.svg",
-  "name": "Bluetooth",
+  "path": "analytics.svg",
+  "name": "Analytics",
   "tags": [
-   "wireless",
-   "connect",
-   "pair"
+   "analytics",
+   "outline"
   ]
  },
  {
-  "path": "trash.svg",
-  "name": "Trash",
+  "path": "apps--filled.svg",
+  "name": "Apps (filled)",
   "tags": [
-   "delete",
-   "remove",
-   "bin",
-   "discard"
+   "apps",
+   "filled"
   ]
  },
  {
-  "path": "keyboard.svg",
-  "name": "Keyboard",
+  "path": "apps-add--filled.svg",
+  "name": "Apps Add (filled)",
   "tags": [
-   "keys",
-   "input",
-   "type"
+   "apps",
+   "add",
+   "filled"
   ]
  },
  {
-  "path": "clock.svg",
-  "name": "Clock",
+  "path": "apps-add.svg",
+  "name": "Apps Add",
   "tags": [
-   "time",
-   "timer",
-   "watch",
-   "alarm"
+   "apps",
+   "add",
+   "outline"
   ]
  },
  {
-  "path": "calendar.svg",
-  "name": "Calendar",
+  "path": "apps.svg",
+  "name": "Apps",
   "tags": [
-   "date",
-   "schedule",
-   "event",
-   "day"
+   "apps",
+   "outline"
   ]
  },
  {
-  "path": "bell.svg",
-  "name": "Bell",
+  "path": "ar--filled.svg",
+  "name": "Ar (filled)",
   "tags": [
-   "notification",
-   "alert",
-   "reminder",
-   "ring"
+   "ar",
+   "filled"
   ]
  },
  {
-  "path": "arrow-up.svg",
-  "name": "Arrow Up",
+  "path": "ar-check--filled.svg",
+  "name": "Ar Check (filled)",
   "tags": [
-   "up",
-   "north",
-   "top"
+   "ar",
+   "check",
+   "filled"
+  ]
+ },
+ {
+  "path": "ar-check.svg",
+  "name": "Ar Check",
+  "tags": [
+   "ar",
+   "check",
+   "outline"
+  ]
+ },
+ {
+  "path": "ar.svg",
+  "name": "Ar",
+  "tags": [
+   "ar",
+   "outline"
+  ]
+ },
+ {
+  "path": "arrow-down-to-right.svg",
+  "name": "Arrow Down To Right",
+  "tags": [
+   "arrow",
+   "down",
+   "to",
+   "right",
+   "outline"
   ]
  },
  {
   "path": "arrow-down.svg",
   "name": "Arrow Down",
   "tags": [
+   "arrow",
    "down",
-   "south",
-   "bottom"
+   "outline"
+  ]
+ },
+ {
+  "path": "arrow-horizontal.svg",
+  "name": "Arrow Horizontal",
+  "tags": [
+   "arrow",
+   "horizontal",
+   "outline"
   ]
  },
  {
   "path": "arrow-left.svg",
   "name": "Arrow Left",
   "tags": [
+   "arrow",
    "left",
-   "west",
-   "back",
-   "previous"
+   "outline"
   ]
  },
  {
   "path": "arrow-right.svg",
   "name": "Arrow Right",
   "tags": [
+   "arrow",
    "right",
-   "east",
-   "forward",
-   "next"
+   "outline"
   ]
  },
  {
-  "path": "home.svg",
-  "name": "Home",
+  "path": "arrow-up.svg",
+  "name": "Arrow Up",
   "tags": [
-   "house",
-   "main",
-   "start"
+   "arrow",
+   "up",
+   "outline"
   ]
  },
  {
-  "path": "folder.svg",
-  "name": "Folder",
+  "path": "arrow-vertical.svg",
+  "name": "Arrow Vertical",
   "tags": [
-   "directory",
-   "files",
-   "store"
+   "arrow",
+   "vertical",
+   "outline"
   ]
  },
  {
-  "path": "plus.svg",
-  "name": "Plus",
+  "path": "article--filled.svg",
+  "name": "Article (filled)",
   "tags": [
+   "article",
+   "filled"
+  ]
+ },
+ {
+  "path": "article.svg",
+  "name": "Article",
+  "tags": [
+   "article",
+   "outline"
+  ]
+ },
+ {
+  "path": "aspect-ratio--filled.svg",
+  "name": "Aspect Ratio (filled)",
+  "tags": [
+   "aspect",
+   "ratio",
+   "filled"
+  ]
+ },
+ {
+  "path": "aspect-ratio.svg",
+  "name": "Aspect Ratio",
+  "tags": [
+   "aspect",
+   "ratio",
+   "outline"
+  ]
+ },
+ {
+  "path": "attachment.svg",
+  "name": "Attachment",
+  "tags": [
+   "attachment",
+   "outline"
+  ]
+ },
+ {
+  "path": "auto-scroll--filled.svg",
+  "name": "Auto Scroll (filled)",
+  "tags": [
+   "auto",
+   "scroll",
+   "filled"
+  ]
+ },
+ {
+  "path": "auto-scroll-decrease--filled.svg",
+  "name": "Auto Scroll Decrease (filled)",
+  "tags": [
+   "auto",
+   "scroll",
+   "decrease",
+   "filled"
+  ]
+ },
+ {
+  "path": "auto-scroll-decrease.svg",
+  "name": "Auto Scroll Decrease",
+  "tags": [
+   "auto",
+   "scroll",
+   "decrease",
+   "outline"
+  ]
+ },
+ {
+  "path": "auto-scroll-down--filled.svg",
+  "name": "Auto Scroll Down (filled)",
+  "tags": [
+   "auto",
+   "scroll",
+   "down",
+   "filled"
+  ]
+ },
+ {
+  "path": "auto-scroll-down.svg",
+  "name": "Auto Scroll Down",
+  "tags": [
+   "auto",
+   "scroll",
+   "down",
+   "outline"
+  ]
+ },
+ {
+  "path": "auto-scroll-increase--filled.svg",
+  "name": "Auto Scroll Increase (filled)",
+  "tags": [
+   "auto",
+   "scroll",
+   "increase",
+   "filled"
+  ]
+ },
+ {
+  "path": "auto-scroll-increase.svg",
+  "name": "Auto Scroll Increase",
+  "tags": [
+   "auto",
+   "scroll",
+   "increase",
+   "outline"
+  ]
+ },
+ {
+  "path": "auto-scroll-set--filled.svg",
+  "name": "Auto Scroll Set (filled)",
+  "tags": [
+   "auto",
+   "scroll",
+   "set",
+   "filled"
+  ]
+ },
+ {
+  "path": "auto-scroll-set.svg",
+  "name": "Auto Scroll Set",
+  "tags": [
+   "auto",
+   "scroll",
+   "set",
+   "outline"
+  ]
+ },
+ {
+  "path": "auto-scroll-up--filled.svg",
+  "name": "Auto Scroll Up (filled)",
+  "tags": [
+   "auto",
+   "scroll",
+   "up",
+   "filled"
+  ]
+ },
+ {
+  "path": "auto-scroll-up.svg",
+  "name": "Auto Scroll Up",
+  "tags": [
+   "auto",
+   "scroll",
+   "up",
+   "outline"
+  ]
+ },
+ {
+  "path": "auto-scroll.svg",
+  "name": "Auto Scroll",
+  "tags": [
+   "auto",
+   "scroll",
+   "outline"
+  ]
+ },
+ {
+  "path": "auxiliary-add.svg",
+  "name": "Auxiliary Add",
+  "tags": [
+   "auxiliary",
    "add",
-   "new",
-   "create",
-   "more"
+   "outline"
   ]
  },
  {
-  "path": "minus.svg",
-  "name": "Minus",
+  "path": "auxiliary.svg",
+  "name": "Auxiliary",
   "tags": [
+   "auxiliary",
+   "outline"
+  ]
+ },
+ {
+  "path": "avatar--filled.svg",
+  "name": "Avatar (filled)",
+  "tags": [
+   "avatar",
+   "filled"
+  ]
+ },
+ {
+  "path": "avatar.svg",
+  "name": "Avatar",
+  "tags": [
+   "avatar",
+   "outline"
+  ]
+ },
+ {
+  "path": "background-remove--filled.svg",
+  "name": "Background Remove (filled)",
+  "tags": [
+   "background",
    "remove",
-   "subtract",
-   "less"
+   "filled"
   ]
  },
  {
-  "path": "check.svg",
-  "name": "Check",
+  "path": "background-remove.svg",
+  "name": "Background Remove",
   "tags": [
-   "ok",
-   "done",
-   "yes",
-   "confirm",
-   "success"
-  ]
- },
- {
-  "path": "close.svg",
-  "name": "Close",
-  "tags": [
-   "x",
-   "cancel",
-   "no",
+   "background",
    "remove",
-   "exit"
+   "outline"
   ]
  },
  {
-  "path": "menu.svg",
-  "name": "Menu",
+  "path": "backspace--filled.svg",
+  "name": "Backspace (filled)",
   "tags": [
-   "list",
-   "hamburger",
-   "options"
+   "backspace",
+   "filled"
   ]
  },
  {
-  "path": "grid.svg",
-  "name": "Grid",
+  "path": "backspace.svg",
+  "name": "Backspace",
   "tags": [
-   "apps",
-   "dashboard",
-   "all",
-   "tiles"
+   "backspace",
+   "outline"
   ]
  },
  {
-  "path": "globe.svg",
-  "name": "Globe",
+  "path": "badge--filled.svg",
+  "name": "Badge (filled)",
   "tags": [
-   "web",
-   "internet",
-   "browser",
-   "world",
-   "language"
+   "badge",
+   "filled"
   ]
  },
  {
-  "path": "mail.svg",
-  "name": "Mail",
+  "path": "badge.svg",
+  "name": "Badge",
   "tags": [
-   "email",
-   "message",
-   "envelope",
-   "inbox"
+   "badge",
+   "outline"
   ]
  },
  {
-  "path": "chat.svg",
-  "name": "Chat",
+  "path": "blinds--filled.svg",
+  "name": "Blinds (filled)",
   "tags": [
-   "message",
-   "bubble",
-   "talk",
-   "comment"
+   "blinds",
+   "filled"
+  ]
+ },
+ {
+  "path": "blinds.svg",
+  "name": "Blinds",
+  "tags": [
+   "blinds",
+   "outline"
+  ]
+ },
+ {
+  "path": "block-quote.svg",
+  "name": "Block Quote",
+  "tags": [
+   "block",
+   "quote",
+   "outline"
+  ]
+ },
+ {
+  "path": "bluetooth.svg",
+  "name": "Bluetooth",
+  "tags": [
+   "bluetooth",
+   "outline"
+  ]
+ },
+ {
+  "path": "blur-background.svg",
+  "name": "Blur Background",
+  "tags": [
+   "blur",
+   "background",
+   "outline"
+  ]
+ },
+ {
+  "path": "blur.svg",
+  "name": "Blur",
+  "tags": [
+   "blur",
+   "outline"
+  ]
+ },
+ {
+  "path": "board--filled.svg",
+  "name": "Board (filled)",
+  "tags": [
+   "board",
+   "filled"
+  ]
+ },
+ {
+  "path": "board.svg",
+  "name": "Board",
+  "tags": [
+   "board",
+   "outline"
+  ]
+ },
+ {
+  "path": "bold.svg",
+  "name": "Bold",
+  "tags": [
+   "bold",
+   "outline"
+  ]
+ },
+ {
+  "path": "book--filled.svg",
+  "name": "Book (filled)",
+  "tags": [
+   "book",
+   "filled"
+  ]
+ },
+ {
+  "path": "book-closed.svg",
+  "name": "Book Closed",
+  "tags": [
+   "book",
+   "closed",
+   "outline"
+  ]
+ },
+ {
+  "path": "book.svg",
+  "name": "Book",
+  "tags": [
+   "book",
+   "outline"
+  ]
+ },
+ {
+  "path": "briefcase--filled.svg",
+  "name": "Briefcase (filled)",
+  "tags": [
+   "briefcase",
+   "filled"
+  ]
+ },
+ {
+  "path": "briefcase.svg",
+  "name": "Briefcase",
+  "tags": [
+   "briefcase",
+   "outline"
+  ]
+ },
+ {
+  "path": "brightness--filled.svg",
+  "name": "Brightness (filled)",
+  "tags": [
+   "brightness",
+   "filled"
+  ]
+ },
+ {
+  "path": "brightness-decrease--filled.svg",
+  "name": "Brightness Decrease (filled)",
+  "tags": [
+   "brightness",
+   "decrease",
+   "filled"
+  ]
+ },
+ {
+  "path": "brightness-decrease.svg",
+  "name": "Brightness Decrease",
+  "tags": [
+   "brightness",
+   "decrease",
+   "outline"
+  ]
+ },
+ {
+  "path": "brightness-increase--filled.svg",
+  "name": "Brightness Increase (filled)",
+  "tags": [
+   "brightness",
+   "increase",
+   "filled"
+  ]
+ },
+ {
+  "path": "brightness-increase.svg",
+  "name": "Brightness Increase",
+  "tags": [
+   "brightness",
+   "increase",
+   "outline"
+  ]
+ },
+ {
+  "path": "brightness-off--filled.svg",
+  "name": "Brightness Off (filled)",
+  "tags": [
+   "brightness",
+   "off",
+   "filled"
+  ]
+ },
+ {
+  "path": "brightness-off.svg",
+  "name": "Brightness Off",
+  "tags": [
+   "brightness",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "brightness-reset--filled.svg",
+  "name": "Brightness Reset (filled)",
+  "tags": [
+   "brightness",
+   "reset",
+   "filled"
+  ]
+ },
+ {
+  "path": "brightness-reset.svg",
+  "name": "Brightness Reset",
+  "tags": [
+   "brightness",
+   "reset",
+   "outline"
+  ]
+ },
+ {
+  "path": "brightness-set--filled.svg",
+  "name": "Brightness Set (filled)",
+  "tags": [
+   "brightness",
+   "set",
+   "filled"
+  ]
+ },
+ {
+  "path": "brightness-set.svg",
+  "name": "Brightness Set",
+  "tags": [
+   "brightness",
+   "set",
+   "outline"
+  ]
+ },
+ {
+  "path": "brightness.svg",
+  "name": "Brightness",
+  "tags": [
+   "brightness",
+   "outline"
+  ]
+ },
+ {
+  "path": "bug--filled.svg",
+  "name": "Bug (filled)",
+  "tags": [
+   "bug",
+   "filled"
+  ]
+ },
+ {
+  "path": "bug.svg",
+  "name": "Bug",
+  "tags": [
+   "bug",
+   "outline"
+  ]
+ },
+ {
+  "path": "calendar--filled.svg",
+  "name": "Calendar (filled)",
+  "tags": [
+   "calendar",
+   "filled"
+  ]
+ },
+ {
+  "path": "calendar-today--filled.svg",
+  "name": "Calendar Today (filled)",
+  "tags": [
+   "calendar",
+   "today",
+   "filled"
+  ]
+ },
+ {
+  "path": "calendar-today.svg",
+  "name": "Calendar Today",
+  "tags": [
+   "calendar",
+   "today",
+   "outline"
+  ]
+ },
+ {
+  "path": "calendar.svg",
+  "name": "Calendar",
+  "tags": [
+   "calendar",
+   "outline"
+  ]
+ },
+ {
+  "path": "camcorder--filled.svg",
+  "name": "Camcorder (filled)",
+  "tags": [
+   "camcorder",
+   "filled"
+  ]
+ },
+ {
+  "path": "camcorder.svg",
+  "name": "Camcorder",
+  "tags": [
+   "camcorder",
+   "outline"
+  ]
+ },
+ {
+  "path": "camera--filled.svg",
+  "name": "Camera (filled)",
+  "tags": [
+   "camera",
+   "filled"
+  ]
+ },
+ {
+  "path": "camera-flip--filled.svg",
+  "name": "Camera Flip (filled)",
+  "tags": [
+   "camera",
+   "flip",
+   "filled"
+  ]
+ },
+ {
+  "path": "camera-flip.svg",
+  "name": "Camera Flip",
+  "tags": [
+   "camera",
+   "flip",
+   "outline"
+  ]
+ },
+ {
+  "path": "camera-frame-preset--filled.svg",
+  "name": "Camera Frame Preset (filled)",
+  "tags": [
+   "camera",
+   "frame",
+   "preset",
+   "filled"
+  ]
+ },
+ {
+  "path": "camera-frame-preset-check--filled.svg",
+  "name": "Camera Frame Preset Check (filled)",
+  "tags": [
+   "camera",
+   "frame",
+   "preset",
+   "check",
+   "filled"
+  ]
+ },
+ {
+  "path": "camera-frame-preset-check.svg",
+  "name": "Camera Frame Preset Check",
+  "tags": [
+   "camera",
+   "frame",
+   "preset",
+   "check",
+   "outline"
+  ]
+ },
+ {
+  "path": "camera-frame-preset-reset--filled.svg",
+  "name": "Camera Frame Preset Reset (filled)",
+  "tags": [
+   "camera",
+   "frame",
+   "preset",
+   "reset",
+   "filled"
+  ]
+ },
+ {
+  "path": "camera-frame-preset-reset.svg",
+  "name": "Camera Frame Preset Reset",
+  "tags": [
+   "camera",
+   "frame",
+   "preset",
+   "reset",
+   "outline"
+  ]
+ },
+ {
+  "path": "camera-frame-preset-set--filled.svg",
+  "name": "Camera Frame Preset Set (filled)",
+  "tags": [
+   "camera",
+   "frame",
+   "preset",
+   "set",
+   "filled"
+  ]
+ },
+ {
+  "path": "camera-frame-preset-set.svg",
+  "name": "Camera Frame Preset Set",
+  "tags": [
+   "camera",
+   "frame",
+   "preset",
+   "set",
+   "outline"
+  ]
+ },
+ {
+  "path": "camera-frame-preset.svg",
+  "name": "Camera Frame Preset",
+  "tags": [
+   "camera",
+   "frame",
+   "preset",
+   "outline"
+  ]
+ },
+ {
+  "path": "camera-input--filled.svg",
+  "name": "Camera Input (filled)",
+  "tags": [
+   "camera",
+   "input",
+   "filled"
+  ]
+ },
+ {
+  "path": "camera-input-check--filled.svg",
+  "name": "Camera Input Check (filled)",
+  "tags": [
+   "camera",
+   "input",
+   "check",
+   "filled"
+  ]
+ },
+ {
+  "path": "camera-input-check.svg",
+  "name": "Camera Input Check",
+  "tags": [
+   "camera",
+   "input",
+   "check",
+   "outline"
+  ]
+ },
+ {
+  "path": "camera-input.svg",
+  "name": "Camera Input",
+  "tags": [
+   "camera",
+   "input",
+   "outline"
+  ]
+ },
+ {
+  "path": "camera-monitor-mount-alt.svg",
+  "name": "Camera Monitor Mount Alt",
+  "tags": [
+   "camera",
+   "monitor",
+   "mount",
+   "alt",
+   "outline"
+  ]
+ },
+ {
+  "path": "camera-monitor-mount.svg",
+  "name": "Camera Monitor Mount",
+  "tags": [
+   "camera",
+   "monitor",
+   "mount",
+   "outline"
+  ]
+ },
+ {
+  "path": "camera-off--filled.svg",
+  "name": "Camera Off (filled)",
+  "tags": [
+   "camera",
+   "off",
+   "filled"
+  ]
+ },
+ {
+  "path": "camera-off.svg",
+  "name": "Camera Off",
+  "tags": [
+   "camera",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "camera-preview-to-prompter--filled.svg",
+  "name": "Camera Preview To Prompter (filled)",
+  "tags": [
+   "camera",
+   "preview",
+   "to",
+   "prompter",
+   "filled"
+  ]
+ },
+ {
+  "path": "camera-preview-to-prompter.svg",
+  "name": "Camera Preview To Prompter",
+  "tags": [
+   "camera",
+   "preview",
+   "to",
+   "prompter",
+   "outline"
+  ]
+ },
+ {
+  "path": "camera-sensor.svg",
+  "name": "Camera Sensor",
+  "tags": [
+   "camera",
+   "sensor",
+   "outline"
   ]
  },
  {
   "path": "camera.svg",
   "name": "Camera",
   "tags": [
-   "photo",
-   "picture",
-   "snapshot"
+   "camera",
+   "outline"
   ]
  },
  {
-  "path": "video.svg",
-  "name": "Video",
+  "path": "capture--filled.svg",
+  "name": "Capture (filled)",
   "tags": [
-   "film",
-   "movie",
-   "record",
-   "clip"
+   "capture",
+   "filled"
   ]
  },
  {
-  "path": "image.svg",
-  "name": "Image",
+  "path": "capture.svg",
+  "name": "Capture",
   "tags": [
-   "picture",
-   "photo",
-   "gallery",
-   "media"
+   "capture",
+   "outline"
   ]
  },
  {
-  "path": "document.svg",
-  "name": "Document",
+  "path": "carousel.svg",
+  "name": "Carousel",
   "tags": [
-   "file",
-   "page",
-   "text",
-   "note"
+   "carousel",
+   "outline"
   ]
  },
  {
-  "path": "link.svg",
-  "name": "Link",
+  "path": "cart--filled.svg",
+  "name": "Cart (filled)",
   "tags": [
-   "url",
-   "chain",
-   "connect",
-   "attach"
+   "cart",
+   "filled"
   ]
  },
  {
-  "path": "star.svg",
-  "name": "Star",
+  "path": "cart-add.svg",
+  "name": "Cart Add",
   "tags": [
-   "favorite",
-   "rate",
-   "bookmark"
+   "cart",
+   "add",
+   "outline"
   ]
  },
  {
-  "path": "heart.svg",
-  "name": "Heart",
+  "path": "cart-remove.svg",
+  "name": "Cart Remove",
   "tags": [
-   "like",
-   "love",
-   "favorite"
+   "cart",
+   "remove",
+   "outline"
   ]
  },
  {
-  "path": "bookmark.svg",
-  "name": "Bookmark",
+  "path": "cart.svg",
+  "name": "Cart",
   "tags": [
-   "save",
-   "favorite",
-   "tag",
-   "mark"
+   "cart",
+   "outline"
   ]
  },
  {
-  "path": "flag.svg",
-  "name": "Flag",
+  "path": "cathedral--filled.svg",
+  "name": "Cathedral (filled)",
   "tags": [
-   "mark",
-   "report",
-   "milestone"
+   "cathedral",
+   "filled"
   ]
  },
  {
-  "path": "pin.svg",
-  "name": "Pin",
+  "path": "cathedral.svg",
+  "name": "Cathedral",
   "tags": [
-   "location",
-   "map",
-   "place",
-   "gps"
+   "cathedral",
+   "outline"
   ]
  },
  {
-  "path": "lightbulb.svg",
-  "name": "Lightbulb",
+  "path": "cave--filled.svg",
+  "name": "Cave (filled)",
   "tags": [
-   "idea",
-   "hint",
-   "tip",
-   "light"
+   "cave",
+   "filled"
   ]
  },
  {
-  "path": "terminal.svg",
-  "name": "Terminal",
+  "path": "cave.svg",
+  "name": "Cave",
   "tags": [
-   "console",
-   "command",
-   "shell",
+   "cave",
+   "outline"
+  ]
+ },
+ {
+  "path": "chair-desk.svg",
+  "name": "Chair Desk",
+  "tags": [
+   "chair",
+   "desk",
+   "outline"
+  ]
+ },
+ {
+  "path": "chapter--filled.svg",
+  "name": "Chapter (filled)",
+  "tags": [
+   "chapter",
+   "filled"
+  ]
+ },
+ {
+  "path": "chapter-check--filled.svg",
+  "name": "Chapter Check (filled)",
+  "tags": [
+   "chapter",
+   "check",
+   "filled"
+  ]
+ },
+ {
+  "path": "chapter-check.svg",
+  "name": "Chapter Check",
+  "tags": [
+   "chapter",
+   "check",
+   "outline"
+  ]
+ },
+ {
+  "path": "chapter-down-to-bottom--filled.svg",
+  "name": "Chapter Down To Bottom (filled)",
+  "tags": [
+   "chapter",
+   "down",
+   "to",
+   "bottom",
+   "filled"
+  ]
+ },
+ {
+  "path": "chapter-down-to-bottom.svg",
+  "name": "Chapter Down To Bottom",
+  "tags": [
+   "chapter",
+   "down",
+   "to",
+   "bottom",
+   "outline"
+  ]
+ },
+ {
+  "path": "chapter-marker--filled.svg",
+  "name": "Chapter Marker (filled)",
+  "tags": [
+   "chapter",
+   "marker",
+   "filled"
+  ]
+ },
+ {
+  "path": "chapter-marker-off--filled.svg",
+  "name": "Chapter Marker Off (filled)",
+  "tags": [
+   "chapter",
+   "marker",
+   "off",
+   "filled"
+  ]
+ },
+ {
+  "path": "chapter-marker-off.svg",
+  "name": "Chapter Marker Off",
+  "tags": [
+   "chapter",
+   "marker",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "chapter-marker.svg",
+  "name": "Chapter Marker",
+  "tags": [
+   "chapter",
+   "marker",
+   "outline"
+  ]
+ },
+ {
+  "path": "chapter-set--filled.svg",
+  "name": "Chapter Set (filled)",
+  "tags": [
+   "chapter",
+   "set",
+   "filled"
+  ]
+ },
+ {
+  "path": "chapter-set.svg",
+  "name": "Chapter Set",
+  "tags": [
+   "chapter",
+   "set",
+   "outline"
+  ]
+ },
+ {
+  "path": "chapter-up-to-top--filled.svg",
+  "name": "Chapter Up To Top (filled)",
+  "tags": [
+   "chapter",
+   "up",
+   "to",
+   "top",
+   "filled"
+  ]
+ },
+ {
+  "path": "chapter-up-to-top.svg",
+  "name": "Chapter Up To Top",
+  "tags": [
+   "chapter",
+   "up",
+   "to",
+   "top",
+   "outline"
+  ]
+ },
+ {
+  "path": "chapter.svg",
+  "name": "Chapter",
+  "tags": [
+   "chapter",
+   "outline"
+  ]
+ },
+ {
+  "path": "checkmark-circle--filled.svg",
+  "name": "Checkmark Circle (filled)",
+  "tags": [
+   "checkmark",
+   "circle",
+   "filled"
+  ]
+ },
+ {
+  "path": "checkmark-circle.svg",
+  "name": "Checkmark Circle",
+  "tags": [
+   "checkmark",
+   "circle",
+   "outline"
+  ]
+ },
+ {
+  "path": "checkmark.svg",
+  "name": "Checkmark",
+  "tags": [
+   "checkmark",
+   "outline"
+  ]
+ },
+ {
+  "path": "chevron-down.svg",
+  "name": "Chevron Down",
+  "tags": [
+   "chevron",
+   "down",
+   "outline"
+  ]
+ },
+ {
+  "path": "chevron-left.svg",
+  "name": "Chevron Left",
+  "tags": [
+   "chevron",
+   "left",
+   "outline"
+  ]
+ },
+ {
+  "path": "chevron-right.svg",
+  "name": "Chevron Right",
+  "tags": [
+   "chevron",
+   "right",
+   "outline"
+  ]
+ },
+ {
+  "path": "chevron-up.svg",
+  "name": "Chevron Up",
+  "tags": [
+   "chevron",
+   "up",
+   "outline"
+  ]
+ },
+ {
+  "path": "chevrons-down-decrease.svg",
+  "name": "Chevrons Down Decrease",
+  "tags": [
+   "chevrons",
+   "down",
+   "decrease",
+   "outline"
+  ]
+ },
+ {
+  "path": "chevrons-down-increase.svg",
+  "name": "Chevrons Down Increase",
+  "tags": [
+   "chevrons",
+   "down",
+   "increase",
+   "outline"
+  ]
+ },
+ {
+  "path": "chevrons-down-set.svg",
+  "name": "Chevrons Down Set",
+  "tags": [
+   "chevrons",
+   "down",
+   "set",
+   "outline"
+  ]
+ },
+ {
+  "path": "chevrons-down.svg",
+  "name": "Chevrons Down",
+  "tags": [
+   "chevrons",
+   "down",
+   "outline"
+  ]
+ },
+ {
+  "path": "chevrons-left-right.svg",
+  "name": "Chevrons Left Right",
+  "tags": [
+   "chevrons",
+   "left",
+   "right",
+   "outline"
+  ]
+ },
+ {
+  "path": "chevrons-left.svg",
+  "name": "Chevrons Left",
+  "tags": [
+   "chevrons",
+   "left",
+   "outline"
+  ]
+ },
+ {
+  "path": "chevrons-right.svg",
+  "name": "Chevrons Right",
+  "tags": [
+   "chevrons",
+   "right",
+   "outline"
+  ]
+ },
+ {
+  "path": "chevrons-up-down.svg",
+  "name": "Chevrons Up Down",
+  "tags": [
+   "chevrons",
+   "up",
+   "down",
+   "outline"
+  ]
+ },
+ {
+  "path": "chevrons-up.svg",
+  "name": "Chevrons Up",
+  "tags": [
+   "chevrons",
+   "up",
+   "outline"
+  ]
+ },
+ {
+  "path": "circle--filled.svg",
+  "name": "Circle (filled)",
+  "tags": [
+   "circle",
+   "filled"
+  ]
+ },
+ {
+  "path": "circle.svg",
+  "name": "Circle",
+  "tags": [
+   "circle",
+   "outline"
+  ]
+ },
+ {
+  "path": "city--filled.svg",
+  "name": "City (filled)",
+  "tags": [
+   "city",
+   "filled"
+  ]
+ },
+ {
+  "path": "city.svg",
+  "name": "City",
+  "tags": [
+   "city",
+   "outline"
+  ]
+ },
+ {
+  "path": "clamp.svg",
+  "name": "Clamp",
+  "tags": [
+   "clamp",
+   "outline"
+  ]
+ },
+ {
+  "path": "clipboard--filled.svg",
+  "name": "Clipboard (filled)",
+  "tags": [
+   "clipboard",
+   "filled"
+  ]
+ },
+ {
+  "path": "clipboard.svg",
+  "name": "Clipboard",
+  "tags": [
+   "clipboard",
+   "outline"
+  ]
+ },
+ {
+  "path": "clipguard.svg",
+  "name": "Clipguard",
+  "tags": [
+   "clipguard",
+   "outline"
+  ]
+ },
+ {
+  "path": "close-circle--filled.svg",
+  "name": "Close Circle (filled)",
+  "tags": [
+   "close",
+   "circle",
+   "filled"
+  ]
+ },
+ {
+  "path": "close-circle.svg",
+  "name": "Close Circle",
+  "tags": [
+   "close",
+   "circle",
+   "outline"
+  ]
+ },
+ {
+  "path": "close-square--filled.svg",
+  "name": "Close Square (filled)",
+  "tags": [
+   "close",
+   "square",
+   "filled"
+  ]
+ },
+ {
+  "path": "close-square.svg",
+  "name": "Close Square",
+  "tags": [
+   "close",
+   "square",
+   "outline"
+  ]
+ },
+ {
+  "path": "close.svg",
+  "name": "Close",
+  "tags": [
+   "close",
+   "outline"
+  ]
+ },
+ {
+  "path": "cloud--filled.svg",
+  "name": "Cloud (filled)",
+  "tags": [
+   "cloud",
+   "filled"
+  ]
+ },
+ {
+  "path": "cloud.svg",
+  "name": "Cloud",
+  "tags": [
+   "cloud",
+   "outline"
+  ]
+ },
+ {
+  "path": "code-block--filled.svg",
+  "name": "Code Block (filled)",
+  "tags": [
    "code",
-   "cli"
+   "block",
+   "filled"
   ]
  },
  {
-  "path": "download.svg",
-  "name": "Download",
+  "path": "code-block.svg",
+  "name": "Code Block",
   "tags": [
-   "save",
-   "get",
-   "arrow",
-   "import"
+   "code",
+   "block",
+   "outline"
   ]
  },
  {
-  "path": "upload.svg",
-  "name": "Upload",
+  "path": "code-build.svg",
+  "name": "Code Build",
   "tags": [
-   "send",
-   "arrow",
-   "export",
-   "share"
+   "code",
+   "build",
+   "outline"
+  ]
+ },
+ {
+  "path": "code.svg",
+  "name": "Code",
+  "tags": [
+   "code",
+   "outline"
+  ]
+ },
+ {
+  "path": "collab.svg",
+  "name": "Collab",
+  "tags": [
+   "collab",
+   "outline"
+  ]
+ },
+ {
+  "path": "color-wheel.svg",
+  "name": "Color Wheel",
+  "tags": [
+   "color",
+   "wheel",
+   "outline"
+  ]
+ },
+ {
+  "path": "company--filled.svg",
+  "name": "Company (filled)",
+  "tags": [
+   "company",
+   "filled"
+  ]
+ },
+ {
+  "path": "company.svg",
+  "name": "Company",
+  "tags": [
+   "company",
+   "outline"
+  ]
+ },
+ {
+  "path": "compass--filled.svg",
+  "name": "Compass (filled)",
+  "tags": [
+   "compass",
+   "filled"
+  ]
+ },
+ {
+  "path": "compass.svg",
+  "name": "Compass",
+  "tags": [
+   "compass",
+   "outline"
+  ]
+ },
+ {
+  "path": "compose--filled.svg",
+  "name": "Compose (filled)",
+  "tags": [
+   "compose",
+   "filled"
+  ]
+ },
+ {
+  "path": "compose.svg",
+  "name": "Compose",
+  "tags": [
+   "compose",
+   "outline"
+  ]
+ },
+ {
+  "path": "copy--filled.svg",
+  "name": "Copy (filled)",
+  "tags": [
+   "copy",
+   "filled"
   ]
  },
  {
   "path": "copy.svg",
   "name": "Copy",
   "tags": [
-   "duplicate",
-   "clone",
-   "files"
+   "copy",
+   "outline"
   ]
  },
  {
-  "path": "eye.svg",
-  "name": "Eye",
+  "path": "couch--filled.svg",
+  "name": "Couch (filled)",
   "tags": [
-   "view",
-   "show",
-   "visible",
-   "watch",
-   "preview"
+   "couch",
+   "filled"
   ]
  },
  {
-  "path": "gamepad.svg",
-  "name": "Gamepad",
+  "path": "couch.svg",
+  "name": "Couch",
+  "tags": [
+   "couch",
+   "outline"
+  ]
+ },
+ {
+  "path": "cpu--filled.svg",
+  "name": "Cpu (filled)",
+  "tags": [
+   "cpu",
+   "filled"
+  ]
+ },
+ {
+  "path": "cpu.svg",
+  "name": "Cpu",
+  "tags": [
+   "cpu",
+   "outline"
+  ]
+ },
+ {
+  "path": "crop.svg",
+  "name": "Crop",
+  "tags": [
+   "crop",
+   "outline"
+  ]
+ },
+ {
+  "path": "crossfade.svg",
+  "name": "Crossfade",
+  "tags": [
+   "crossfade",
+   "outline"
+  ]
+ },
+ {
+  "path": "crosshair-check.svg",
+  "name": "Crosshair Check",
+  "tags": [
+   "crosshair",
+   "check",
+   "outline"
+  ]
+ },
+ {
+  "path": "crosshair.svg",
+  "name": "Crosshair",
+  "tags": [
+   "crosshair",
+   "outline"
+  ]
+ },
+ {
+  "path": "crown--filled.svg",
+  "name": "Crown (filled)",
+  "tags": [
+   "crown",
+   "filled"
+  ]
+ },
+ {
+  "path": "crown.svg",
+  "name": "Crown",
+  "tags": [
+   "crown",
+   "outline"
+  ]
+ },
+ {
+  "path": "cube--filled.svg",
+  "name": "Cube (filled)",
+  "tags": [
+   "cube",
+   "filled"
+  ]
+ },
+ {
+  "path": "cube.svg",
+  "name": "Cube",
+  "tags": [
+   "cube",
+   "outline"
+  ]
+ },
+ {
+  "path": "currency-dollar.svg",
+  "name": "Currency Dollar",
+  "tags": [
+   "currency",
+   "dollar",
+   "outline"
+  ]
+ },
+ {
+  "path": "currency-euro.svg",
+  "name": "Currency Euro",
+  "tags": [
+   "currency",
+   "euro",
+   "outline"
+  ]
+ },
+ {
+  "path": "currency-pound.svg",
+  "name": "Currency Pound",
+  "tags": [
+   "currency",
+   "pound",
+   "outline"
+  ]
+ },
+ {
+  "path": "currency-yen.svg",
+  "name": "Currency Yen",
+  "tags": [
+   "currency",
+   "yen",
+   "outline"
+  ]
+ },
+ {
+  "path": "cursor--filled.svg",
+  "name": "Cursor (filled)",
+  "tags": [
+   "cursor",
+   "filled"
+  ]
+ },
+ {
+  "path": "cursor.svg",
+  "name": "Cursor",
+  "tags": [
+   "cursor",
+   "outline"
+  ]
+ },
+ {
+  "path": "cut.svg",
+  "name": "Cut",
+  "tags": [
+   "cut",
+   "outline"
+  ]
+ },
+ {
+  "path": "database--filled.svg",
+  "name": "Database (filled)",
+  "tags": [
+   "database",
+   "filled"
+  ]
+ },
+ {
+  "path": "database.svg",
+  "name": "Database",
+  "tags": [
+   "database",
+   "outline"
+  ]
+ },
+ {
+  "path": "debug.svg",
+  "name": "Debug",
+  "tags": [
+   "debug",
+   "outline"
+  ]
+ },
+ {
+  "path": "delivery--filled.svg",
+  "name": "Delivery (filled)",
+  "tags": [
+   "delivery",
+   "filled"
+  ]
+ },
+ {
+  "path": "delivery.svg",
+  "name": "Delivery",
+  "tags": [
+   "delivery",
+   "outline"
+  ]
+ },
+ {
+  "path": "desktop.svg",
+  "name": "Desktop",
+  "tags": [
+   "desktop",
+   "outline"
+  ]
+ },
+ {
+  "path": "diagram--filled.svg",
+  "name": "Diagram (filled)",
+  "tags": [
+   "diagram",
+   "filled"
+  ]
+ },
+ {
+  "path": "diagram.svg",
+  "name": "Diagram",
+  "tags": [
+   "diagram",
+   "outline"
+  ]
+ },
+ {
+  "path": "dial--filled.svg",
+  "name": "Dial (filled)",
+  "tags": [
+   "dial",
+   "filled"
+  ]
+ },
+ {
+  "path": "dial-press.svg",
+  "name": "Dial Press",
+  "tags": [
+   "dial",
+   "press",
+   "outline"
+  ]
+ },
+ {
+  "path": "dial-rotate-c-w--filled.svg",
+  "name": "Dial Rotate CW (filled)",
+  "tags": [
+   "dial",
+   "rotate",
+   "c",
+   "w",
+   "filled"
+  ]
+ },
+ {
+  "path": "dial-rotate-c-w.svg",
+  "name": "Dial Rotate CW",
+  "tags": [
+   "dial",
+   "rotate",
+   "c",
+   "w",
+   "outline"
+  ]
+ },
+ {
+  "path": "dial-rotate-cc-w--filled.svg",
+  "name": "Dial Rotate CCW (filled)",
+  "tags": [
+   "dial",
+   "rotate",
+   "cc",
+   "w",
+   "filled"
+  ]
+ },
+ {
+  "path": "dial-rotate-cc-w.svg",
+  "name": "Dial Rotate CCW",
+  "tags": [
+   "dial",
+   "rotate",
+   "cc",
+   "w",
+   "outline"
+  ]
+ },
+ {
+  "path": "dial-rotate.svg",
+  "name": "Dial Rotate",
+  "tags": [
+   "dial",
+   "rotate",
+   "outline"
+  ]
+ },
+ {
+  "path": "dial-stack--filled.svg",
+  "name": "Dial Stack (filled)",
+  "tags": [
+   "dial",
+   "stack",
+   "filled"
+  ]
+ },
+ {
+  "path": "dial-stack.svg",
+  "name": "Dial Stack",
+  "tags": [
+   "dial",
+   "stack",
+   "outline"
+  ]
+ },
+ {
+  "path": "dial.svg",
+  "name": "Dial",
+  "tags": [
+   "dial",
+   "outline"
+  ]
+ },
+ {
+  "path": "diamond--filled.svg",
+  "name": "Diamond (filled)",
+  "tags": [
+   "diamond",
+   "filled"
+  ]
+ },
+ {
+  "path": "diamond.svg",
+  "name": "Diamond",
+  "tags": [
+   "diamond",
+   "outline"
+  ]
+ },
+ {
+  "path": "diffuse.svg",
+  "name": "Diffuse",
+  "tags": [
+   "diffuse",
+   "outline"
+  ]
+ },
+ {
+  "path": "discount--filled.svg",
+  "name": "Discount (filled)",
+  "tags": [
+   "discount",
+   "filled"
+  ]
+ },
+ {
+  "path": "discount.svg",
+  "name": "Discount",
+  "tags": [
+   "discount",
+   "outline"
+  ]
+ },
+ {
+  "path": "display--filled.svg",
+  "name": "Display (filled)",
+  "tags": [
+   "display",
+   "filled"
+  ]
+ },
+ {
+  "path": "display-add--filled.svg",
+  "name": "Display Add (filled)",
+  "tags": [
+   "display",
+   "add",
+   "filled"
+  ]
+ },
+ {
+  "path": "display-add.svg",
+  "name": "Display Add",
+  "tags": [
+   "display",
+   "add",
+   "outline"
+  ]
+ },
+ {
+  "path": "display-project--filled.svg",
+  "name": "Display Project (filled)",
+  "tags": [
+   "display",
+   "project",
+   "filled"
+  ]
+ },
+ {
+  "path": "display-project-check--filled.svg",
+  "name": "Display Project Check (filled)",
+  "tags": [
+   "display",
+   "project",
+   "check",
+   "filled"
+  ]
+ },
+ {
+  "path": "display-project-check.svg",
+  "name": "Display Project Check",
+  "tags": [
+   "display",
+   "project",
+   "check",
+   "outline"
+  ]
+ },
+ {
+  "path": "display-project-set--filled.svg",
+  "name": "Display Project Set (filled)",
+  "tags": [
+   "display",
+   "project",
+   "set",
+   "filled"
+  ]
+ },
+ {
+  "path": "display-project-set.svg",
+  "name": "Display Project Set",
+  "tags": [
+   "display",
+   "project",
+   "set",
+   "outline"
+  ]
+ },
+ {
+  "path": "display-project.svg",
+  "name": "Display Project",
+  "tags": [
+   "display",
+   "project",
+   "outline"
+  ]
+ },
+ {
+  "path": "display.svg",
+  "name": "Display",
+  "tags": [
+   "display",
+   "outline"
+  ]
+ },
+ {
+  "path": "download.svg",
+  "name": "Download",
+  "tags": [
+   "download",
+   "outline"
+  ]
+ },
+ {
+  "path": "drag.svg",
+  "name": "Drag",
+  "tags": [
+   "drag",
+   "outline"
+  ]
+ },
+ {
+  "path": "droplet--filled.svg",
+  "name": "Droplet (filled)",
+  "tags": [
+   "droplet",
+   "filled"
+  ]
+ },
+ {
+  "path": "droplet.svg",
+  "name": "Droplet",
+  "tags": [
+   "droplet",
+   "outline"
+  ]
+ },
+ {
+  "path": "ear--filled.svg",
+  "name": "Ear (filled)",
+  "tags": [
+   "ear",
+   "filled"
+  ]
+ },
+ {
+  "path": "ear.svg",
+  "name": "Ear",
+  "tags": [
+   "ear",
+   "outline"
+  ]
+ },
+ {
+  "path": "edit--filled.svg",
+  "name": "Edit (filled)",
+  "tags": [
+   "edit",
+   "filled"
+  ]
+ },
+ {
+  "path": "edit.svg",
+  "name": "Edit",
+  "tags": [
+   "edit",
+   "outline"
+  ]
+ },
+ {
+  "path": "effect.svg",
+  "name": "Effect",
+  "tags": [
+   "effect",
+   "outline"
+  ]
+ },
+ {
+  "path": "elements--filled.svg",
+  "name": "Elements (filled)",
+  "tags": [
+   "elements",
+   "filled"
+  ]
+ },
+ {
+  "path": "elements.svg",
+  "name": "Elements",
+  "tags": [
+   "elements",
+   "outline"
+  ]
+ },
+ {
+  "path": "exit-fullscreen.svg",
+  "name": "Exit Fullscreen",
+  "tags": [
+   "exit",
+   "fullscreen",
+   "outline"
+  ]
+ },
+ {
+  "path": "expand-square--filled.svg",
+  "name": "Expand Square (filled)",
+  "tags": [
+   "expand",
+   "square",
+   "filled"
+  ]
+ },
+ {
+  "path": "expand-square.svg",
+  "name": "Expand Square",
+  "tags": [
+   "expand",
+   "square",
+   "outline"
+  ]
+ },
+ {
+  "path": "external-link.svg",
+  "name": "External Link",
+  "tags": [
+   "external",
+   "link",
+   "outline"
+  ]
+ },
+ {
+  "path": "eye-contact--filled.svg",
+  "name": "Eye Contact (filled)",
+  "tags": [
+   "eye",
+   "contact",
+   "filled"
+  ]
+ },
+ {
+  "path": "eye-contact-check--filled.svg",
+  "name": "Eye Contact Check (filled)",
+  "tags": [
+   "eye",
+   "contact",
+   "check",
+   "filled"
+  ]
+ },
+ {
+  "path": "eye-contact-check.svg",
+  "name": "Eye Contact Check",
+  "tags": [
+   "eye",
+   "contact",
+   "check",
+   "outline"
+  ]
+ },
+ {
+  "path": "eye-contact.svg",
+  "name": "Eye Contact",
+  "tags": [
+   "eye",
+   "contact",
+   "outline"
+  ]
+ },
+ {
+  "path": "eyedropper--filled.svg",
+  "name": "Eyedropper (filled)",
+  "tags": [
+   "eyedropper",
+   "filled"
+  ]
+ },
+ {
+  "path": "eyedropper.svg",
+  "name": "Eyedropper",
+  "tags": [
+   "eyedropper",
+   "outline"
+  ]
+ },
+ {
+  "path": "face-satisfied--filled.svg",
+  "name": "Face Satisfied (filled)",
+  "tags": [
+   "face",
+   "satisfied",
+   "filled"
+  ]
+ },
+ {
+  "path": "face-satisfied-add--filled.svg",
+  "name": "Face Satisfied Add (filled)",
+  "tags": [
+   "face",
+   "satisfied",
+   "add",
+   "filled"
+  ]
+ },
+ {
+  "path": "face-satisfied-add.svg",
+  "name": "Face Satisfied Add",
+  "tags": [
+   "face",
+   "satisfied",
+   "add",
+   "outline"
+  ]
+ },
+ {
+  "path": "face-satisfied.svg",
+  "name": "Face Satisfied",
+  "tags": [
+   "face",
+   "satisfied",
+   "outline"
+  ]
+ },
+ {
+  "path": "face-tracking-check.svg",
+  "name": "Face Tracking Check",
+  "tags": [
+   "face",
+   "tracking",
+   "check",
+   "outline"
+  ]
+ },
+ {
+  "path": "face-tracking.svg",
+  "name": "Face Tracking",
+  "tags": [
+   "face",
+   "tracking",
+   "outline"
+  ]
+ },
+ {
+  "path": "facecam--filled.svg",
+  "name": "Facecam (filled)",
+  "tags": [
+   "facecam",
+   "filled"
+  ]
+ },
+ {
+  "path": "facecam-neo--filled.svg",
+  "name": "Facecam Neo (filled)",
+  "tags": [
+   "facecam",
+   "neo",
+   "filled"
+  ]
+ },
+ {
+  "path": "facecam-neo.svg",
+  "name": "Facecam Neo",
+  "tags": [
+   "facecam",
+   "neo",
+   "outline"
+  ]
+ },
+ {
+  "path": "facecam-off--filled.svg",
+  "name": "Facecam Off (filled)",
+  "tags": [
+   "facecam",
+   "off",
+   "filled"
+  ]
+ },
+ {
+  "path": "facecam-off.svg",
+  "name": "Facecam Off",
+  "tags": [
+   "facecam",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "facecam.svg",
+  "name": "Facecam",
+  "tags": [
+   "facecam",
+   "outline"
+  ]
+ },
+ {
+  "path": "featured.svg",
+  "name": "Featured",
+  "tags": [
+   "featured",
+   "outline"
+  ]
+ },
+ {
+  "path": "file--filled.svg",
+  "name": "File (filled)",
+  "tags": [
+   "file",
+   "filled"
+  ]
+ },
+ {
+  "path": "file-download--filled.svg",
+  "name": "File Download (filled)",
+  "tags": [
+   "file",
+   "download",
+   "filled"
+  ]
+ },
+ {
+  "path": "file-download.svg",
+  "name": "File Download",
+  "tags": [
+   "file",
+   "download",
+   "outline"
+  ]
+ },
+ {
+  "path": "file-upload--filled.svg",
+  "name": "File Upload (filled)",
+  "tags": [
+   "file",
+   "upload",
+   "filled"
+  ]
+ },
+ {
+  "path": "file-upload.svg",
+  "name": "File Upload",
+  "tags": [
+   "file",
+   "upload",
+   "outline"
+  ]
+ },
+ {
+  "path": "file.svg",
+  "name": "File",
+  "tags": [
+   "file",
+   "outline"
+  ]
+ },
+ {
+  "path": "film--filled.svg",
+  "name": "Film (filled)",
+  "tags": [
+   "film",
+   "filled"
+  ]
+ },
+ {
+  "path": "film.svg",
+  "name": "Film",
+  "tags": [
+   "film",
+   "outline"
+  ]
+ },
+ {
+  "path": "filter-alt--filled.svg",
+  "name": "Filter Alt (filled)",
+  "tags": [
+   "filter",
+   "alt",
+   "filled"
+  ]
+ },
+ {
+  "path": "filter-alt.svg",
+  "name": "Filter Alt",
+  "tags": [
+   "filter",
+   "alt",
+   "outline"
+  ]
+ },
+ {
+  "path": "filter.svg",
+  "name": "Filter",
+  "tags": [
+   "filter",
+   "outline"
+  ]
+ },
+ {
+  "path": "flame--filled.svg",
+  "name": "Flame (filled)",
+  "tags": [
+   "flame",
+   "filled"
+  ]
+ },
+ {
+  "path": "flame.svg",
+  "name": "Flame",
+  "tags": [
+   "flame",
+   "outline"
+  ]
+ },
+ {
+  "path": "flash--filled.svg",
+  "name": "Flash (filled)",
+  "tags": [
+   "flash",
+   "filled"
+  ]
+ },
+ {
+  "path": "flash-off--filled.svg",
+  "name": "Flash Off (filled)",
+  "tags": [
+   "flash",
+   "off",
+   "filled"
+  ]
+ },
+ {
+  "path": "flash-off.svg",
+  "name": "Flash Off",
+  "tags": [
+   "flash",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "flash.svg",
+  "name": "Flash",
+  "tags": [
+   "flash",
+   "outline"
+  ]
+ },
+ {
+  "path": "flip-horizontal--filled.svg",
+  "name": "Flip Horizontal (filled)",
+  "tags": [
+   "flip",
+   "horizontal",
+   "filled"
+  ]
+ },
+ {
+  "path": "flip-horizontal-check--filled.svg",
+  "name": "Flip Horizontal Check (filled)",
+  "tags": [
+   "flip",
+   "horizontal",
+   "check",
+   "filled"
+  ]
+ },
+ {
+  "path": "flip-horizontal-check.svg",
+  "name": "Flip Horizontal Check",
+  "tags": [
+   "flip",
+   "horizontal",
+   "check",
+   "outline"
+  ]
+ },
+ {
+  "path": "flip-horizontal.svg",
+  "name": "Flip Horizontal",
+  "tags": [
+   "flip",
+   "horizontal",
+   "outline"
+  ]
+ },
+ {
+  "path": "flip-vertical--filled.svg",
+  "name": "Flip Vertical (filled)",
+  "tags": [
+   "flip",
+   "vertical",
+   "filled"
+  ]
+ },
+ {
+  "path": "flip-vertical-check--filled.svg",
+  "name": "Flip Vertical Check (filled)",
+  "tags": [
+   "flip",
+   "vertical",
+   "check",
+   "filled"
+  ]
+ },
+ {
+  "path": "flip-vertical-check.svg",
+  "name": "Flip Vertical Check",
+  "tags": [
+   "flip",
+   "vertical",
+   "check",
+   "outline"
+  ]
+ },
+ {
+  "path": "flip-vertical.svg",
+  "name": "Flip Vertical",
+  "tags": [
+   "flip",
+   "vertical",
+   "outline"
+  ]
+ },
+ {
+  "path": "focus--filled.svg",
+  "name": "Focus (filled)",
+  "tags": [
+   "focus",
+   "filled"
+  ]
+ },
+ {
+  "path": "focus.svg",
+  "name": "Focus",
+  "tags": [
+   "focus",
+   "outline"
+  ]
+ },
+ {
+  "path": "folder--filled.svg",
+  "name": "Folder (filled)",
+  "tags": [
+   "folder",
+   "filled"
+  ]
+ },
+ {
+  "path": "folder-back--filled.svg",
+  "name": "Folder Back (filled)",
+  "tags": [
+   "folder",
+   "back",
+   "filled"
+  ]
+ },
+ {
+  "path": "folder-back.svg",
+  "name": "Folder Back",
+  "tags": [
+   "folder",
+   "back",
+   "outline"
+  ]
+ },
+ {
+  "path": "folder-download--filled.svg",
+  "name": "Folder Download (filled)",
+  "tags": [
+   "folder",
+   "download",
+   "filled"
+  ]
+ },
+ {
+  "path": "folder-download.svg",
+  "name": "Folder Download",
+  "tags": [
+   "folder",
+   "download",
+   "outline"
+  ]
+ },
+ {
+  "path": "folder-open--filled.svg",
+  "name": "Folder Open (filled)",
+  "tags": [
+   "folder",
+   "open",
+   "filled"
+  ]
+ },
+ {
+  "path": "folder-open.svg",
+  "name": "Folder Open",
+  "tags": [
+   "folder",
+   "open",
+   "outline"
+  ]
+ },
+ {
+  "path": "folder-upload--filled.svg",
+  "name": "Folder Upload (filled)",
+  "tags": [
+   "folder",
+   "upload",
+   "filled"
+  ]
+ },
+ {
+  "path": "folder-upload.svg",
+  "name": "Folder Upload",
+  "tags": [
+   "folder",
+   "upload",
+   "outline"
+  ]
+ },
+ {
+  "path": "folder.svg",
+  "name": "Folder",
+  "tags": [
+   "folder",
+   "outline"
+  ]
+ },
+ {
+  "path": "forest--filled.svg",
+  "name": "Forest (filled)",
+  "tags": [
+   "forest",
+   "filled"
+  ]
+ },
+ {
+  "path": "forest.svg",
+  "name": "Forest",
+  "tags": [
+   "forest",
+   "outline"
+  ]
+ },
+ {
+  "path": "fullscreen.svg",
+  "name": "Fullscreen",
+  "tags": [
+   "fullscreen",
+   "outline"
+  ]
+ },
+ {
+  "path": "game--filled.svg",
+  "name": "Game (filled)",
   "tags": [
    "game",
-   "controller",
+   "filled"
+  ]
+ },
+ {
+  "path": "game-add--filled.svg",
+  "name": "Game Add (filled)",
+  "tags": [
+   "game",
+   "add",
+   "filled"
+  ]
+ },
+ {
+  "path": "game-add.svg",
+  "name": "Game Add",
+  "tags": [
+   "game",
+   "add",
+   "outline"
+  ]
+ },
+ {
+  "path": "game-capture.svg",
+  "name": "Game Capture",
+  "tags": [
+   "game",
+   "capture",
+   "outline"
+  ]
+ },
+ {
+  "path": "game.svg",
+  "name": "Game",
+  "tags": [
+   "game",
+   "outline"
+  ]
+ },
+ {
+  "path": "gap-horizontal--filled.svg",
+  "name": "Gap Horizontal (filled)",
+  "tags": [
+   "gap",
+   "horizontal",
+   "filled"
+  ]
+ },
+ {
+  "path": "gap-horizontal.svg",
+  "name": "Gap Horizontal",
+  "tags": [
+   "gap",
+   "horizontal",
+   "outline"
+  ]
+ },
+ {
+  "path": "gap-vertical--filled.svg",
+  "name": "Gap Vertical (filled)",
+  "tags": [
+   "gap",
+   "vertical",
+   "filled"
+  ]
+ },
+ {
+  "path": "gap-vertical.svg",
+  "name": "Gap Vertical",
+  "tags": [
+   "gap",
+   "vertical",
+   "outline"
+  ]
+ },
+ {
+  "path": "globe--filled.svg",
+  "name": "Globe (filled)",
+  "tags": [
+   "globe",
+   "filled"
+  ]
+ },
+ {
+  "path": "globe-add--filled.svg",
+  "name": "Globe Add (filled)",
+  "tags": [
+   "globe",
+   "add",
+   "filled"
+  ]
+ },
+ {
+  "path": "globe-add.svg",
+  "name": "Globe Add",
+  "tags": [
+   "globe",
+   "add",
+   "outline"
+  ]
+ },
+ {
+  "path": "globe.svg",
+  "name": "Globe",
+  "tags": [
+   "globe",
+   "outline"
+  ]
+ },
+ {
+  "path": "green-screen.svg",
+  "name": "Green Screen",
+  "tags": [
+   "green",
+   "screen",
+   "outline"
+  ]
+ },
+ {
+  "path": "grid--filled.svg",
+  "name": "Grid (filled)",
+  "tags": [
+   "grid",
+   "filled"
+  ]
+ },
+ {
+  "path": "grid.svg",
+  "name": "Grid",
+  "tags": [
+   "grid",
+   "outline"
+  ]
+ },
+ {
+  "path": "group--filled.svg",
+  "name": "Group (filled)",
+  "tags": [
+   "group",
+   "filled"
+  ]
+ },
+ {
+  "path": "group.svg",
+  "name": "Group",
+  "tags": [
+   "group",
+   "outline"
+  ]
+ },
+ {
+  "path": "hand-point-up.svg",
+  "name": "Hand Point Up",
+  "tags": [
+   "hand",
+   "point",
+   "up",
+   "outline"
+  ]
+ },
+ {
+  "path": "hdmi--filled.svg",
+  "name": "Hdmi (filled)",
+  "tags": [
+   "hdmi",
+   "filled"
+  ]
+ },
+ {
+  "path": "hdmi.svg",
+  "name": "Hdmi",
+  "tags": [
+   "hdmi",
+   "outline"
+  ]
+ },
+ {
+  "path": "hdr.svg",
+  "name": "Hdr",
+  "tags": [
+   "hdr",
+   "outline"
+  ]
+ },
+ {
+  "path": "headphones--filled.svg",
+  "name": "Headphones (filled)",
+  "tags": [
+   "headphones",
+   "filled"
+  ]
+ },
+ {
+  "path": "headphones-add--filled.svg",
+  "name": "Headphones Add (filled)",
+  "tags": [
+   "headphones",
+   "add",
+   "filled"
+  ]
+ },
+ {
+  "path": "headphones-add.svg",
+  "name": "Headphones Add",
+  "tags": [
+   "headphones",
+   "add",
+   "outline"
+  ]
+ },
+ {
+  "path": "headphones-off--filled.svg",
+  "name": "Headphones Off (filled)",
+  "tags": [
+   "headphones",
+   "off",
+   "filled"
+  ]
+ },
+ {
+  "path": "headphones-off.svg",
+  "name": "Headphones Off",
+  "tags": [
+   "headphones",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "headphones-switch-to--filled.svg",
+  "name": "Headphones Switch To (filled)",
+  "tags": [
+   "headphones",
+   "switch",
+   "to",
+   "filled"
+  ]
+ },
+ {
+  "path": "headphones-switch-to.svg",
+  "name": "Headphones Switch To",
+  "tags": [
+   "headphones",
+   "switch",
+   "to",
+   "outline"
+  ]
+ },
+ {
+  "path": "headphones.svg",
+  "name": "Headphones",
+  "tags": [
+   "headphones",
+   "outline"
+  ]
+ },
+ {
+  "path": "heart--filled.svg",
+  "name": "Heart (filled)",
+  "tags": [
+   "heart",
+   "filled"
+  ]
+ },
+ {
+  "path": "heart.svg",
+  "name": "Heart",
+  "tags": [
+   "heart",
+   "outline"
+  ]
+ },
+ {
+  "path": "heat-sink.svg",
+  "name": "Heat Sink",
+  "tags": [
+   "heat",
+   "sink",
+   "outline"
+  ]
+ },
+ {
+  "path": "help--filled.svg",
+  "name": "Help (filled)",
+  "tags": [
+   "help",
+   "filled"
+  ]
+ },
+ {
+  "path": "help.svg",
+  "name": "Help",
+  "tags": [
+   "help",
+   "outline"
+  ]
+ },
+ {
+  "path": "hexagon--filled.svg",
+  "name": "Hexagon (filled)",
+  "tags": [
+   "hexagon",
+   "filled"
+  ]
+ },
+ {
+  "path": "hexagon.svg",
+  "name": "Hexagon",
+  "tags": [
+   "hexagon",
+   "outline"
+  ]
+ },
+ {
+  "path": "home--filled.svg",
+  "name": "Home (filled)",
+  "tags": [
+   "home",
+   "filled"
+  ]
+ },
+ {
+  "path": "home.svg",
+  "name": "Home",
+  "tags": [
+   "home",
+   "outline"
+  ]
+ },
+ {
+  "path": "hotkey--filled.svg",
+  "name": "Hotkey (filled)",
+  "tags": [
+   "hotkey",
+   "filled"
+  ]
+ },
+ {
+  "path": "hotkey.svg",
+  "name": "Hotkey",
+  "tags": [
+   "hotkey",
+   "outline"
+  ]
+ },
+ {
+  "path": "image--filled.svg",
+  "name": "Image (filled)",
+  "tags": [
+   "image",
+   "filled"
+  ]
+ },
+ {
+  "path": "image-check--filled.svg",
+  "name": "Image Check (filled)",
+  "tags": [
+   "image",
+   "check",
+   "filled"
+  ]
+ },
+ {
+  "path": "image-check.svg",
+  "name": "Image Check",
+  "tags": [
+   "image",
+   "check",
+   "outline"
+  ]
+ },
+ {
+  "path": "image.svg",
+  "name": "Image",
+  "tags": [
+   "image",
+   "outline"
+  ]
+ },
+ {
+  "path": "inbox--filled.svg",
+  "name": "Inbox (filled)",
+  "tags": [
+   "inbox",
+   "filled"
+  ]
+ },
+ {
+  "path": "inbox.svg",
+  "name": "Inbox",
+  "tags": [
+   "inbox",
+   "outline"
+  ]
+ },
+ {
+  "path": "info--filled.svg",
+  "name": "Info (filled)",
+  "tags": [
+   "info",
+   "filled"
+  ]
+ },
+ {
+  "path": "info.svg",
+  "name": "Info",
+  "tags": [
+   "info",
+   "outline"
+  ]
+ },
+ {
+  "path": "infobar--filled.svg",
+  "name": "Infobar (filled)",
+  "tags": [
+   "infobar",
+   "filled"
+  ]
+ },
+ {
+  "path": "infobar.svg",
+  "name": "Infobar",
+  "tags": [
+   "infobar",
+   "outline"
+  ]
+ },
+ {
+  "path": "italic.svg",
+  "name": "Italic",
+  "tags": [
+   "italic",
+   "outline"
+  ]
+ },
+ {
+  "path": "key--filled.svg",
+  "name": "Key (filled)",
+  "tags": [
+   "key",
+   "filled"
+  ]
+ },
+ {
+  "path": "key-light--filled.svg",
+  "name": "Key Light (filled)",
+  "tags": [
+   "key",
+   "light",
+   "filled"
+  ]
+ },
+ {
+  "path": "key-light-air--filled.svg",
+  "name": "Key Light Air (filled)",
+  "tags": [
+   "key",
+   "light",
+   "air",
+   "filled"
+  ]
+ },
+ {
+  "path": "key-light-air-off--filled.svg",
+  "name": "Key Light Air Off (filled)",
+  "tags": [
+   "key",
+   "light",
+   "air",
+   "off",
+   "filled"
+  ]
+ },
+ {
+  "path": "key-light-air-off.svg",
+  "name": "Key Light Air Off",
+  "tags": [
+   "key",
+   "light",
+   "air",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "key-light-air-power--filled.svg",
+  "name": "Key Light Air Power (filled)",
+  "tags": [
+   "key",
+   "light",
+   "air",
+   "power",
+   "filled"
+  ]
+ },
+ {
+  "path": "key-light-air-power.svg",
+  "name": "Key Light Air Power",
+  "tags": [
+   "key",
+   "light",
+   "air",
+   "power",
+   "outline"
+  ]
+ },
+ {
+  "path": "key-light-air.svg",
+  "name": "Key Light Air",
+  "tags": [
+   "key",
+   "light",
+   "air",
+   "outline"
+  ]
+ },
+ {
+  "path": "key-light-mini--filled.svg",
+  "name": "Key Light Mini (filled)",
+  "tags": [
+   "key",
+   "light",
+   "mini",
+   "filled"
+  ]
+ },
+ {
+  "path": "key-light-mini-off--filled.svg",
+  "name": "Key Light Mini Off (filled)",
+  "tags": [
+   "key",
+   "light",
+   "mini",
+   "off",
+   "filled"
+  ]
+ },
+ {
+  "path": "key-light-mini-off.svg",
+  "name": "Key Light Mini Off",
+  "tags": [
+   "key",
+   "light",
+   "mini",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "key-light-mini-power--filled.svg",
+  "name": "Key Light Mini Power (filled)",
+  "tags": [
+   "key",
+   "light",
+   "mini",
+   "power",
+   "filled"
+  ]
+ },
+ {
+  "path": "key-light-mini-power.svg",
+  "name": "Key Light Mini Power",
+  "tags": [
+   "key",
+   "light",
+   "mini",
+   "power",
+   "outline"
+  ]
+ },
+ {
+  "path": "key-light-mini.svg",
+  "name": "Key Light Mini",
+  "tags": [
+   "key",
+   "light",
+   "mini",
+   "outline"
+  ]
+ },
+ {
+  "path": "key-light-neo--filled.svg",
+  "name": "Key Light Neo (filled)",
+  "tags": [
+   "key",
+   "light",
+   "neo",
+   "filled"
+  ]
+ },
+ {
+  "path": "key-light-neo-off--filled.svg",
+  "name": "Key Light Neo Off (filled)",
+  "tags": [
+   "key",
+   "light",
+   "neo",
+   "off",
+   "filled"
+  ]
+ },
+ {
+  "path": "key-light-neo-off.svg",
+  "name": "Key Light Neo Off",
+  "tags": [
+   "key",
+   "light",
+   "neo",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "key-light-neo-power--filled.svg",
+  "name": "Key Light Neo Power (filled)",
+  "tags": [
+   "key",
+   "light",
+   "neo",
+   "power",
+   "filled"
+  ]
+ },
+ {
+  "path": "key-light-neo-power.svg",
+  "name": "Key Light Neo Power",
+  "tags": [
+   "key",
+   "light",
+   "neo",
+   "power",
+   "outline"
+  ]
+ },
+ {
+  "path": "key-light-neo.svg",
+  "name": "Key Light Neo",
+  "tags": [
+   "key",
+   "light",
+   "neo",
+   "outline"
+  ]
+ },
+ {
+  "path": "key-light-off--filled.svg",
+  "name": "Key Light Off (filled)",
+  "tags": [
+   "key",
+   "light",
+   "off",
+   "filled"
+  ]
+ },
+ {
+  "path": "key-light-off.svg",
+  "name": "Key Light Off",
+  "tags": [
+   "key",
+   "light",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "key-light-power--filled.svg",
+  "name": "Key Light Power (filled)",
+  "tags": [
+   "key",
+   "light",
+   "power",
+   "filled"
+  ]
+ },
+ {
+  "path": "key-light-power.svg",
+  "name": "Key Light Power",
+  "tags": [
+   "key",
+   "light",
+   "power",
+   "outline"
+  ]
+ },
+ {
+  "path": "key-light.svg",
+  "name": "Key Light",
+  "tags": [
+   "key",
+   "light",
+   "outline"
+  ]
+ },
+ {
+  "path": "key.svg",
+  "name": "Key",
+  "tags": [
+   "key",
+   "outline"
+  ]
+ },
+ {
+  "path": "keyboard--filled.svg",
+  "name": "Keyboard (filled)",
+  "tags": [
+   "keyboard",
+   "filled"
+  ]
+ },
+ {
+  "path": "keyboard-emoji--filled.svg",
+  "name": "Keyboard Emoji (filled)",
+  "tags": [
+   "keyboard",
+   "emoji",
+   "filled"
+  ]
+ },
+ {
+  "path": "keyboard-emoji.svg",
+  "name": "Keyboard Emoji",
+  "tags": [
+   "keyboard",
+   "emoji",
+   "outline"
+  ]
+ },
+ {
+  "path": "keyboard.svg",
+  "name": "Keyboard",
+  "tags": [
+   "keyboard",
+   "outline"
+  ]
+ },
+ {
+  "path": "laptop--filled.svg",
+  "name": "Laptop (filled)",
+  "tags": [
+   "laptop",
+   "filled"
+  ]
+ },
+ {
+  "path": "laptop.svg",
+  "name": "Laptop",
+  "tags": [
+   "laptop",
+   "outline"
+  ]
+ },
+ {
+  "path": "layers--filled.svg",
+  "name": "Layers (filled)",
+  "tags": [
+   "layers",
+   "filled"
+  ]
+ },
+ {
+  "path": "layers.svg",
+  "name": "Layers",
+  "tags": [
+   "layers",
+   "outline"
+  ]
+ },
+ {
+  "path": "learn--filled.svg",
+  "name": "Learn (filled)",
+  "tags": [
+   "learn",
+   "filled"
+  ]
+ },
+ {
+  "path": "learn.svg",
+  "name": "Learn",
+  "tags": [
+   "learn",
+   "outline"
+  ]
+ },
+ {
+  "path": "lens--filled.svg",
+  "name": "Lens (filled)",
+  "tags": [
+   "lens",
+   "filled"
+  ]
+ },
+ {
+  "path": "lens-check--filled.svg",
+  "name": "Lens Check (filled)",
+  "tags": [
+   "lens",
+   "check",
+   "filled"
+  ]
+ },
+ {
+  "path": "lens-check.svg",
+  "name": "Lens Check",
+  "tags": [
+   "lens",
+   "check",
+   "outline"
+  ]
+ },
+ {
+  "path": "lens.svg",
+  "name": "Lens",
+  "tags": [
+   "lens",
+   "outline"
+  ]
+ },
+ {
+  "path": "library--filled.svg",
+  "name": "Library (filled)",
+  "tags": [
+   "library",
+   "filled"
+  ]
+ },
+ {
+  "path": "library.svg",
+  "name": "Library",
+  "tags": [
+   "library",
+   "outline"
+  ]
+ },
+ {
+  "path": "light-strip--filled.svg",
+  "name": "Light Strip (filled)",
+  "tags": [
+   "light",
+   "strip",
+   "filled"
+  ]
+ },
+ {
+  "path": "light-strip-off--filled.svg",
+  "name": "Light Strip Off (filled)",
+  "tags": [
+   "light",
+   "strip",
+   "off",
+   "filled"
+  ]
+ },
+ {
+  "path": "light-strip-off.svg",
+  "name": "Light Strip Off",
+  "tags": [
+   "light",
+   "strip",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "light-strip-power--filled.svg",
+  "name": "Light Strip Power (filled)",
+  "tags": [
+   "light",
+   "strip",
+   "power",
+   "filled"
+  ]
+ },
+ {
+  "path": "light-strip-power.svg",
+  "name": "Light Strip Power",
+  "tags": [
+   "light",
+   "strip",
+   "power",
+   "outline"
+  ]
+ },
+ {
+  "path": "light-strip.svg",
+  "name": "Light Strip",
+  "tags": [
+   "light",
+   "strip",
+   "outline"
+  ]
+ },
+ {
+  "path": "link-broken.svg",
+  "name": "Link Broken",
+  "tags": [
+   "link",
+   "broken",
+   "outline"
+  ]
+ },
+ {
+  "path": "link.svg",
+  "name": "Link",
+  "tags": [
+   "link",
+   "outline"
+  ]
+ },
+ {
+  "path": "list.svg",
+  "name": "List",
+  "tags": [
+   "list",
+   "outline"
+  ]
+ },
+ {
+  "path": "location--filled.svg",
+  "name": "Location (filled)",
+  "tags": [
+   "location",
+   "filled"
+  ]
+ },
+ {
+  "path": "location.svg",
+  "name": "Location",
+  "tags": [
+   "location",
+   "outline"
+  ]
+ },
+ {
+  "path": "lock--filled.svg",
+  "name": "Lock (filled)",
+  "tags": [
+   "lock",
+   "filled"
+  ]
+ },
+ {
+  "path": "lock-open--filled.svg",
+  "name": "Lock Open (filled)",
+  "tags": [
+   "lock",
+   "open",
+   "filled"
+  ]
+ },
+ {
+  "path": "lock-open.svg",
+  "name": "Lock Open",
+  "tags": [
+   "lock",
+   "open",
+   "outline"
+  ]
+ },
+ {
+  "path": "lock.svg",
+  "name": "Lock",
+  "tags": [
+   "lock",
+   "outline"
+  ]
+ },
+ {
+  "path": "logo4kcu--filled.svg",
+  "name": "Logo 4kcu (filled)",
+  "tags": [
+   "logo4kcu",
+   "filled"
+  ]
+ },
+ {
+  "path": "logo4kcu.svg",
+  "name": "Logo 4kcu",
+  "tags": [
+   "logo4kcu",
+   "outline"
+  ]
+ },
+ {
+  "path": "lut--filled.svg",
+  "name": "Lut (filled)",
+  "tags": [
+   "lut",
+   "filled"
+  ]
+ },
+ {
+  "path": "lut.svg",
+  "name": "Lut",
+  "tags": [
+   "lut",
+   "outline"
+  ]
+ },
+ {
+  "path": "magic-wand--filled.svg",
+  "name": "Magic Wand (filled)",
+  "tags": [
+   "magic",
+   "wand",
+   "filled"
+  ]
+ },
+ {
+  "path": "magic-wand.svg",
+  "name": "Magic Wand",
+  "tags": [
+   "magic",
+   "wand",
+   "outline"
+  ]
+ },
+ {
+  "path": "mail--filled.svg",
+  "name": "Mail (filled)",
+  "tags": [
+   "mail",
+   "filled"
+  ]
+ },
+ {
+  "path": "mail.svg",
+  "name": "Mail",
+  "tags": [
+   "mail",
+   "outline"
+  ]
+ },
+ {
+  "path": "margin-decrease.svg",
+  "name": "Margin Decrease",
+  "tags": [
+   "margin",
+   "decrease",
+   "outline"
+  ]
+ },
+ {
+  "path": "margin-increase.svg",
+  "name": "Margin Increase",
+  "tags": [
+   "margin",
+   "increase",
+   "outline"
+  ]
+ },
+ {
+  "path": "margin-set.svg",
+  "name": "Margin Set",
+  "tags": [
+   "margin",
+   "set",
+   "outline"
+  ]
+ },
+ {
+  "path": "margin-x-decrease.svg",
+  "name": "Margin XDecrease",
+  "tags": [
+   "margin",
+   "x",
+   "decrease",
+   "outline"
+  ]
+ },
+ {
+  "path": "margin-x-increase.svg",
+  "name": "Margin XIncrease",
+  "tags": [
+   "margin",
+   "x",
+   "increase",
+   "outline"
+  ]
+ },
+ {
+  "path": "margin-x-set.svg",
+  "name": "Margin XSet",
+  "tags": [
+   "margin",
+   "x",
+   "set",
+   "outline"
+  ]
+ },
+ {
+  "path": "margin-x.svg",
+  "name": "Margin X",
+  "tags": [
+   "margin",
+   "x",
+   "outline"
+  ]
+ },
+ {
+  "path": "margin-y-set.svg",
+  "name": "Margin YSet",
+  "tags": [
+   "margin",
+   "y",
+   "set",
+   "outline"
+  ]
+ },
+ {
+  "path": "margin-y.svg",
+  "name": "Margin Y",
+  "tags": [
+   "margin",
+   "y",
+   "outline"
+  ]
+ },
+ {
+  "path": "margin.svg",
+  "name": "Margin",
+  "tags": [
+   "margin",
+   "outline"
+  ]
+ },
+ {
+  "path": "marketplace-brand--filled.svg",
+  "name": "Marketplace Brand (filled)",
+  "tags": [
+   "marketplace",
+   "brand",
+   "filled"
+  ]
+ },
+ {
+  "path": "marketplace-brand.svg",
+  "name": "Marketplace Brand",
+  "tags": [
+   "marketplace",
+   "brand",
+   "outline"
+  ]
+ },
+ {
+  "path": "marketplace-create--filled.svg",
+  "name": "Marketplace Create (filled)",
+  "tags": [
+   "marketplace",
+   "create",
+   "filled"
+  ]
+ },
+ {
+  "path": "marketplace-create.svg",
+  "name": "Marketplace Create",
+  "tags": [
+   "marketplace",
+   "create",
+   "outline"
+  ]
+ },
+ {
+  "path": "marketplace-engage--filled.svg",
+  "name": "Marketplace Engage (filled)",
+  "tags": [
+   "marketplace",
+   "engage",
+   "filled"
+  ]
+ },
+ {
+  "path": "marketplace-engage.svg",
+  "name": "Marketplace Engage",
+  "tags": [
+   "marketplace",
+   "engage",
+   "outline"
+  ]
+ },
+ {
+  "path": "maximize.svg",
+  "name": "Maximize",
+  "tags": [
+   "maximize",
+   "outline"
+  ]
+ },
+ {
+  "path": "media-cast--filled.svg",
+  "name": "Media Cast (filled)",
+  "tags": [
+   "media",
+   "cast",
+   "filled"
+  ]
+ },
+ {
+  "path": "media-cast.svg",
+  "name": "Media Cast",
+  "tags": [
+   "media",
+   "cast",
+   "outline"
+  ]
+ },
+ {
+  "path": "menu.svg",
+  "name": "Menu",
+  "tags": [
+   "menu",
+   "outline"
+  ]
+ },
+ {
+  "path": "message--filled.svg",
+  "name": "Message (filled)",
+  "tags": [
+   "message",
+   "filled"
+  ]
+ },
+ {
+  "path": "message-add--filled.svg",
+  "name": "Message Add (filled)",
+  "tags": [
+   "message",
+   "add",
+   "filled"
+  ]
+ },
+ {
+  "path": "message-add.svg",
+  "name": "Message Add",
+  "tags": [
+   "message",
+   "add",
+   "outline"
+  ]
+ },
+ {
+  "path": "message-check--filled.svg",
+  "name": "Message Check (filled)",
+  "tags": [
+   "message",
+   "check",
+   "filled"
+  ]
+ },
+ {
+  "path": "message-check.svg",
+  "name": "Message Check",
+  "tags": [
+   "message",
+   "check",
+   "outline"
+  ]
+ },
+ {
+  "path": "message-down-to-bottom--filled.svg",
+  "name": "Message Down To Bottom (filled)",
+  "tags": [
+   "message",
+   "down",
+   "to",
+   "bottom",
+   "filled"
+  ]
+ },
+ {
+  "path": "message-down-to-bottom.svg",
+  "name": "Message Down To Bottom",
+  "tags": [
+   "message",
+   "down",
+   "to",
+   "bottom",
+   "outline"
+  ]
+ },
+ {
+  "path": "message-set--filled.svg",
+  "name": "Message Set (filled)",
+  "tags": [
+   "message",
+   "set",
+   "filled"
+  ]
+ },
+ {
+  "path": "message-set.svg",
+  "name": "Message Set",
+  "tags": [
+   "message",
+   "set",
+   "outline"
+  ]
+ },
+ {
+  "path": "message-up-to-top--filled.svg",
+  "name": "Message Up To Top (filled)",
+  "tags": [
+   "message",
+   "up",
+   "to",
+   "top",
+   "filled"
+  ]
+ },
+ {
+  "path": "message-up-to-top.svg",
+  "name": "Message Up To Top",
+  "tags": [
+   "message",
+   "up",
+   "to",
+   "top",
+   "outline"
+  ]
+ },
+ {
+  "path": "message.svg",
+  "name": "Message",
+  "tags": [
+   "message",
+   "outline"
+  ]
+ },
+ {
+  "path": "metering-center-weighted--filled.svg",
+  "name": "Metering Center Weighted (filled)",
+  "tags": [
+   "metering",
+   "center",
+   "weighted",
+   "filled"
+  ]
+ },
+ {
+  "path": "metering-center-weighted.svg",
+  "name": "Metering Center Weighted",
+  "tags": [
+   "metering",
+   "center",
+   "weighted",
+   "outline"
+  ]
+ },
+ {
+  "path": "metering-evaluative.svg",
+  "name": "Metering Evaluative",
+  "tags": [
+   "metering",
+   "evaluative",
+   "outline"
+  ]
+ },
+ {
+  "path": "metering-spot--filled.svg",
+  "name": "Metering Spot (filled)",
+  "tags": [
+   "metering",
+   "spot",
+   "filled"
+  ]
+ },
+ {
+  "path": "metering-spot.svg",
+  "name": "Metering Spot",
+  "tags": [
+   "metering",
+   "spot",
+   "outline"
+  ]
+ },
+ {
+  "path": "mic-arm.svg",
+  "name": "Mic Arm",
+  "tags": [
+   "mic",
+   "arm",
+   "outline"
+  ]
+ },
+ {
+  "path": "microphone--filled.svg",
+  "name": "Microphone (filled)",
+  "tags": [
+   "microphone",
+   "filled"
+  ]
+ },
+ {
+  "path": "microphone-off--filled.svg",
+  "name": "Microphone Off (filled)",
+  "tags": [
+   "microphone",
+   "off",
+   "filled"
+  ]
+ },
+ {
+  "path": "microphone-off.svg",
+  "name": "Microphone Off",
+  "tags": [
+   "microphone",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "microphone.svg",
+  "name": "Microphone",
+  "tags": [
+   "microphone",
+   "outline"
+  ]
+ },
+ {
+  "path": "minimize.svg",
+  "name": "Minimize",
+  "tags": [
+   "minimize",
+   "outline"
+  ]
+ },
+ {
+  "path": "mobile--filled.svg",
+  "name": "Mobile (filled)",
+  "tags": [
+   "mobile",
+   "filled"
+  ]
+ },
+ {
+  "path": "mobile.svg",
+  "name": "Mobile",
+  "tags": [
+   "mobile",
+   "outline"
+  ]
+ },
+ {
+  "path": "money--filled.svg",
+  "name": "Money (filled)",
+  "tags": [
+   "money",
+   "filled"
+  ]
+ },
+ {
+  "path": "money.svg",
+  "name": "Money",
+  "tags": [
+   "money",
+   "outline"
+  ]
+ },
+ {
+  "path": "more-alt.svg",
+  "name": "More Alt",
+  "tags": [
+   "more",
+   "alt",
+   "outline"
+  ]
+ },
+ {
+  "path": "more-circle.svg",
+  "name": "More Circle",
+  "tags": [
+   "more",
+   "circle",
+   "outline"
+  ]
+ },
+ {
+  "path": "more.svg",
+  "name": "More",
+  "tags": [
+   "more",
+   "outline"
+  ]
+ },
+ {
+  "path": "mountain--filled.svg",
+  "name": "Mountain (filled)",
+  "tags": [
+   "mountain",
+   "filled"
+  ]
+ },
+ {
+  "path": "mountain.svg",
+  "name": "Mountain",
+  "tags": [
+   "mountain",
+   "outline"
+  ]
+ },
+ {
+  "path": "mouse--filled.svg",
+  "name": "Mouse (filled)",
+  "tags": [
+   "mouse",
+   "filled"
+  ]
+ },
+ {
+  "path": "mouse.svg",
+  "name": "Mouse",
+  "tags": [
+   "mouse",
+   "outline"
+  ]
+ },
+ {
+  "path": "move-to-bottom.svg",
+  "name": "Move To Bottom",
+  "tags": [
+   "move",
+   "to",
+   "bottom",
+   "outline"
+  ]
+ },
+ {
+  "path": "move-to-center.svg",
+  "name": "Move To Center",
+  "tags": [
+   "move",
+   "to",
+   "center",
+   "outline"
+  ]
+ },
+ {
+  "path": "move-to-top.svg",
+  "name": "Move To Top",
+  "tags": [
+   "move",
+   "to",
+   "top",
+   "outline"
+  ]
+ },
+ {
+  "path": "move.svg",
+  "name": "Move",
+  "tags": [
+   "move",
+   "outline"
+  ]
+ },
+ {
+  "path": "multi-action--filled.svg",
+  "name": "Multi Action (filled)",
+  "tags": [
+   "multi",
+   "action",
+   "filled"
+  ]
+ },
+ {
+  "path": "multi-action-switch--filled.svg",
+  "name": "Multi Action Switch (filled)",
+  "tags": [
+   "multi",
+   "action",
+   "switch",
+   "filled"
+  ]
+ },
+ {
+  "path": "multi-action-switch.svg",
+  "name": "Multi Action Switch",
+  "tags": [
+   "multi",
+   "action",
+   "switch",
+   "outline"
+  ]
+ },
+ {
+  "path": "multi-action.svg",
+  "name": "Multi Action",
+  "tags": [
+   "multi",
+   "action",
+   "outline"
+  ]
+ },
+ {
+  "path": "multi-mount.svg",
+  "name": "Multi Mount",
+  "tags": [
+   "multi",
+   "mount",
+   "outline"
+  ]
+ },
+ {
+  "path": "music--filled.svg",
+  "name": "Music (filled)",
+  "tags": [
+   "music",
+   "filled"
+  ]
+ },
+ {
+  "path": "music-add--filled.svg",
+  "name": "Music Add (filled)",
+  "tags": [
+   "music",
+   "add",
+   "filled"
+  ]
+ },
+ {
+  "path": "music-add.svg",
+  "name": "Music Add",
+  "tags": [
+   "music",
+   "add",
+   "outline"
+  ]
+ },
+ {
+  "path": "music.svg",
+  "name": "Music",
+  "tags": [
+   "music",
+   "outline"
+  ]
+ },
+ {
+  "path": "new--filled.svg",
+  "name": "New (filled)",
+  "tags": [
+   "new",
+   "filled"
+  ]
+ },
+ {
+  "path": "new.svg",
+  "name": "New",
+  "tags": [
+   "new",
+   "outline"
+  ]
+ },
+ {
+  "path": "nfc--filled.svg",
+  "name": "Nfc (filled)",
+  "tags": [
+   "nfc",
+   "filled"
+  ]
+ },
+ {
+  "path": "nfc.svg",
+  "name": "Nfc",
+  "tags": [
+   "nfc",
+   "outline"
+  ]
+ },
+ {
+  "path": "night--filled.svg",
+  "name": "Night (filled)",
+  "tags": [
+   "night",
+   "filled"
+  ]
+ },
+ {
+  "path": "night.svg",
+  "name": "Night",
+  "tags": [
+   "night",
+   "outline"
+  ]
+ },
+ {
+  "path": "not-allowed.svg",
+  "name": "Not Allowed",
+  "tags": [
+   "not",
+   "allowed",
+   "outline"
+  ]
+ },
+ {
+  "path": "notification--filled.svg",
+  "name": "Notification (filled)",
+  "tags": [
+   "notification",
+   "filled"
+  ]
+ },
+ {
+  "path": "notification-off--filled.svg",
+  "name": "Notification Off (filled)",
+  "tags": [
+   "notification",
+   "off",
+   "filled"
+  ]
+ },
+ {
+  "path": "notification-off.svg",
+  "name": "Notification Off",
+  "tags": [
+   "notification",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "notification.svg",
+  "name": "Notification",
+  "tags": [
+   "notification",
+   "outline"
+  ]
+ },
+ {
+  "path": "number0-square--filled.svg",
+  "name": "Number 0Square (filled)",
+  "tags": [
+   "number0",
+   "square",
+   "filled"
+  ]
+ },
+ {
+  "path": "number0-square.svg",
+  "name": "Number 0Square",
+  "tags": [
+   "number0",
+   "square",
+   "outline"
+  ]
+ },
+ {
+  "path": "number0.svg",
+  "name": "Number 0",
+  "tags": [
+   "number0",
+   "outline"
+  ]
+ },
+ {
+  "path": "number1-square--filled.svg",
+  "name": "Number 1Square (filled)",
+  "tags": [
+   "number1",
+   "square",
+   "filled"
+  ]
+ },
+ {
+  "path": "number1-square.svg",
+  "name": "Number 1Square",
+  "tags": [
+   "number1",
+   "square",
+   "outline"
+  ]
+ },
+ {
+  "path": "number1.svg",
+  "name": "Number 1",
+  "tags": [
+   "number1",
+   "outline"
+  ]
+ },
+ {
+  "path": "number10-square--filled.svg",
+  "name": "Number 10Square (filled)",
+  "tags": [
+   "number10",
+   "square",
+   "filled"
+  ]
+ },
+ {
+  "path": "number10-square.svg",
+  "name": "Number 10Square",
+  "tags": [
+   "number10",
+   "square",
+   "outline"
+  ]
+ },
+ {
+  "path": "number10.svg",
+  "name": "Number 10",
+  "tags": [
+   "number10",
+   "outline"
+  ]
+ },
+ {
+  "path": "number2-square--filled.svg",
+  "name": "Number 2Square (filled)",
+  "tags": [
+   "number2",
+   "square",
+   "filled"
+  ]
+ },
+ {
+  "path": "number2-square.svg",
+  "name": "Number 2Square",
+  "tags": [
+   "number2",
+   "square",
+   "outline"
+  ]
+ },
+ {
+  "path": "number2.svg",
+  "name": "Number 2",
+  "tags": [
+   "number2",
+   "outline"
+  ]
+ },
+ {
+  "path": "number3-square--filled.svg",
+  "name": "Number 3Square (filled)",
+  "tags": [
+   "number3",
+   "square",
+   "filled"
+  ]
+ },
+ {
+  "path": "number3-square.svg",
+  "name": "Number 3Square",
+  "tags": [
+   "number3",
+   "square",
+   "outline"
+  ]
+ },
+ {
+  "path": "number3.svg",
+  "name": "Number 3",
+  "tags": [
+   "number3",
+   "outline"
+  ]
+ },
+ {
+  "path": "number4-square--filled.svg",
+  "name": "Number 4Square (filled)",
+  "tags": [
+   "number4",
+   "square",
+   "filled"
+  ]
+ },
+ {
+  "path": "number4-square.svg",
+  "name": "Number 4Square",
+  "tags": [
+   "number4",
+   "square",
+   "outline"
+  ]
+ },
+ {
+  "path": "number4.svg",
+  "name": "Number 4",
+  "tags": [
+   "number4",
+   "outline"
+  ]
+ },
+ {
+  "path": "number5-square--filled.svg",
+  "name": "Number 5Square (filled)",
+  "tags": [
+   "number5",
+   "square",
+   "filled"
+  ]
+ },
+ {
+  "path": "number5-square.svg",
+  "name": "Number 5Square",
+  "tags": [
+   "number5",
+   "square",
+   "outline"
+  ]
+ },
+ {
+  "path": "number5.svg",
+  "name": "Number 5",
+  "tags": [
+   "number5",
+   "outline"
+  ]
+ },
+ {
+  "path": "number6-square--filled.svg",
+  "name": "Number 6Square (filled)",
+  "tags": [
+   "number6",
+   "square",
+   "filled"
+  ]
+ },
+ {
+  "path": "number6-square.svg",
+  "name": "Number 6Square",
+  "tags": [
+   "number6",
+   "square",
+   "outline"
+  ]
+ },
+ {
+  "path": "number6.svg",
+  "name": "Number 6",
+  "tags": [
+   "number6",
+   "outline"
+  ]
+ },
+ {
+  "path": "number7-square--filled.svg",
+  "name": "Number 7Square (filled)",
+  "tags": [
+   "number7",
+   "square",
+   "filled"
+  ]
+ },
+ {
+  "path": "number7-square.svg",
+  "name": "Number 7Square",
+  "tags": [
+   "number7",
+   "square",
+   "outline"
+  ]
+ },
+ {
+  "path": "number7.svg",
+  "name": "Number 7",
+  "tags": [
+   "number7",
+   "outline"
+  ]
+ },
+ {
+  "path": "number8-square--filled.svg",
+  "name": "Number 8Square (filled)",
+  "tags": [
+   "number8",
+   "square",
+   "filled"
+  ]
+ },
+ {
+  "path": "number8-square.svg",
+  "name": "Number 8Square",
+  "tags": [
+   "number8",
+   "square",
+   "outline"
+  ]
+ },
+ {
+  "path": "number8.svg",
+  "name": "Number 8",
+  "tags": [
+   "number8",
+   "outline"
+  ]
+ },
+ {
+  "path": "number9-square--filled.svg",
+  "name": "Number 9Square (filled)",
+  "tags": [
+   "number9",
+   "square",
+   "filled"
+  ]
+ },
+ {
+  "path": "number9-square.svg",
+  "name": "Number 9Square",
+  "tags": [
+   "number9",
+   "square",
+   "outline"
+  ]
+ },
+ {
+  "path": "number9.svg",
+  "name": "Number 9",
+  "tags": [
+   "number9",
+   "outline"
+  ]
+ },
+ {
+  "path": "numbered-list.svg",
+  "name": "Numbered List",
+  "tags": [
+   "numbered",
+   "list",
+   "outline"
+  ]
+ },
+ {
+  "path": "octagon--filled.svg",
+  "name": "Octagon (filled)",
+  "tags": [
+   "octagon",
+   "filled"
+  ]
+ },
+ {
+  "path": "octagon.svg",
+  "name": "Octagon",
+  "tags": [
+   "octagon",
+   "outline"
+  ]
+ },
+ {
+  "path": "opacity-increase.svg",
+  "name": "Opacity Increase",
+  "tags": [
+   "opacity",
+   "increase",
+   "outline"
+  ]
+ },
+ {
+  "path": "opacity-set.svg",
+  "name": "Opacity Set",
+  "tags": [
+   "opacity",
+   "set",
+   "outline"
+  ]
+ },
+ {
+  "path": "opacity.svg",
+  "name": "Opacity",
+  "tags": [
+   "opacity",
+   "outline"
+  ]
+ },
+ {
+  "path": "package--filled.svg",
+  "name": "Package (filled)",
+  "tags": [
+   "package",
+   "filled"
+  ]
+ },
+ {
+  "path": "package.svg",
+  "name": "Package",
+  "tags": [
+   "package",
+   "outline"
+  ]
+ },
+ {
+  "path": "padding--filled.svg",
+  "name": "Padding (filled)",
+  "tags": [
+   "padding",
+   "filled"
+  ]
+ },
+ {
+  "path": "padding-bottom--filled.svg",
+  "name": "Padding Bottom (filled)",
+  "tags": [
+   "padding",
+   "bottom",
+   "filled"
+  ]
+ },
+ {
+  "path": "padding-bottom.svg",
+  "name": "Padding Bottom",
+  "tags": [
+   "padding",
+   "bottom",
+   "outline"
+  ]
+ },
+ {
+  "path": "padding-left--filled.svg",
+  "name": "Padding Left (filled)",
+  "tags": [
+   "padding",
+   "left",
+   "filled"
+  ]
+ },
+ {
+  "path": "padding-left.svg",
+  "name": "Padding Left",
+  "tags": [
+   "padding",
+   "left",
+   "outline"
+  ]
+ },
+ {
+  "path": "padding-right--filled.svg",
+  "name": "Padding Right (filled)",
+  "tags": [
+   "padding",
+   "right",
+   "filled"
+  ]
+ },
+ {
+  "path": "padding-right.svg",
+  "name": "Padding Right",
+  "tags": [
+   "padding",
+   "right",
+   "outline"
+  ]
+ },
+ {
+  "path": "padding-top--filled.svg",
+  "name": "Padding Top (filled)",
+  "tags": [
+   "padding",
+   "top",
+   "filled"
+  ]
+ },
+ {
+  "path": "padding-top.svg",
+  "name": "Padding Top",
+  "tags": [
+   "padding",
+   "top",
+   "outline"
+  ]
+ },
+ {
+  "path": "padding-x--filled.svg",
+  "name": "Padding X (filled)",
+  "tags": [
+   "padding",
+   "x",
+   "filled"
+  ]
+ },
+ {
+  "path": "padding-x.svg",
+  "name": "Padding X",
+  "tags": [
+   "padding",
+   "x",
+   "outline"
+  ]
+ },
+ {
+  "path": "padding-y--filled.svg",
+  "name": "Padding Y (filled)",
+  "tags": [
+   "padding",
+   "y",
+   "filled"
+  ]
+ },
+ {
+  "path": "padding-y.svg",
+  "name": "Padding Y",
+  "tags": [
+   "padding",
+   "y",
+   "outline"
+  ]
+ },
+ {
+  "path": "padding.svg",
+  "name": "Padding",
+  "tags": [
+   "padding",
+   "outline"
+  ]
+ },
+ {
+  "path": "palette--filled.svg",
+  "name": "Palette (filled)",
+  "tags": [
+   "palette",
+   "filled"
+  ]
+ },
+ {
+  "path": "palette.svg",
+  "name": "Palette",
+  "tags": [
+   "palette",
+   "outline"
+  ]
+ },
+ {
+  "path": "panel-left--filled.svg",
+  "name": "Panel Left (filled)",
+  "tags": [
+   "panel",
+   "left",
+   "filled"
+  ]
+ },
+ {
+  "path": "panel-left.svg",
+  "name": "Panel Left",
+  "tags": [
+   "panel",
+   "left",
+   "outline"
+  ]
+ },
+ {
+  "path": "panel-right--filled.svg",
+  "name": "Panel Right (filled)",
+  "tags": [
+   "panel",
+   "right",
+   "filled"
+  ]
+ },
+ {
+  "path": "panel-right.svg",
+  "name": "Panel Right",
+  "tags": [
+   "panel",
+   "right",
+   "outline"
+  ]
+ },
+ {
+  "path": "paste--filled.svg",
+  "name": "Paste (filled)",
+  "tags": [
+   "paste",
+   "filled"
+  ]
+ },
+ {
+  "path": "paste.svg",
+  "name": "Paste",
+  "tags": [
+   "paste",
+   "outline"
+  ]
+ },
+ {
+  "path": "pause--filled.svg",
+  "name": "Pause (filled)",
+  "tags": [
+   "pause",
+   "filled"
+  ]
+ },
+ {
+  "path": "pause.svg",
+  "name": "Pause",
+  "tags": [
+   "pause",
+   "outline"
+  ]
+ },
+ {
+  "path": "payment--filled.svg",
+  "name": "Payment (filled)",
+  "tags": [
+   "payment",
+   "filled"
+  ]
+ },
+ {
+  "path": "payment.svg",
+  "name": "Payment",
+  "tags": [
+   "payment",
+   "outline"
+  ]
+ },
+ {
+  "path": "pen-tool--filled.svg",
+  "name": "Pen Tool (filled)",
+  "tags": [
+   "pen",
+   "tool",
+   "filled"
+  ]
+ },
+ {
+  "path": "pen-tool.svg",
+  "name": "Pen Tool",
+  "tags": [
+   "pen",
+   "tool",
+   "outline"
+  ]
+ },
+ {
+  "path": "pentagon--filled.svg",
+  "name": "Pentagon (filled)",
+  "tags": [
+   "pentagon",
+   "filled"
+  ]
+ },
+ {
+  "path": "pentagon.svg",
+  "name": "Pentagon",
+  "tags": [
+   "pentagon",
+   "outline"
+  ]
+ },
+ {
+  "path": "person--filled.svg",
+  "name": "Person (filled)",
+  "tags": [
+   "person",
+   "filled"
+  ]
+ },
+ {
+  "path": "person.svg",
+  "name": "Person",
+  "tags": [
+   "person",
+   "outline"
+  ]
+ },
+ {
+  "path": "phone--filled.svg",
+  "name": "Phone (filled)",
+  "tags": [
+   "phone",
+   "filled"
+  ]
+ },
+ {
+  "path": "phone-voice--filled.svg",
+  "name": "Phone Voice (filled)",
+  "tags": [
+   "phone",
+   "voice",
+   "filled"
+  ]
+ },
+ {
+  "path": "phone-voice.svg",
+  "name": "Phone Voice",
+  "tags": [
+   "phone",
+   "voice",
+   "outline"
+  ]
+ },
+ {
+  "path": "phone.svg",
+  "name": "Phone",
+  "tags": [
+   "phone",
+   "outline"
+  ]
+ },
+ {
+  "path": "photo-grid--filled.svg",
+  "name": "Photo Grid (filled)",
+  "tags": [
+   "photo",
+   "grid",
+   "filled"
+  ]
+ },
+ {
+  "path": "photo-grid.svg",
+  "name": "Photo Grid",
+  "tags": [
+   "photo",
+   "grid",
+   "outline"
+  ]
+ },
+ {
+  "path": "pin--filled.svg",
+  "name": "Pin (filled)",
+  "tags": [
+   "pin",
+   "filled"
+  ]
+ },
+ {
+  "path": "pin.svg",
+  "name": "Pin",
+  "tags": [
+   "pin",
+   "outline"
+  ]
+ },
+ {
+  "path": "play--filled.svg",
+  "name": "Play (filled)",
+  "tags": [
    "play",
-   "joystick"
+   "filled"
+  ]
+ },
+ {
+  "path": "play-circle--filled.svg",
+  "name": "Play Circle (filled)",
+  "tags": [
+   "play",
+   "circle",
+   "filled"
+  ]
+ },
+ {
+  "path": "play-circle.svg",
+  "name": "Play Circle",
+  "tags": [
+   "play",
+   "circle",
+   "outline"
+  ]
+ },
+ {
+  "path": "play-pause--filled.svg",
+  "name": "Play Pause (filled)",
+  "tags": [
+   "play",
+   "pause",
+   "filled"
+  ]
+ },
+ {
+  "path": "play-pause.svg",
+  "name": "Play Pause",
+  "tags": [
+   "play",
+   "pause",
+   "outline"
+  ]
+ },
+ {
+  "path": "play.svg",
+  "name": "Play",
+  "tags": [
+   "play",
+   "outline"
+  ]
+ },
+ {
+  "path": "plugin--filled.svg",
+  "name": "Plugin (filled)",
+  "tags": [
+   "plugin",
+   "filled"
+  ]
+ },
+ {
+  "path": "plugin.svg",
+  "name": "Plugin",
+  "tags": [
+   "plugin",
+   "outline"
+  ]
+ },
+ {
+  "path": "podcast--filled.svg",
+  "name": "Podcast (filled)",
+  "tags": [
+   "podcast",
+   "filled"
+  ]
+ },
+ {
+  "path": "podcast.svg",
+  "name": "Podcast",
+  "tags": [
+   "podcast",
+   "outline"
+  ]
+ },
+ {
+  "path": "power-off.svg",
+  "name": "Power Off",
+  "tags": [
+   "power",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "power.svg",
+  "name": "Power",
+  "tags": [
+   "power",
+   "outline"
+  ]
+ },
+ {
+  "path": "presentation--filled.svg",
+  "name": "Presentation (filled)",
+  "tags": [
+   "presentation",
+   "filled"
+  ]
+ },
+ {
+  "path": "presentation-play--filled.svg",
+  "name": "Presentation Play (filled)",
+  "tags": [
+   "presentation",
+   "play",
+   "filled"
+  ]
+ },
+ {
+  "path": "presentation-play.svg",
+  "name": "Presentation Play",
+  "tags": [
+   "presentation",
+   "play",
+   "outline"
+  ]
+ },
+ {
+  "path": "presentation.svg",
+  "name": "Presentation",
+  "tags": [
+   "presentation",
+   "outline"
+  ]
+ },
+ {
+  "path": "profile--filled.svg",
+  "name": "Profile (filled)",
+  "tags": [
+   "profile",
+   "filled"
+  ]
+ },
+ {
+  "path": "profile-switch--filled.svg",
+  "name": "Profile Switch (filled)",
+  "tags": [
+   "profile",
+   "switch",
+   "filled"
+  ]
+ },
+ {
+  "path": "profile-switch.svg",
+  "name": "Profile Switch",
+  "tags": [
+   "profile",
+   "switch",
+   "outline"
+  ]
+ },
+ {
+  "path": "profile.svg",
+  "name": "Profile",
+  "tags": [
+   "profile",
+   "outline"
+  ]
+ },
+ {
+  "path": "prompter--filled.svg",
+  "name": "Prompter (filled)",
+  "tags": [
+   "prompter",
+   "filled"
+  ]
+ },
+ {
+  "path": "prompter.svg",
+  "name": "Prompter",
+  "tags": [
+   "prompter",
+   "outline"
+  ]
+ },
+ {
+  "path": "qr-code-scan.svg",
+  "name": "Qr Code Scan",
+  "tags": [
+   "qr",
+   "code",
+   "scan",
+   "outline"
+  ]
+ },
+ {
+  "path": "qr-code.svg",
+  "name": "Qr Code",
+  "tags": [
+   "qr",
+   "code",
+   "outline"
+  ]
+ },
+ {
+  "path": "question-mark.svg",
+  "name": "Question Mark",
+  "tags": [
+   "question",
+   "mark",
+   "outline"
+  ]
+ },
+ {
+  "path": "quote--filled.svg",
+  "name": "Quote (filled)",
+  "tags": [
+   "quote",
+   "filled"
+  ]
+ },
+ {
+  "path": "quote.svg",
+  "name": "Quote",
+  "tags": [
+   "quote",
+   "outline"
+  ]
+ },
+ {
+  "path": "receipt--filled.svg",
+  "name": "Receipt (filled)",
+  "tags": [
+   "receipt",
+   "filled"
+  ]
+ },
+ {
+  "path": "receipt.svg",
+  "name": "Receipt",
+  "tags": [
+   "receipt",
+   "outline"
+  ]
+ },
+ {
+  "path": "record--filled.svg",
+  "name": "Record (filled)",
+  "tags": [
+   "record",
+   "filled"
+  ]
+ },
+ {
+  "path": "record.svg",
+  "name": "Record",
+  "tags": [
+   "record",
+   "outline"
+  ]
+ },
+ {
+  "path": "redo.svg",
+  "name": "Redo",
+  "tags": [
+   "redo",
+   "outline"
+  ]
+ },
+ {
+  "path": "reflect.svg",
+  "name": "Reflect",
+  "tags": [
+   "reflect",
+   "outline"
+  ]
+ },
+ {
+  "path": "refresh.svg",
+  "name": "Refresh",
+  "tags": [
+   "refresh",
+   "outline"
+  ]
+ },
+ {
+  "path": "reset.svg",
+  "name": "Reset",
+  "tags": [
+   "reset",
+   "outline"
+  ]
+ },
+ {
+  "path": "ring-light--filled.svg",
+  "name": "Ring Light (filled)",
+  "tags": [
+   "ring",
+   "light",
+   "filled"
+  ]
+ },
+ {
+  "path": "ring-light-off--filled.svg",
+  "name": "Ring Light Off (filled)",
+  "tags": [
+   "ring",
+   "light",
+   "off",
+   "filled"
+  ]
+ },
+ {
+  "path": "ring-light-off.svg",
+  "name": "Ring Light Off",
+  "tags": [
+   "ring",
+   "light",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "ring-light-power--filled.svg",
+  "name": "Ring Light Power (filled)",
+  "tags": [
+   "ring",
+   "light",
+   "power",
+   "filled"
+  ]
+ },
+ {
+  "path": "ring-light-power.svg",
+  "name": "Ring Light Power",
+  "tags": [
+   "ring",
+   "light",
+   "power",
+   "outline"
+  ]
+ },
+ {
+  "path": "ring-light.svg",
+  "name": "Ring Light",
+  "tags": [
+   "ring",
+   "light",
+   "outline"
+  ]
+ },
+ {
+  "path": "rocket--filled.svg",
+  "name": "Rocket (filled)",
+  "tags": [
+   "rocket",
+   "filled"
+  ]
+ },
+ {
+  "path": "rocket.svg",
+  "name": "Rocket",
+  "tags": [
+   "rocket",
+   "outline"
+  ]
+ },
+ {
+  "path": "rotate.svg",
+  "name": "Rotate",
+  "tags": [
+   "rotate",
+   "outline"
+  ]
+ },
+ {
+  "path": "rotate180.svg",
+  "name": "Rotate 180",
+  "tags": [
+   "rotate180",
+   "outline"
+  ]
+ },
+ {
+  "path": "rotate360.svg",
+  "name": "Rotate 360",
+  "tags": [
+   "rotate360",
+   "outline"
+  ]
+ },
+ {
+  "path": "rss--filled.svg",
+  "name": "Rss (filled)",
+  "tags": [
+   "rss",
+   "filled"
+  ]
+ },
+ {
+  "path": "rss.svg",
+  "name": "Rss",
+  "tags": [
+   "rss",
+   "outline"
+  ]
+ },
+ {
+  "path": "save--filled.svg",
+  "name": "Save (filled)",
+  "tags": [
+   "save",
+   "filled"
+  ]
+ },
+ {
+  "path": "save.svg",
+  "name": "Save",
+  "tags": [
+   "save",
+   "outline"
+  ]
+ },
+ {
+  "path": "scene-collection--filled.svg",
+  "name": "Scene Collection (filled)",
+  "tags": [
+   "scene",
+   "collection",
+   "filled"
+  ]
+ },
+ {
+  "path": "scene-collection.svg",
+  "name": "Scene Collection",
+  "tags": [
+   "scene",
+   "collection",
+   "outline"
+  ]
+ },
+ {
+  "path": "screen-rotation--filled.svg",
+  "name": "Screen Rotation (filled)",
+  "tags": [
+   "screen",
+   "rotation",
+   "filled"
+  ]
+ },
+ {
+  "path": "screen-rotation.svg",
+  "name": "Screen Rotation",
+  "tags": [
+   "screen",
+   "rotation",
+   "outline"
+  ]
+ },
+ {
+  "path": "screenshot.svg",
+  "name": "Screenshot",
+  "tags": [
+   "screenshot",
+   "outline"
+  ]
+ },
+ {
+  "path": "scroll.svg",
+  "name": "Scroll",
+  "tags": [
+   "scroll",
+   "outline"
+  ]
+ },
+ {
+  "path": "search--filled.svg",
+  "name": "Search (filled)",
+  "tags": [
+   "search",
+   "filled"
+  ]
+ },
+ {
+  "path": "search.svg",
+  "name": "Search",
+  "tags": [
+   "search",
+   "outline"
+  ]
+ },
+ {
+  "path": "security--filled.svg",
+  "name": "Security (filled)",
+  "tags": [
+   "security",
+   "filled"
+  ]
+ },
+ {
+  "path": "security-camera--filled.svg",
+  "name": "Security Camera (filled)",
+  "tags": [
+   "security",
+   "camera",
+   "filled"
+  ]
+ },
+ {
+  "path": "security-camera.svg",
+  "name": "Security Camera",
+  "tags": [
+   "security",
+   "camera",
+   "outline"
+  ]
+ },
+ {
+  "path": "security.svg",
+  "name": "Security",
+  "tags": [
+   "security",
+   "outline"
+  ]
+ },
+ {
+  "path": "server.svg",
+  "name": "Server",
+  "tags": [
+   "server",
+   "outline"
+  ]
+ },
+ {
+  "path": "settings--filled.svg",
+  "name": "Settings (filled)",
+  "tags": [
+   "settings",
+   "filled"
+  ]
+ },
+ {
+  "path": "settings-adjust-focus-check.svg",
+  "name": "Settings Adjust Focus Check",
+  "tags": [
+   "settings",
+   "adjust",
+   "focus",
+   "check",
+   "outline"
+  ]
+ },
+ {
+  "path": "settings-adjust-focus.svg",
+  "name": "Settings Adjust Focus",
+  "tags": [
+   "settings",
+   "adjust",
+   "focus",
+   "outline"
+  ]
+ },
+ {
+  "path": "settings-adjust.svg",
+  "name": "Settings Adjust",
+  "tags": [
+   "settings",
+   "adjust",
+   "outline"
+  ]
+ },
+ {
+  "path": "settings.svg",
+  "name": "Settings",
+  "tags": [
+   "settings",
+   "outline"
+  ]
+ },
+ {
+  "path": "shapes--filled.svg",
+  "name": "Shapes (filled)",
+  "tags": [
+   "shapes",
+   "filled"
+  ]
+ },
+ {
+  "path": "shapes.svg",
+  "name": "Shapes",
+  "tags": [
+   "shapes",
+   "outline"
+  ]
+ },
+ {
+  "path": "share-web--filled.svg",
+  "name": "Share Web (filled)",
+  "tags": [
+   "share",
+   "web",
+   "filled"
+  ]
+ },
+ {
+  "path": "share-web.svg",
+  "name": "Share Web",
+  "tags": [
+   "share",
+   "web",
+   "outline"
+  ]
+ },
+ {
+  "path": "share.svg",
+  "name": "Share",
+  "tags": [
+   "share",
+   "outline"
+  ]
+ },
+ {
+  "path": "sheet--filled.svg",
+  "name": "Sheet (filled)",
+  "tags": [
+   "sheet",
+   "filled"
+  ]
+ },
+ {
+  "path": "sheet.svg",
+  "name": "Sheet",
+  "tags": [
+   "sheet",
+   "outline"
+  ]
+ },
+ {
+  "path": "shield--filled.svg",
+  "name": "Shield (filled)",
+  "tags": [
+   "shield",
+   "filled"
+  ]
+ },
+ {
+  "path": "shield-off--filled.svg",
+  "name": "Shield Off (filled)",
+  "tags": [
+   "shield",
+   "off",
+   "filled"
+  ]
+ },
+ {
+  "path": "shield-off.svg",
+  "name": "Shield Off",
+  "tags": [
+   "shield",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "shield.svg",
+  "name": "Shield",
+  "tags": [
+   "shield",
+   "outline"
+  ]
+ },
+ {
+  "path": "shuffle.svg",
+  "name": "Shuffle",
+  "tags": [
+   "shuffle",
+   "outline"
+  ]
+ },
+ {
+  "path": "shutter.svg",
+  "name": "Shutter",
+  "tags": [
+   "shutter",
+   "outline"
+  ]
+ },
+ {
+  "path": "sign-in.svg",
+  "name": "Sign In",
+  "tags": [
+   "sign",
+   "in",
+   "outline"
+  ]
+ },
+ {
+  "path": "sign-out.svg",
+  "name": "Sign Out",
+  "tags": [
+   "sign",
+   "out",
+   "outline"
+  ]
+ },
+ {
+  "path": "signal-off.svg",
+  "name": "Signal Off",
+  "tags": [
+   "signal",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "signal.svg",
+  "name": "Signal",
+  "tags": [
+   "signal",
+   "outline"
+  ]
+ },
+ {
+  "path": "signal1.svg",
+  "name": "Signal 1",
+  "tags": [
+   "signal1",
+   "outline"
+  ]
+ },
+ {
+  "path": "signal2.svg",
+  "name": "Signal 2",
+  "tags": [
+   "signal2",
+   "outline"
+  ]
+ },
+ {
+  "path": "signal3.svg",
+  "name": "Signal 3",
+  "tags": [
+   "signal3",
+   "outline"
+  ]
+ },
+ {
+  "path": "skip-back--filled.svg",
+  "name": "Skip Back (filled)",
+  "tags": [
+   "skip",
+   "back",
+   "filled"
+  ]
+ },
+ {
+  "path": "skip-back.svg",
+  "name": "Skip Back",
+  "tags": [
+   "skip",
+   "back",
+   "outline"
+  ]
+ },
+ {
+  "path": "skip-forward--filled.svg",
+  "name": "Skip Forward (filled)",
+  "tags": [
+   "skip",
+   "forward",
+   "filled"
+  ]
+ },
+ {
+  "path": "skip-forward.svg",
+  "name": "Skip Forward",
+  "tags": [
+   "skip",
+   "forward",
+   "outline"
+  ]
+ },
+ {
+  "path": "snorkel--filled.svg",
+  "name": "Snorkel (filled)",
+  "tags": [
+   "snorkel",
+   "filled"
+  ]
+ },
+ {
+  "path": "snorkel.svg",
+  "name": "Snorkel",
+  "tags": [
+   "snorkel",
+   "outline"
+  ]
+ },
+ {
+  "path": "sort.svg",
+  "name": "Sort",
+  "tags": [
+   "sort",
+   "outline"
+  ]
+ },
+ {
+  "path": "sound-effect-add.svg",
+  "name": "Sound Effect Add",
+  "tags": [
+   "sound",
+   "effect",
+   "add",
+   "outline"
+  ]
+ },
+ {
+  "path": "sound-effect-off.svg",
+  "name": "Sound Effect Off",
+  "tags": [
+   "sound",
+   "effect",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "sound-effect.svg",
+  "name": "Sound Effect",
+  "tags": [
+   "sound",
+   "effect",
+   "outline"
+  ]
+ },
+ {
+  "path": "speaker--filled.svg",
+  "name": "Speaker (filled)",
+  "tags": [
+   "speaker",
+   "filled"
+  ]
+ },
+ {
+  "path": "speaker-switch-to--filled.svg",
+  "name": "Speaker Switch To (filled)",
+  "tags": [
+   "speaker",
+   "switch",
+   "to",
+   "filled"
+  ]
+ },
+ {
+  "path": "speaker-switch-to.svg",
+  "name": "Speaker Switch To",
+  "tags": [
+   "speaker",
+   "switch",
+   "to",
+   "outline"
+  ]
+ },
+ {
+  "path": "speaker.svg",
+  "name": "Speaker",
+  "tags": [
+   "speaker",
+   "outline"
+  ]
+ },
+ {
+  "path": "speech--filled.svg",
+  "name": "Speech (filled)",
+  "tags": [
+   "speech",
+   "filled"
+  ]
+ },
+ {
+  "path": "speech.svg",
+  "name": "Speech",
+  "tags": [
+   "speech",
+   "outline"
+  ]
+ },
+ {
+  "path": "square--filled.svg",
+  "name": "Square (filled)",
+  "tags": [
+   "square",
+   "filled"
+  ]
+ },
+ {
+  "path": "square-dashed.svg",
+  "name": "Square Dashed",
+  "tags": [
+   "square",
+   "dashed",
+   "outline"
+  ]
+ },
+ {
+  "path": "square.svg",
+  "name": "Square",
+  "tags": [
+   "square",
+   "outline"
+  ]
+ },
+ {
+  "path": "star--filled.svg",
+  "name": "Star (filled)",
+  "tags": [
+   "star",
+   "filled"
+  ]
+ },
+ {
+  "path": "star.svg",
+  "name": "Star",
+  "tags": [
+   "star",
+   "outline"
+  ]
+ },
+ {
+  "path": "starbursts--filled.svg",
+  "name": "Starbursts (filled)",
+  "tags": [
+   "starbursts",
+   "filled"
+  ]
+ },
+ {
+  "path": "starbursts.svg",
+  "name": "Starbursts",
+  "tags": [
+   "starbursts",
+   "outline"
+  ]
+ },
+ {
+  "path": "stop--filled.svg",
+  "name": "Stop (filled)",
+  "tags": [
+   "stop",
+   "filled"
+  ]
+ },
+ {
+  "path": "stop.svg",
+  "name": "Stop",
+  "tags": [
+   "stop",
+   "outline"
+  ]
+ },
+ {
+  "path": "store--filled.svg",
+  "name": "Store (filled)",
+  "tags": [
+   "store",
+   "filled"
+  ]
+ },
+ {
+  "path": "store.svg",
+  "name": "Store",
+  "tags": [
+   "store",
+   "outline"
+  ]
+ },
+ {
+  "path": "stream--filled.svg",
+  "name": "Stream (filled)",
+  "tags": [
+   "stream",
+   "filled"
+  ]
+ },
+ {
+  "path": "stream-deck-key--filled.svg",
+  "name": "Stream Deck Key (filled)",
+  "tags": [
+   "stream",
+   "deck",
+   "key",
+   "filled"
+  ]
+ },
+ {
+  "path": "stream-deck-key-bottom--filled.svg",
+  "name": "Stream Deck Key Bottom (filled)",
+  "tags": [
+   "stream",
+   "deck",
+   "key",
+   "bottom",
+   "filled"
+  ]
+ },
+ {
+  "path": "stream-deck-key-bottom.svg",
+  "name": "Stream Deck Key Bottom",
+  "tags": [
+   "stream",
+   "deck",
+   "key",
+   "bottom",
+   "outline"
+  ]
+ },
+ {
+  "path": "stream-deck-key-middle--filled.svg",
+  "name": "Stream Deck Key Middle (filled)",
+  "tags": [
+   "stream",
+   "deck",
+   "key",
+   "middle",
+   "filled"
+  ]
+ },
+ {
+  "path": "stream-deck-key-middle.svg",
+  "name": "Stream Deck Key Middle",
+  "tags": [
+   "stream",
+   "deck",
+   "key",
+   "middle",
+   "outline"
+  ]
+ },
+ {
+  "path": "stream-deck-key-top--filled.svg",
+  "name": "Stream Deck Key Top (filled)",
+  "tags": [
+   "stream",
+   "deck",
+   "key",
+   "top",
+   "filled"
+  ]
+ },
+ {
+  "path": "stream-deck-key-top.svg",
+  "name": "Stream Deck Key Top",
+  "tags": [
+   "stream",
+   "deck",
+   "key",
+   "top",
+   "outline"
+  ]
+ },
+ {
+  "path": "stream-deck-key.svg",
+  "name": "Stream Deck Key",
+  "tags": [
+   "stream",
+   "deck",
+   "key",
+   "outline"
+  ]
+ },
+ {
+  "path": "stream-deck-mini--filled.svg",
+  "name": "Stream Deck Mini (filled)",
+  "tags": [
+   "stream",
+   "deck",
+   "mini",
+   "filled"
+  ]
+ },
+ {
+  "path": "stream-deck-mini.svg",
+  "name": "Stream Deck Mini",
+  "tags": [
+   "stream",
+   "deck",
+   "mini",
+   "outline"
+  ]
+ },
+ {
+  "path": "stream-deck-mk2--filled.svg",
+  "name": "Stream Deck Mk 2 (filled)",
+  "tags": [
+   "stream",
+   "deck",
+   "mk2",
+   "filled"
+  ]
+ },
+ {
+  "path": "stream-deck-mk2.svg",
+  "name": "Stream Deck Mk 2",
+  "tags": [
+   "stream",
+   "deck",
+   "mk2",
+   "outline"
+  ]
+ },
+ {
+  "path": "stream-deck-neo--filled.svg",
+  "name": "Stream Deck Neo (filled)",
+  "tags": [
+   "stream",
+   "deck",
+   "neo",
+   "filled"
+  ]
+ },
+ {
+  "path": "stream-deck-neo.svg",
+  "name": "Stream Deck Neo",
+  "tags": [
+   "stream",
+   "deck",
+   "neo",
+   "outline"
+  ]
+ },
+ {
+  "path": "stream-deck-pedal--filled.svg",
+  "name": "Stream Deck Pedal (filled)",
+  "tags": [
+   "stream",
+   "deck",
+   "pedal",
+   "filled"
+  ]
+ },
+ {
+  "path": "stream-deck-pedal.svg",
+  "name": "Stream Deck Pedal",
+  "tags": [
+   "stream",
+   "deck",
+   "pedal",
+   "outline"
+  ]
+ },
+ {
+  "path": "stream-deck-plus--filled.svg",
+  "name": "Stream Deck Plus (filled)",
+  "tags": [
+   "stream",
+   "deck",
+   "plus",
+   "filled"
+  ]
+ },
+ {
+  "path": "stream-deck-plus.svg",
+  "name": "Stream Deck Plus",
+  "tags": [
+   "stream",
+   "deck",
+   "plus",
+   "outline"
+  ]
+ },
+ {
+  "path": "stream-off--filled.svg",
+  "name": "Stream Off (filled)",
+  "tags": [
+   "stream",
+   "off",
+   "filled"
+  ]
+ },
+ {
+  "path": "stream-off.svg",
+  "name": "Stream Off",
+  "tags": [
+   "stream",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "stream-switch-to--filled.svg",
+  "name": "Stream Switch To (filled)",
+  "tags": [
+   "stream",
+   "switch",
+   "to",
+   "filled"
+  ]
+ },
+ {
+  "path": "stream-switch-to.svg",
+  "name": "Stream Switch To",
+  "tags": [
+   "stream",
+   "switch",
+   "to",
+   "outline"
+  ]
+ },
+ {
+  "path": "stream.svg",
+  "name": "Stream",
+  "tags": [
+   "stream",
+   "outline"
+  ]
+ },
+ {
+  "path": "strikethrough.svg",
+  "name": "Strikethrough",
+  "tags": [
+   "strikethrough",
+   "outline"
+  ]
+ },
+ {
+  "path": "subtract-circle--filled.svg",
+  "name": "Subtract Circle (filled)",
+  "tags": [
+   "subtract",
+   "circle",
+   "filled"
+  ]
+ },
+ {
+  "path": "subtract-circle.svg",
+  "name": "Subtract Circle",
+  "tags": [
+   "subtract",
+   "circle",
+   "outline"
+  ]
+ },
+ {
+  "path": "subtract.svg",
+  "name": "Subtract",
+  "tags": [
+   "subtract",
+   "outline"
+  ]
+ },
+ {
+  "path": "sync.svg",
+  "name": "Sync",
+  "tags": [
+   "sync",
+   "outline"
+  ]
+ },
+ {
+  "path": "tag--filled.svg",
+  "name": "Tag (filled)",
+  "tags": [
+   "tag",
+   "filled"
+  ]
+ },
+ {
+  "path": "tag.svg",
+  "name": "Tag",
+  "tags": [
+   "tag",
+   "outline"
+  ]
+ },
+ {
+  "path": "tap-double.svg",
+  "name": "Tap Double",
+  "tags": [
+   "tap",
+   "double",
+   "outline"
+  ]
+ },
+ {
+  "path": "tap-hold.svg",
+  "name": "Tap Hold",
+  "tags": [
+   "tap",
+   "hold",
+   "outline"
+  ]
+ },
+ {
+  "path": "tap.svg",
+  "name": "Tap",
+  "tags": [
+   "tap",
+   "outline"
+  ]
+ },
+ {
+  "path": "temperature--filled.svg",
+  "name": "Temperature (filled)",
+  "tags": [
+   "temperature",
+   "filled"
+  ]
+ },
+ {
+  "path": "temperature-cool--filled.svg",
+  "name": "Temperature Cool (filled)",
+  "tags": [
+   "temperature",
+   "cool",
+   "filled"
+  ]
+ },
+ {
+  "path": "temperature-cool.svg",
+  "name": "Temperature Cool",
+  "tags": [
+   "temperature",
+   "cool",
+   "outline"
+  ]
+ },
+ {
+  "path": "temperature-warm--filled.svg",
+  "name": "Temperature Warm (filled)",
+  "tags": [
+   "temperature",
+   "warm",
+   "filled"
+  ]
+ },
+ {
+  "path": "temperature-warm.svg",
+  "name": "Temperature Warm",
+  "tags": [
+   "temperature",
+   "warm",
+   "outline"
+  ]
+ },
+ {
+  "path": "temperature.svg",
+  "name": "Temperature",
+  "tags": [
+   "temperature",
+   "outline"
+  ]
+ },
+ {
+  "path": "template--filled.svg",
+  "name": "Template (filled)",
+  "tags": [
+   "template",
+   "filled"
+  ]
+ },
+ {
+  "path": "template.svg",
+  "name": "Template",
+  "tags": [
+   "template",
+   "outline"
+  ]
+ },
+ {
+  "path": "terminal--filled.svg",
+  "name": "Terminal (filled)",
+  "tags": [
+   "terminal",
+   "filled"
+  ]
+ },
+ {
+  "path": "terminal.svg",
+  "name": "Terminal",
+  "tags": [
+   "terminal",
+   "outline"
+  ]
+ },
+ {
+  "path": "test-tube.svg",
+  "name": "Test Tube",
+  "tags": [
+   "test",
+   "tube",
+   "outline"
+  ]
+ },
+ {
+  "path": "text-align-center.svg",
+  "name": "Text Align Center",
+  "tags": [
+   "text",
+   "align",
+   "center",
+   "outline"
+  ]
+ },
+ {
+  "path": "text-align-left.svg",
+  "name": "Text Align Left",
+  "tags": [
+   "text",
+   "align",
+   "left",
+   "outline"
+  ]
+ },
+ {
+  "path": "text-align-right.svg",
+  "name": "Text Align Right",
+  "tags": [
+   "text",
+   "align",
+   "right",
+   "outline"
+  ]
+ },
+ {
+  "path": "text-down-to-bottom.svg",
+  "name": "Text Down To Bottom",
+  "tags": [
+   "text",
+   "down",
+   "to",
+   "bottom",
+   "outline"
+  ]
+ },
+ {
+  "path": "text-line-spacing-set.svg",
+  "name": "Text Line Spacing Set",
+  "tags": [
+   "text",
+   "line",
+   "spacing",
+   "set",
+   "outline"
+  ]
+ },
+ {
+  "path": "text-line-spacing.svg",
+  "name": "Text Line Spacing",
+  "tags": [
+   "text",
+   "line",
+   "spacing",
+   "outline"
+  ]
+ },
+ {
+  "path": "text-next.svg",
+  "name": "Text Next",
+  "tags": [
+   "text",
+   "next",
+   "outline"
+  ]
+ },
+ {
+  "path": "text-previous.svg",
+  "name": "Text Previous",
+  "tags": [
+   "text",
+   "previous",
+   "outline"
+  ]
+ },
+ {
+  "path": "text-set.svg",
+  "name": "Text Set",
+  "tags": [
+   "text",
+   "set",
+   "outline"
+  ]
+ },
+ {
+  "path": "text-size-decrease.svg",
+  "name": "Text Size Decrease",
+  "tags": [
+   "text",
+   "size",
+   "decrease",
+   "outline"
+  ]
+ },
+ {
+  "path": "text-size-increase.svg",
+  "name": "Text Size Increase",
+  "tags": [
+   "text",
+   "size",
+   "increase",
+   "outline"
+  ]
+ },
+ {
+  "path": "text-size-set.svg",
+  "name": "Text Size Set",
+  "tags": [
+   "text",
+   "size",
+   "set",
+   "outline"
+  ]
+ },
+ {
+  "path": "text-size.svg",
+  "name": "Text Size",
+  "tags": [
+   "text",
+   "size",
+   "outline"
+  ]
+ },
+ {
+  "path": "text-up-to-top.svg",
+  "name": "Text Up To Top",
+  "tags": [
+   "text",
+   "up",
+   "to",
+   "top",
+   "outline"
+  ]
+ },
+ {
+  "path": "text.svg",
+  "name": "Text",
+  "tags": [
+   "text",
+   "outline"
+  ]
+ },
+ {
+  "path": "thumb-down--filled.svg",
+  "name": "Thumb Down (filled)",
+  "tags": [
+   "thumb",
+   "down",
+   "filled"
+  ]
+ },
+ {
+  "path": "thumb-down.svg",
+  "name": "Thumb Down",
+  "tags": [
+   "thumb",
+   "down",
+   "outline"
+  ]
+ },
+ {
+  "path": "thumb-up--filled.svg",
+  "name": "Thumb Up (filled)",
+  "tags": [
+   "thumb",
+   "up",
+   "filled"
+  ]
+ },
+ {
+  "path": "thumb-up.svg",
+  "name": "Thumb Up",
+  "tags": [
+   "thumb",
+   "up",
+   "outline"
+  ]
+ },
+ {
+  "path": "time--filled.svg",
+  "name": "Time (filled)",
+  "tags": [
+   "time",
+   "filled"
+  ]
+ },
+ {
+  "path": "time-delay.svg",
+  "name": "Time Delay",
+  "tags": [
+   "time",
+   "delay",
+   "outline"
+  ]
+ },
+ {
+  "path": "time-history.svg",
+  "name": "Time History",
+  "tags": [
+   "time",
+   "history",
+   "outline"
+  ]
+ },
+ {
+  "path": "time.svg",
+  "name": "Time",
+  "tags": [
+   "time",
+   "outline"
+  ]
+ },
+ {
+  "path": "timer--filled.svg",
+  "name": "Timer (filled)",
+  "tags": [
+   "timer",
+   "filled"
+  ]
+ },
+ {
+  "path": "timer.svg",
+  "name": "Timer",
+  "tags": [
+   "timer",
+   "outline"
+  ]
+ },
+ {
+  "path": "tint--filled.svg",
+  "name": "Tint (filled)",
+  "tags": [
+   "tint",
+   "filled"
+  ]
+ },
+ {
+  "path": "tint.svg",
+  "name": "Tint",
+  "tags": [
+   "tint",
+   "outline"
+  ]
+ },
+ {
+  "path": "token--filled.svg",
+  "name": "Token (filled)",
+  "tags": [
+   "token",
+   "filled"
+  ]
+ },
+ {
+  "path": "token.svg",
+  "name": "Token",
+  "tags": [
+   "token",
+   "outline"
+  ]
+ },
+ {
+  "path": "train--filled.svg",
+  "name": "Train (filled)",
+  "tags": [
+   "train",
+   "filled"
+  ]
+ },
+ {
+  "path": "train.svg",
+  "name": "Train",
+  "tags": [
+   "train",
+   "outline"
+  ]
+ },
+ {
+  "path": "transition--filled.svg",
+  "name": "Transition (filled)",
+  "tags": [
+   "transition",
+   "filled"
+  ]
+ },
+ {
+  "path": "transition.svg",
+  "name": "Transition",
+  "tags": [
+   "transition",
+   "outline"
+  ]
+ },
+ {
+  "path": "trash--filled.svg",
+  "name": "Trash (filled)",
+  "tags": [
+   "trash",
+   "filled"
+  ]
+ },
+ {
+  "path": "trash.svg",
+  "name": "Trash",
+  "tags": [
+   "trash",
+   "outline"
+  ]
+ },
+ {
+  "path": "triangle--filled.svg",
+  "name": "Triangle (filled)",
+  "tags": [
+   "triangle",
+   "filled"
+  ]
+ },
+ {
+  "path": "triangle.svg",
+  "name": "Triangle",
+  "tags": [
+   "triangle",
+   "outline"
+  ]
+ },
+ {
+  "path": "underline.svg",
+  "name": "Underline",
+  "tags": [
+   "underline",
+   "outline"
+  ]
+ },
+ {
+  "path": "undo.svg",
+  "name": "Undo",
+  "tags": [
+   "undo",
+   "outline"
+  ]
+ },
+ {
+  "path": "unordered-list.svg",
+  "name": "Unordered List",
+  "tags": [
+   "unordered",
+   "list",
+   "outline"
+  ]
+ },
+ {
+  "path": "upload.svg",
+  "name": "Upload",
+  "tags": [
+   "upload",
+   "outline"
+  ]
+ },
+ {
+  "path": "usb.svg",
+  "name": "Usb",
+  "tags": [
+   "usb",
+   "outline"
+  ]
+ },
+ {
+  "path": "verified--filled.svg",
+  "name": "Verified (filled)",
+  "tags": [
+   "verified",
+   "filled"
+  ]
+ },
+ {
+  "path": "verified.svg",
+  "name": "Verified",
+  "tags": [
+   "verified",
+   "outline"
+  ]
+ },
+ {
+  "path": "video--filled.svg",
+  "name": "Video (filled)",
+  "tags": [
+   "video",
+   "filled"
+  ]
+ },
+ {
+  "path": "video.svg",
+  "name": "Video",
+  "tags": [
+   "video",
+   "outline"
+  ]
+ },
+ {
+  "path": "view--filled.svg",
+  "name": "View (filled)",
+  "tags": [
+   "view",
+   "filled"
+  ]
+ },
+ {
+  "path": "view-off--filled.svg",
+  "name": "View Off (filled)",
+  "tags": [
+   "view",
+   "off",
+   "filled"
+  ]
+ },
+ {
+  "path": "view-off.svg",
+  "name": "View Off",
+  "tags": [
+   "view",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "view.svg",
+  "name": "View",
+  "tags": [
+   "view",
+   "outline"
+  ]
+ },
+ {
+  "path": "voice-sync--filled.svg",
+  "name": "Voice Sync (filled)",
+  "tags": [
+   "voice",
+   "sync",
+   "filled"
+  ]
+ },
+ {
+  "path": "voice-sync.svg",
+  "name": "Voice Sync",
+  "tags": [
+   "voice",
+   "sync",
+   "outline"
+  ]
+ },
+ {
+  "path": "voice-tune--filled.svg",
+  "name": "Voice Tune (filled)",
+  "tags": [
+   "voice",
+   "tune",
+   "filled"
+  ]
+ },
+ {
+  "path": "voice-tune.svg",
+  "name": "Voice Tune",
+  "tags": [
+   "voice",
+   "tune",
+   "outline"
+  ]
+ },
+ {
+  "path": "volume--filled.svg",
+  "name": "Volume (filled)",
+  "tags": [
+   "volume",
+   "filled"
+  ]
+ },
+ {
+  "path": "volume-down--filled.svg",
+  "name": "Volume Down (filled)",
+  "tags": [
+   "volume",
+   "down",
+   "filled"
+  ]
+ },
+ {
+  "path": "volume-down.svg",
+  "name": "Volume Down",
+  "tags": [
+   "volume",
+   "down",
+   "outline"
+  ]
+ },
+ {
+  "path": "volume-mixer--filled.svg",
+  "name": "Volume Mixer (filled)",
+  "tags": [
+   "volume",
+   "mixer",
+   "filled"
+  ]
+ },
+ {
+  "path": "volume-mixer.svg",
+  "name": "Volume Mixer",
+  "tags": [
+   "volume",
+   "mixer",
+   "outline"
+  ]
+ },
+ {
+  "path": "volume-muted--filled.svg",
+  "name": "Volume Muted (filled)",
+  "tags": [
+   "volume",
+   "muted",
+   "filled"
+  ]
+ },
+ {
+  "path": "volume-muted.svg",
+  "name": "Volume Muted",
+  "tags": [
+   "volume",
+   "muted",
+   "outline"
+  ]
+ },
+ {
+  "path": "volume.svg",
+  "name": "Volume",
+  "tags": [
+   "volume",
+   "outline"
+  ]
+ },
+ {
+  "path": "volume0--filled.svg",
+  "name": "Volume 0 (filled)",
+  "tags": [
+   "volume0",
+   "filled"
+  ]
+ },
+ {
+  "path": "volume0.svg",
+  "name": "Volume 0",
+  "tags": [
+   "volume0",
+   "outline"
+  ]
+ },
+ {
+  "path": "volume1--filled.svg",
+  "name": "Volume 1 (filled)",
+  "tags": [
+   "volume1",
+   "filled"
+  ]
+ },
+ {
+  "path": "volume1.svg",
+  "name": "Volume 1",
+  "tags": [
+   "volume1",
+   "outline"
+  ]
+ },
+ {
+  "path": "volume2--filled.svg",
+  "name": "Volume 2 (filled)",
+  "tags": [
+   "volume2",
+   "filled"
+  ]
+ },
+ {
+  "path": "volume2.svg",
+  "name": "Volume 2",
+  "tags": [
+   "volume2",
+   "outline"
+  ]
+ },
+ {
+  "path": "warning--filled.svg",
+  "name": "Warning (filled)",
+  "tags": [
+   "warning",
+   "filled"
+  ]
+ },
+ {
+  "path": "warning.svg",
+  "name": "Warning",
+  "tags": [
+   "warning",
+   "outline"
+  ]
+ },
+ {
+  "path": "wave-dx--filled.svg",
+  "name": "Wave Dx (filled)",
+  "tags": [
+   "wave",
+   "dx",
+   "filled"
+  ]
+ },
+ {
+  "path": "wave-dx.svg",
+  "name": "Wave Dx",
+  "tags": [
+   "wave",
+   "dx",
+   "outline"
+  ]
+ },
+ {
+  "path": "wave-mic--filled.svg",
+  "name": "Wave Mic (filled)",
+  "tags": [
+   "wave",
+   "mic",
+   "filled"
+  ]
+ },
+ {
+  "path": "wave-mic.svg",
+  "name": "Wave Mic",
+  "tags": [
+   "wave",
+   "mic",
+   "outline"
+  ]
+ },
+ {
+  "path": "wave-neo--filled.svg",
+  "name": "Wave Neo (filled)",
+  "tags": [
+   "wave",
+   "neo",
+   "filled"
+  ]
+ },
+ {
+  "path": "wave-neo.svg",
+  "name": "Wave Neo",
+  "tags": [
+   "wave",
+   "neo",
+   "outline"
+  ]
+ },
+ {
+  "path": "wave-xlr--filled.svg",
+  "name": "Wave Xlr (filled)",
+  "tags": [
+   "wave",
+   "xlr",
+   "filled"
+  ]
+ },
+ {
+  "path": "wave-xlr.svg",
+  "name": "Wave Xlr",
+  "tags": [
+   "wave",
+   "xlr",
+   "outline"
+  ]
+ },
+ {
+  "path": "wave.svg",
+  "name": "Wave",
+  "tags": [
+   "wave",
+   "outline"
+  ]
+ },
+ {
+  "path": "weather--filled.svg",
+  "name": "Weather (filled)",
+  "tags": [
+   "weather",
+   "filled"
+  ]
+ },
+ {
+  "path": "weather.svg",
+  "name": "Weather",
+  "tags": [
+   "weather",
+   "outline"
+  ]
+ },
+ {
+  "path": "webcam--filled.svg",
+  "name": "Webcam (filled)",
+  "tags": [
+   "webcam",
+   "filled"
+  ]
+ },
+ {
+  "path": "webcam.svg",
+  "name": "Webcam",
+  "tags": [
+   "webcam",
+   "outline"
+  ]
+ },
+ {
+  "path": "widget--filled.svg",
+  "name": "Widget (filled)",
+  "tags": [
+   "widget",
+   "filled"
+  ]
+ },
+ {
+  "path": "widget.svg",
+  "name": "Widget",
+  "tags": [
+   "widget",
+   "outline"
+  ]
+ },
+ {
+  "path": "wifi-off.svg",
+  "name": "Wifi Off",
+  "tags": [
+   "wifi",
+   "off",
+   "outline"
+  ]
+ },
+ {
+  "path": "wifi.svg",
+  "name": "Wifi",
+  "tags": [
+   "wifi",
+   "outline"
+  ]
+ },
+ {
+  "path": "wifi1.svg",
+  "name": "Wifi 1",
+  "tags": [
+   "wifi1",
+   "outline"
+  ]
+ },
+ {
+  "path": "wifi2.svg",
+  "name": "Wifi 2",
+  "tags": [
+   "wifi2",
+   "outline"
+  ]
+ },
+ {
+  "path": "wifi3.svg",
+  "name": "Wifi 3",
+  "tags": [
+   "wifi3",
+   "outline"
+  ]
+ },
+ {
+  "path": "window--filled.svg",
+  "name": "Window (filled)",
+  "tags": [
+   "window",
+   "filled"
+  ]
+ },
+ {
+  "path": "window-check--filled.svg",
+  "name": "Window Check (filled)",
+  "tags": [
+   "window",
+   "check",
+   "filled"
+  ]
+ },
+ {
+  "path": "window-check.svg",
+  "name": "Window Check",
+  "tags": [
+   "window",
+   "check",
+   "outline"
+  ]
+ },
+ {
+  "path": "window-foreground--filled.svg",
+  "name": "Window Foreground (filled)",
+  "tags": [
+   "window",
+   "foreground",
+   "filled"
+  ]
+ },
+ {
+  "path": "window-foreground.svg",
+  "name": "Window Foreground",
+  "tags": [
+   "window",
+   "foreground",
+   "outline"
+  ]
+ },
+ {
+  "path": "window-to-prompter--filled.svg",
+  "name": "Window To Prompter (filled)",
+  "tags": [
+   "window",
+   "to",
+   "prompter",
+   "filled"
+  ]
+ },
+ {
+  "path": "window-to-prompter.svg",
+  "name": "Window To Prompter",
+  "tags": [
+   "window",
+   "to",
+   "prompter",
+   "outline"
+  ]
+ },
+ {
+  "path": "window.svg",
+  "name": "Window",
+  "tags": [
+   "window",
+   "outline"
+  ]
+ },
+ {
+  "path": "wrench--filled.svg",
+  "name": "Wrench (filled)",
+  "tags": [
+   "wrench",
+   "filled"
+  ]
+ },
+ {
+  "path": "wrench.svg",
+  "name": "Wrench",
+  "tags": [
+   "wrench",
+   "outline"
+  ]
+ },
+ {
+  "path": "xlr--filled.svg",
+  "name": "Xlr (filled)",
+  "tags": [
+   "xlr",
+   "filled"
+  ]
+ },
+ {
+  "path": "xlr.svg",
+  "name": "Xlr",
+  "tags": [
+   "xlr",
+   "outline"
+  ]
+ },
+ {
+  "path": "zoom-in--filled.svg",
+  "name": "Zoom In (filled)",
+  "tags": [
+   "zoom",
+   "in",
+   "filled"
+  ]
+ },
+ {
+  "path": "zoom-in.svg",
+  "name": "Zoom In",
+  "tags": [
+   "zoom",
+   "in",
+   "outline"
+  ]
+ },
+ {
+  "path": "zoom-out--filled.svg",
+  "name": "Zoom Out (filled)",
+  "tags": [
+   "zoom",
+   "out",
+   "filled"
+  ]
+ },
+ {
+  "path": "zoom-out.svg",
+  "name": "Zoom Out",
+  "tags": [
+   "zoom",
+   "out",
+   "outline"
   ]
  }
 ]

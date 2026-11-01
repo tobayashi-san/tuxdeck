@@ -1,7 +1,7 @@
 // Plugins view (overlay over #main): plugin catalogues, installed plugins, Linux checks.
 // The catalogues are "sources" (see sources.js); each one provides tabs, a list, details
 // and installation.
-import { api, enc, h, debounce } from './store.js';
+import { api, enc, h, debounce, icon } from './store.js';
 import { toast, confirmDialog, modal, restoreFocus } from './dialogs.js';
 import { t, tn, locale } from './i18n.js';
 import { importFile } from './topbar.js';
@@ -578,7 +578,7 @@ function renderDetail() {
   el.detailButton = h('div.mk-install');
   el.detail.replaceChildren(...kids(
     h('div.mk-detail-head', null,
-      h('button.icon-btn.mk-detail-close', { title: t('Close'), onclick: closeDetail }, '×'),
+      h('button.icon-btn.mk-detail-close', { title: t('Close'), onclick: closeDetail }, icon('close')),
       remoteImg([item.thumbnail, item.icon], item.name, 'mk-detail-banner'),
       h('div.mk-detail-title', null,
         remoteImg([item.icon, item.thumbnail], item.name, 'mk-detail-icon'),

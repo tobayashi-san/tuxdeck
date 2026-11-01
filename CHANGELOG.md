@@ -91,6 +91,12 @@
     soon as it is back.
   - The Smart Profile dialog says when the desktop can't tell which window is active
     (GNOME/KDE Wayland) and lists X11 windows properly.
+- **Icons:** TuxDeck now uses Elgato's open icon set (`@elgato/icons`, MIT): the icons of
+  the built-in actions, the starter and sample profile keys, the bundled icon pack
+  ("Elgato Icons", 866 icons, outline and filled; the set's brand logos are left out) and
+  the icon font of the configuration UI. Keys that still show an icon of the earlier
+  starter or sample profiles get the new one once at the first start (a backup "Before the
+  new icons" is made first).
 - **Tests:** plugins built on Elgato's own `@elgato/streamdeck` library (1.x, 2.x, 3.x)
   and a property inspector made of `sdpi-components` run against TuxDeck in the test
   suites.

@@ -58,8 +58,8 @@ pw, ph = cols * K + (cols - 1) * G + 2 * P, rows * K + (rows - 1) * G + 2 * P
 W, H = pw + 80, ph + 70
 ox, oy = 40, 24
 word = [('T', 'teal'), ('U', 'green'), ('X', 'teal'), ('D', 'blue'), ('E', 'indigo'), ('C', 'fuchsia'), ('K', 'amber')]
-top = ['previous', 'play', 'next', None, 'volume-down', 'volume-up', 'mute']
-bottom = ['folder', 'terminal', None, 'globe', 'clock', 'sleep', 'brightness']
+top = ['skip-back', 'play-pause', 'skip-forward', None, 'volume-down', 'volume', 'volume-muted']
+bottom = ['folder', 'terminal', None, 'globe', 'time', 'night', 'brightness']
 keys = []
 def kx(c): return ox + P + c * (K + G)
 def ky(r): return oy + P + r * (K + G)

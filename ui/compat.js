@@ -2,7 +2,7 @@
 // offers to convert it into a regular Linux profile; profiles imported earlier get a
 // small banner with the same offer. Nobody else ever sees any of this.
 
-import { S, api, enc, h } from './store.js';
+import { S, api, enc, h, icon } from './store.js';
 import { t, tn } from './i18n.js';
 import { modal, toast } from './dialogs.js';
 
@@ -37,7 +37,7 @@ export async function updateCompatBanner() {
       title: t('Hide'),
       'aria-label': t('Hide'),
       onclick: () => { localStorage.setItem(dismissKey(profile), '1'); box.hidden = true; },
-    }, '×'));
+    }, icon('close')));
   box.hidden = false;
 }
 

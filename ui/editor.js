@@ -1,7 +1,7 @@
 // Bottom panel: property editor for the selected slot (title, image, settings / property inspector).
 import {
   S, api, enc, h, debounce, instanceAt, actionInfo, renderUrl, pagePath, profileById,
-  slotLabel, modelName, deckLabel, uuidv4, compatibleModel, slotAppearance, HOTKEY_SWITCH,
+  slotLabel, modelName, deckLabel, uuidv4, compatibleModel, slotAppearance, HOTKEY_SWITCH, icon,
 } from './store.js';
 import { toast } from './dialogs.js';
 import { pickIcon } from './iconpacks.js';
@@ -811,7 +811,7 @@ function hotkeyField(id, value, set, rows = 0) {
         h('button.icon-btn.danger', {
           type: 'button', title: t('Remove combination'), disabled: isUnusedHotkey(list[i]),
           onclick: () => { stop(); list[i] = unusedHotkey(); save(); focusIdx = i; render(); },
-        }, '×')));
+        }, icon('close'))));
       if (i === focus) btn.focus({ preventScroll: true });
     }
     // Hyprland's own way of sending keys reaches only the focused window.
@@ -853,19 +853,19 @@ function actionsField(id, value, set, rebuild, f = {}) {
           class: open ? 'active' : null,
           'data-focus': `${f.key}:${key}:gear`,
           onclick: () => { if (open) expandedNested.delete(key); else expandedNested.add(key); rebuild(); },
-        }, '⚙') : null,
+        }, icon('settings')) : null,
         max > 1 ? h('button.icon-btn', {
           type: 'button', title: t('Move up'), disabled: i === 0, 'data-focus': `${f.key}:${key}:up`,
           onclick: () => { [list[i - 1], list[i]] = [list[i], list[i - 1]]; save(); rebuild(); },
-        }, '↑') : null,
+        }, icon('up')) : null,
         max > 1 ? h('button.icon-btn', {
           type: 'button', title: t('Move down'), disabled: i === list.length - 1, 'data-focus': `${f.key}:${key}:down`,
           onclick: () => { [list[i + 1], list[i]] = [list[i], list[i + 1]]; save(); rebuild(); },
-        }, '↓') : null,
+        }, icon('down')) : null,
         h('button.icon-btn.danger', {
           type: 'button', title: t('Remove'), 'data-focus': `${f.key}:${key}:remove`,
           onclick: () => { list.splice(i, 1); expandedNested.delete(key); save(); rebuild(); },
-        }, '×')));
+        }, icon('close'))));
     if (open) {
       inst.Settings = inst.Settings && typeof inst.Settings === 'object' ? inst.Settings : {};
       row.append(h('div.form.nested-form', null,

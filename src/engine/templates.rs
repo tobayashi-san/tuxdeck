@@ -1,6 +1,6 @@
 //! Sample profiles (Stream, Work, Play) made for Linux: built-in actions, catalogue
 //! plugins and the programs installed here. Icons are our own (`assets/templates/`,
-//! drawn by `tools/template-art.py`).
+//! made from Elgato's open icon set by `tools/elgato-icon-art.py`).
 
 use super::*;
 use crate::compat::{self, To};
@@ -156,7 +156,7 @@ fn layout<'a>(t: &'a Template, model: &Model) -> Vec<Vec<(usize, Place<'a>)>> {
     pages
 }
 
-fn icon_url(name: &str) -> Option<String> {
+pub(crate) fn icon_url(name: &str) -> Option<String> {
     use base64::Engine as _;
     let f = TemplateIcons::get(&format!("icons/{name}.svg"))?;
     Some(format!("data:image/svg+xml;base64,{}", base64::engine::general_purpose::STANDARD.encode(f.data.as_ref())))

@@ -1,5 +1,5 @@
 // Toasts, modal dialogs and context menu.
-import { h } from './store.js';
+import { h, icon } from './store.js';
 import { t } from './i18n.js';
 
 /** `action`: optional `{ label, run }` button, e.g. "Undo". */
@@ -12,7 +12,7 @@ export function toast(message, level = 'info', ms = 5000, action = null) {
   const el = h('div.toast', { class: 'toast-' + level, role: 'status' },
     h('span.toast-msg', null, message),
     action ? h('button.btn.small.toast-action', { onclick: () => { el.remove(); action.run(); } }, action.label) : null,
-    h('button.toast-close', { title: t('Close'), onclick: () => el.remove() }, '×'));
+    h('button.toast-close', { title: t('Close'), onclick: () => el.remove() }, icon('close')));
   box.append(el);
   while (box.children.length > 5) box.firstElementChild.remove();
   setTimeout(() => {

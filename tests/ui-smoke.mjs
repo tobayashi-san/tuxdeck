@@ -978,8 +978,8 @@ async function suiteNeo(d, b) {
     await until(async () => (await d.dev()).page === folder, 'device in the folder');
     await shows(folder);
     await b.waitFor(`!!document.querySelector('#crumbs .back-btn')`, 'Back button');
-    await b.waitFor(`document.querySelector('#crumbs .crumb.current')?.textContent === '📁 Apps'`, 'folder name in the breadcrumb');
-    eq(await b.eval(`[...document.querySelectorAll('#crumbs .crumb')].map((c) => c.textContent)`), ['Default Profile', 'Page 1', '📁 Apps']);
+    await b.waitFor(`document.querySelector('#crumbs .crumb.current')?.textContent === '\\uebe9 Apps'`, 'folder name in the breadcrumb');
+    eq(await b.eval(`[...document.querySelectorAll('#crumbs .crumb')].map((c) => c.textContent)`), ['Default Profile', 'Page 1', '\uebe9 Apps'], 'folder icon (Elgato icon font) and name');
     assert(await b.exists('#pagebar .page-tab.active.inactive-folder'), 'page tab marked as "in folder"');
     eq((await d.action('Keypad', '0,0'))?.UUID, 'com.elgato.streamdeck.profile.backtoparent', 'parent-folder key at 0,0');
     await b.click('#crumbs .back-btn');
@@ -1273,7 +1273,7 @@ async function suiteNeo(d, b) {
     try {
     await b.waitFor(`document.getElementById('action-search').placeholder.startsWith('Aktionen')`, 'German UI');
     eq(await b.eval(`document.documentElement.lang`), 'de');
-    eq(await b.text('#sidebar-btn span'), 'Aktionen');
+    eq(await b.text('#sidebar-btn span[data-i18n]'), 'Aktionen');
     eq(await b.text('label[for="profile-select"]'), 'Profil');
     eq(await b.text('#conn-indicator'), 'Live');
     // Every text and label shown must be translated (the dictionary has an entry with a

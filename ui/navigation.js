@@ -1,6 +1,6 @@
 // Pages and folders: navigation, breadcrumb, page bar.
 
-import { OPENCHILD, S, api, currentDevice, enc, h, liveDevice, pagePath, profileById } from './store.js';
+import { OPENCHILD, S, api, currentDevice, enc, h, icon, liveDevice, pagePath, profileById } from './store.js';
 import { confirmDialog, contextMenu, toast } from './dialogs.js';
 import { flushEditor } from './editor.js';
 import { t } from './i18n.js';
@@ -126,10 +126,10 @@ export function renderCrumbs() {
     const pages = prof.pages || [];
     const idx = pages.indexOf(S.view.page);
     const root = idx >= 0 ? idx : pages.indexOf(S.navStack[0]);
-    if (root >= 0) parts.push(h('span.crumb-sep', null, '›'), h('span.crumb', null, t('Page {n}', { n: root + 1 })));
+    if (root >= 0) parts.push(h('span.crumb-sep', null, icon('right')), h('span.crumb', null, t('Page {n}', { n: root + 1 })));
     if (S.view.folderDepth > 0) {
-      for (const p of S.navStack.slice(1)) parts.push(h('span.crumb-sep', null, '›'), h('span.crumb', null, folderName(p)));
-      parts.push(h('span.crumb-sep', null, '›'), h('span.crumb.current', null, '📁 ' + folderName(S.view.page)));
+      for (const p of S.navStack.slice(1)) parts.push(h('span.crumb-sep', null, icon('right')), h('span.crumb', null, folderName(p)));
+      parts.push(h('span.crumb-sep', null, icon('right')), h('span.crumb.current', null, icon('folder'), ' ' + folderName(S.view.page)));
     }
   }
   const d = currentDevice();
@@ -162,13 +162,13 @@ export function renderPagebar() {
         ]);
       },
     }, String(i + 1)),
-    pages.length > 1 ? h('button.page-del', { title: t('Delete page {n}', { n: i + 1 }), onclick: () => deletePage(p, i) }, '×') : null));
+    pages.length > 1 ? h('button.page-del', { title: t('Delete page {n}', { n: i + 1 }), onclick: () => deletePage(p, i) }, icon('close')) : null));
   const prev = active > 0 ? pages[active - 1] : null;
   const next = active >= 0 && active < pages.length - 1 ? pages[active + 1] : null;
   el.pagebar.replaceChildren(
-    h('button.icon-btn', { title: t('Previous page'), disabled: !prev, onclick: () => goToPage(prev, { reset: true }) }, '‹'),
+    h('button.icon-btn', { title: t('Previous page'), disabled: !prev, onclick: () => goToPage(prev, { reset: true }) }, icon('left')),
     h('div.page-tabs', null, tabs),
-    h('button.icon-btn', { title: t('Next page'), disabled: !next, onclick: () => goToPage(next, { reset: true }) }, '›'),
+    h('button.icon-btn', { title: t('Next page'), disabled: !next, onclick: () => goToPage(next, { reset: true }) }, icon('right')),
     h('button.btn.small.add-page', { title: t('Add a new page'), onclick: addPage }, '+ ' + t('Page')));
   el.pagebar.querySelector('.page-tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }

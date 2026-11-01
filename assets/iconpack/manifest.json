@@ -1,9 +1,9 @@
 {
- "Name": "TuxDeck Essentials",
- "Author": "TuxDeck",
- "Version": "4.0",
+ "Name": "Elgato Icons",
+ "Author": "Elgato (Corsair Memory Inc.)",
+ "Version": "2.5.1",
  "Icon": "cover.svg",
  "License": "MIT",
- "Description": "A set of clean, original icons for common actions. Shipped with TuxDeck.",
- "URL": "https://github.com/tobayashi-san/tuxdeck"
+ "Description": "The open icon set of the Elgato ecosystem (@elgato/icons), shipped with TuxDeck.",
+ "URL": "https://github.com/elgatosf/icons"
 }

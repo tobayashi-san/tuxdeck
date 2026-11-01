@@ -162,7 +162,13 @@ pub fn list(paths: &Paths) -> Vec<Value> {
             let m = e.metadata().ok()?;
             let name = e.file_name().to_string_lossy().into_owned();
             let modified: chrono::DateTime<chrono::Local> = m.modified().ok()?.into();
-            let kind = if name.starts_with("before-convert-") { "convert".to_string() } else { name.split('-').next().unwrap_or("").to_string() };
+            let kind = if name.starts_with("before-convert-") {
+                "convert".to_string()
+            } else if name.starts_with("before-icons-") {
+                "icons".to_string()
+            } else {
+                name.split('-').next().unwrap_or("").to_string()
+            };
             Some((name.clone(), json!({"name": name, "kind": kind, "size": m.len(), "created": modified.to_rfc3339()})))
         })
         .collect();

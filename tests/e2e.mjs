@@ -1397,7 +1397,7 @@ async function suiteNeoSystem(d) {
   await test('icon packs: the bundled default pack is seeded', async () => {
     const def = (await d.get('/api/iconpacks')).find((p) => p.id === 'tuxdeck-essentials');
     assert(def, 'default pack present');
-    eq([def.name, def.author], ['TuxDeck Essentials', 'TuxDeck']);
+    eq([def.name, def.author], ['Elgato Icons', 'Elgato (Corsair Memory Inc.)']);
     assert(def.count >= 40, `has icons (${def.count})`);
     assert((await d.get(def.icon)).toString().includes('<svg'), 'cover served');
     assert((await d.get('/api/iconpacks/tuxdeck-essentials/icons?search=play')).items.length >= 1, 'searchable');
@@ -3239,6 +3239,33 @@ function libPlugin(major) {
 }
 
 async function suiteElgatoLibrary(d) {
+  await test('keys with an old starter icon get the Elgato icon once; a backup is made first', async () => {
+    const dev = await d.device();
+    await d.slot('Keypad', '3,1', 'com.elgato.streamdeck.system.multimedia');
+    await d.kill();
+    // As the starter profile stored it: the icon file as a data URL in the page manifest.
+    const old = 'data:image/svg+xml;base64,' + fs.readFileSync(path.join(ROOT, 'tests/fixtures/old-starter-play.svg')).toString('base64');
+    const file = walkFiles(path.join(d.data, 'ProfilesV2', `${dev.profile}.sdProfile`)).filter((f) => f.endsWith('manifest.json'))
+      .find((f) => /"3,1"/.test(fs.readFileSync(f, 'utf8')));
+    const m = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const kp = m.Controllers.find((c) => c.Type === 'Keypad');
+    kp.Actions['3,1'].States[0].Image = old;
+    kp.Actions['3,1'].States[0].Title = 'kept';
+    fs.writeFileSync(file, JSON.stringify(m));
+    const settings = path.join(d.config, 'settings.json');
+    fs.writeFileSync(settings, JSON.stringify({ ...JSON.parse(fs.readFileSync(settings, 'utf8')), elgato_icons: false }));
+    await d.launch();
+    const st = (await d.action('3,1')).States[0];
+    assert(st.Image.startsWith('data:image/svg+xml;base64,') && st.Image !== old, 'new icon');
+    assert(Buffer.from(st.Image.split(',')[1], 'base64').toString().includes('scale('), 'drawn from the Elgato set');
+    eq(st.Title, 'kept', 'nothing else changes');
+    assert((await d.get('/api/backups')).some((b) => b.name.startsWith('before-icons')), 'backup first');
+    // Only once: a later start leaves keys alone.
+    eq(JSON.parse(fs.readFileSync(settings, 'utf8')).elgato_icons, true);
+    await d.del(`/api/pages/${dev.profile}/${dev.page}/slot?controller=Keypad&coord=3,1`);
+  });
+
+
   const dev = await d.device();
   const log = (major) => {
     const f = path.join(d.data, 'logs', `com.e2e.lib${major}.log`);

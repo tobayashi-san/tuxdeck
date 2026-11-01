@@ -178,7 +178,8 @@ pub fn layout_font_dirs(paths: &Paths) -> Vec<PathBuf> {
     out
 }
 
-/// The default icon pack shipped with TuxDeck (original icons; see `assets/iconpack/`).
+/// The default icon pack shipped with TuxDeck: Elgato's open icon set (`@elgato/icons`,
+/// MIT; made by `tools/elgato-icon-art.py`, see `assets/iconpack/`).
 #[derive(rust_embed::RustEmbed)]
 #[folder = "assets/iconpack/"]
 struct DefaultIconPack;
@@ -186,7 +187,7 @@ struct DefaultIconPack;
 const DEFAULT_ICONPACK_ID: &str = "tuxdeck-essentials";
 /// Bump to re-seed the pack after changing the icons (user deletions still stick for the
 /// current version).
-const DEFAULT_ICONPACK_VERSION: u32 = 4;
+const DEFAULT_ICONPACK_VERSION: u32 = 5;
 
 /// Write the bundled icon pack into `IconPacks/` on first run. A version marker next to it
 /// records that it was seeded, so removing the pack in the UI is respected and only a
@@ -218,7 +219,7 @@ pub fn write_default_iconpack(paths: &Paths) {
     }
 }
 
-/// Colourful key icons for the starter profile (see `assets/starter/`).
+/// Colourful key icons for the starter profile (see `assets/starter/`, Elgato icons).
 #[derive(rust_embed::RustEmbed)]
 #[folder = "assets/starter/"]
 struct StarterIcons;
