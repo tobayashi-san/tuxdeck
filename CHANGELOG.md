@@ -97,6 +97,9 @@
   the icon font of the configuration UI. Keys that still show an icon of the earlier
   starter or sample profiles get the new one once at the first start (a backup "Before the
   new icons" is made first).
+- **Gradient key backgrounds:** besides colours, keys can have a linear or radial gradient:
+  ready-made ones, an editor (type, angle, up to six colours) and CSS pasted from
+  cssgradient.io (`linear-gradient(…)`, `radial-gradient(…)`).
 - **Tests:** plugins built on Elgato's own `@elgato/streamdeck` library (1.x, 2.x, 3.x)
   and a property inspector made of `sdpi-components` run against TuxDeck in the test
   suites.

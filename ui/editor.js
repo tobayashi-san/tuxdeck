@@ -5,6 +5,7 @@ import {
 } from './store.js';
 import { toast } from './dialogs.js';
 import { pickIcon } from './iconpacks.js';
+import { GRADIENT_PRESETS, editGradient, isGradient } from './gradient.js';
 import { t, tn } from './i18n.js';
 import {
   makeHotkey, unusedHotkey, isUnusedHotkey, hotkeyLabel, loadLayoutMap, layoutLoaded, MODIFIER_CODES,
@@ -383,7 +384,7 @@ function formFields(action) {
   return action?.uuid === HOTKEY_SWITCH ? form.map((f) => (f.type === 'hotkey' ? { ...f, rows: 2 } : f)) : form;
 }
 
-/** Key background colour: preset swatches, a custom picker and "none" (black). */
+/** Key background: preset colours and gradients, a gradient editor, a custom colour and "none" (black). */
 function backgroundRow(st, setStyle) {
   const presets = ['#1e1e1e', '#2563eb', '#059669', '#e11d48', '#d97706', '#7c3aed', '#0d9488', '#475569'];
   const cur = (st.Background || '').toLowerCase();
@@ -395,6 +396,20 @@ function backgroundRow(st, setStyle) {
         class: cur === c ? 'active' : null, style: { background: c }, title: c,
         onclick: () => setStyle({ Background: c }, true),
       })),
+      // Gradients: a few ready ones and an editor (also takes CSS from cssgradient.io).
+      GRADIENT_PRESETS.map((g) => h('button.bg-swatch', {
+        class: (st.Background || '') === g ? 'active' : null, style: { background: g }, title: t('Gradient'),
+        onclick: () => setStyle({ Background: g }, true),
+      })),
+      h('button.bg-swatch.bg-gradient', {
+        class: isGradient(st.Background) && !GRADIENT_PRESETS.includes(st.Background) ? 'active' : null,
+        style: isGradient(st.Background) ? { background: st.Background } : null,
+        title: t('Edit gradient…'), 'aria-label': t('Edit gradient…'),
+        onclick: async () => {
+          const g = await editGradient(isGradient(st.Background) ? st.Background : null);
+          if (g) setStyle({ Background: g }, true);
+        },
+      }),
       h('input.color.bg-custom', {
         type: 'color', title: t('Custom colour'), value: normColor(st.Background, '#1e1e1e'),
         // While dragging: debounced; the final colour right away.

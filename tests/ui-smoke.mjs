@@ -1027,6 +1027,25 @@ async function suiteNeo(d, b) {
     assert((await b.eval(`document.querySelector('#editor .ed-preview img').src`)).includes('/api/render/'), 'preview');
   });
 
+  await test('editor: a gradient background from cssgradient.io is saved and drawn', async () => {
+    await selectSlot(b, 'Keypad', '0,0');
+    const st0 = async () => (await d.action('Keypad', '0,0')).States[0];
+    const before = await d.api(`/api/render/${(await d.state()).devices[0].profile}/${(await d.state()).devices[0].page}/Keypad/0,0.png?size=72`);
+    await b.click('#editor .bg-gradient');
+    await b.waitDialog('Background gradient');
+    // Pasted as cssgradient.io copies it.
+    await b.set('.grad-css', 'background: linear-gradient(90deg, rgba(255,0,0,1) 0%, rgba(0,0,255,1) 100%);');
+    await b.waitFor(`document.querySelector('.grad-preview').style.background.includes('linear-gradient')`, 'preview');
+    await b.dialogButton('Apply');
+    await until(async () => (await st0()).Background === 'linear-gradient(90deg, rgba(255,0,0,1) 0%, rgba(0,0,255,1) 100%)', 'gradient saved');
+    await until(async () => !(await d.api(`/api/render/${(await d.state()).devices[0].profile}/${(await d.state()).devices[0].page}/Keypad/0,0.png?size=72&v=${Date.now()}`)).equals(before), 'drawn on the key');
+    // A ready-made one, then none again.
+    await b.click('#editor .bg-swatch[title="Gradient"]');
+    await until(async () => /^linear-gradient\(135deg/.test((await st0()).Background || ''), 'preset');
+    await b.click('#editor .bg-none');
+    await until(async () => !(await st0()).Background, 'background removed');
+  });
+
   await test('editor: an uploaded image is used, "Default" restores the action image', async () => {
     await selectSlot(b, 'Keypad', '0,0');
     const before = (await d.action('Keypad', '0,0')).States[0].Image;

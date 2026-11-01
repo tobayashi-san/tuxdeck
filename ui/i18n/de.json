@@ -709,5 +709,21 @@
  "Mono": "Mono",
  "On this desktop TuxDeck can't see which window is active, so Smart Profiles don't switch here. They work on Hyprland and in X11 sessions.": "Auf diesem Desktop sieht TuxDeck nicht, welches Fenster aktiv ist; Smart Profiles schalten hier deshalb nicht um. Sie funktionieren unter Hyprland und in X11-Sitzungen.",
  "Saved. Smart Profiles don't switch on this desktop.": "Gespeichert. Smart Profiles schalten auf diesem Desktop nicht um.",
- "Before the new icons": "Vor den neuen Icons"
+ "Before the new icons": "Vor den neuen Icons",
+ "Gradient": "Verlauf",
+ "Edit gradient…": "Verlauf bearbeiten…",
+ "CSS": "CSS",
+ "Type": "Art",
+ "Linear": "Linear",
+ "Radial": "Radial",
+ "Angle": "Winkel",
+ "Colour {n}": "Farbe {n}",
+ "Position {n}": "Position {n}",
+ "Remove colour": "Farbe entfernen",
+ "Colour": "Farbe",
+ "Not a gradient TuxDeck understands (linear-gradient or radial-gradient).": "Kein Verlauf, den TuxDeck versteht (linear-gradient oder radial-gradient).",
+ "Colours": "Farben",
+ "CSS (e.g. from cssgradient.io)": "CSS (z. B. von cssgradient.io)",
+ "Background gradient": "Hintergrund-Verlauf",
+ "Apply": "Übernehmen"
 }

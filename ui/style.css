@@ -409,12 +409,23 @@ body.file-dragging.file-import #file-drop { display: grid; }
 .ed-note { text-align: center; max-width: 140px; }
 .ed-imgbtns { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 150px; }
 .ed-bg { display: flex; flex-direction: column; align-items: center; gap: 5px; margin-top: 2px; }
-.bg-swatches { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; max-width: 152px; }
+.bg-swatches { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; max-width: 176px; }
 .bg-swatch { width: 20px; height: 20px; border-radius: 5px; border: 1px solid #00000066; cursor: pointer; padding: 0; }
 .bg-swatch.active { outline: 2px solid var(--accent); outline-offset: 1px; }
 .bg-none { background: #111; position: relative; overflow: hidden; }
 .bg-none::after { content: ''; position: absolute; left: 1px; right: 1px; top: 9px; height: 2px; background: #e11d48; transform: rotate(-45deg); }
 .bg-custom { width: 26px; height: 22px; padding: 1px; border-radius: 5px; }
+.bg-gradient { background: conic-gradient(from 90deg, #f43f5e, #f59e0b, #22c55e, #3b82f6, #a855f7, #f43f5e); }
+.grad-editor { display: grid; grid-template-columns: 132px 1fr; gap: 12px 16px; align-items: start; min-width: 420px; }
+.grad-preview { width: 132px; height: 132px; border-radius: 14px; border: 1px solid var(--border); }
+.grad-controls { display: flex; flex-direction: column; gap: 8px; }
+.grad-angle { display: flex; align-items: center; gap: 8px; }
+.grad-stops { display: flex; flex-direction: column; gap: 6px; }
+.grad-stop { display: flex; align-items: center; gap: 6px; }
+.grad-stop input[type=range] { flex: 1; min-width: 80px; }
+.grad-css-row { grid-column: 1 / -1; }
+.grad-css { width: 100%; font-family: monospace; font-size: 12px; }
+.grad-editor > .field-help { grid-column: 1 / -1; margin: 0; color: var(--warn); }
 
 .ed-titlecol { display: flex; flex-direction: column; gap: 8px; }
 .ed-titlecol textarea { width: 100%; min-height: 56px; }

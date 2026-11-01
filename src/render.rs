@@ -443,6 +443,123 @@ pub fn svg_paint(c: &str, defs: &mut String, id: &str) -> String {
     format!("url(#{id})")
 }
 
+/// SVG paint for a colour or a CSS gradient: `linear-gradient(135deg, #f00 0%, #00f 100%)`
+/// (an angle or `to <side>`) and `radial-gradient(circle, …)`; stops may use any CSS
+/// colour, positions in %. Anything else goes to [`svg_paint`].
+pub fn css_paint(c: &str, defs: &mut String, id: &str) -> String {
+    match parse_css_gradient(c) {
+        Some(g) => {
+            let stops: String = g.stops.iter().map(|(col, at)| format!(r#"<stop offset="{at:.4}" stop-color="{}"/>"#, xml_escape(col))).collect();
+            *defs += &match g.kind {
+                GradientKind::Linear(deg) => {
+                    // CSS: 0deg points up, 90deg right; the line spans the whole square.
+                    let (sin, cos) = deg.to_radians().sin_cos();
+                    let half = (sin.abs() + cos.abs()) / 2.0;
+                    // (Rounded, and without a "-0".)
+                    let r = |v: f64| (v * 10000.0).round() / 10000.0 + 0.0;
+                    let (x1, y1, x2, y2) = (r(0.5 - sin * half), r(0.5 + cos * half), r(0.5 + sin * half), r(0.5 - cos * half));
+                    format!(r#"<linearGradient id="{id}" x1="{x1:.4}" y1="{y1:.4}" x2="{x2:.4}" y2="{y2:.4}">{stops}</linearGradient>"#)
+                }
+                // Circle out to the corners (CSS default: farthest-corner).
+                GradientKind::Radial => format!(r#"<radialGradient id="{id}" cx="0.5" cy="0.5" r="0.7071">{stops}</radialGradient>"#),
+            };
+            format!("url(#{id})")
+        }
+        None => svg_paint(c, defs, id),
+    }
+}
+
+enum GradientKind {
+    /// Angle in degrees (CSS convention).
+    Linear(f64),
+    Radial,
+}
+
+struct CssGradient {
+    kind: GradientKind,
+    /// Colour and position 0–1.
+    stops: Vec<(String, f64)>,
+}
+
+/// Split at top-level commas (not inside `rgba(…)`).
+fn split_top(s: &str) -> Vec<&str> {
+    let (mut out, mut depth, mut start) = (Vec::new(), 0i32, 0);
+    for (i, ch) in s.char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => depth -= 1,
+            ',' if depth == 0 => {
+                out.push(s[start..i].trim());
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    out.push(s[start..].trim());
+    out
+}
+
+fn parse_css_gradient(c: &str) -> Option<CssGradient> {
+    let c = c.trim().trim_end_matches(';');
+    let c = c.strip_prefix("background:").or_else(|| c.strip_prefix("background-image:")).map(str::trim).unwrap_or(c);
+    let (kind, inner) = if let Some(r) = c.strip_prefix("linear-gradient(") {
+        (GradientKind::Linear(180.0), r)
+    } else if let Some(r) = c.strip_prefix("radial-gradient(") {
+        (GradientKind::Radial, r)
+    } else {
+        return None;
+    };
+    let inner = inner.strip_suffix(')')?;
+    let mut parts = split_top(inner);
+    let mut kind = kind;
+    // First part: direction or shape, if it isn't a colour stop.
+    let first = parts.first()?.to_ascii_lowercase();
+    if let GradientKind::Linear(_) = kind {
+        let side = |s: &str| -> Option<f64> {
+            Some(match s.trim() {
+                "to top" => 0.0,
+                "to right" => 90.0,
+                "to bottom" => 180.0,
+                "to left" => 270.0,
+                "to top right" | "to right top" => 45.0,
+                "to bottom right" | "to right bottom" => 135.0,
+                "to bottom left" | "to left bottom" => 225.0,
+                "to top left" | "to left top" => 315.0,
+                _ => return None,
+            })
+        };
+        let angle = first.strip_suffix("deg").and_then(|a| a.trim().parse::<f64>().ok()).or_else(|| side(&first));
+        if let Some(a) = angle {
+            kind = GradientKind::Linear(a);
+            parts.remove(0);
+        }
+    } else if first.starts_with("circle")
+        || first.starts_with("ellipse")
+        || first.starts_with("closest")
+        || first.starts_with("farthest")
+        || first.starts_with("at ")
+    {
+        parts.remove(0);
+    }
+    if parts.len() < 2 || parts.len() > 16 {
+        return None;
+    }
+    let n = parts.len();
+    let mut stops = Vec::new();
+    for (i, p) in parts.iter().enumerate() {
+        // "<colour> <pos>%" – the position is optional (spread evenly then).
+        let (col, at) = match p.rsplit_once(char::is_whitespace) {
+            Some((col, pos)) if pos.ends_with('%') => (col.trim(), pos.trim_end_matches('%').trim().parse::<f64>().ok()? / 100.0),
+            _ => (p.trim(), i as f64 / (n - 1) as f64),
+        };
+        if col.is_empty() || col.len() > 40 || col.contains(['<', '>', '"', '\'', '&']) {
+            return None;
+        }
+        stops.push((col.to_string(), at.clamp(0.0, 1.0)));
+    }
+    Some(CssGradient { kind, stops })
+}
+
 pub fn xml_escape(s: &str) -> String {
     // Control characters are not allowed in XML: one would make the whole SVG invalid.
     s.chars()
@@ -493,7 +610,13 @@ pub fn key_svg(spec: &KeySpec) -> String {
         r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{c}" height="{c}" viewBox="0 0 {c} {c}">"#,
         c = CANVAS
     );
-    s += &format!(r#"<rect width="{c}" height="{c}" fill="{}"/>"#, xml_escape(spec.background.as_deref().unwrap_or("#000000")), c = CANVAS);
+    // A colour or a CSS gradient (as cssgradient.io and the UI's gradient editor write it).
+    let mut defs = String::new();
+    let bg = css_paint(spec.background.as_deref().unwrap_or("#000000"), &mut defs, "keybg");
+    if !defs.is_empty() {
+        s += &format!("<defs>{defs}</defs>");
+    }
+    s += &format!(r#"<rect width="{c}" height="{c}" fill="{bg}"/>"#, c = CANVAS);
     if let Some(img) = &spec.image {
         s += &format!(r#"<image width="{c}" height="{c}" preserveAspectRatio="xMidYMid meet" xlink:href="{}"/>"#, img.to_href(), c = CANVAS);
     }
@@ -775,6 +898,31 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(render_key(&spec("Track\x1b[0m"), 72).as_raw(), render_key(&spec("Track[0m"), 72).as_raw());
+    }
+
+    #[test]
+    fn css_gradients() {
+        let mut defs = String::new();
+        // As cssgradient.io writes it.
+        let p = css_paint("background: linear-gradient(90deg, rgba(2,0,36,1) 0%, rgba(9,121,105,1) 35%, rgba(0,212,255,1) 100%);", &mut defs, "k");
+        assert_eq!(p, "url(#k)");
+        assert!(defs.contains(r#"x1="0.0000" y1="0.5000" x2="1.0000" y2="0.5000""#), "{defs}");
+        assert!(defs.contains(r#"<stop offset="0.3500" stop-color="rgba(9,121,105,1)"/>"#), "{defs}");
+        let mut defs = String::new();
+        css_paint("linear-gradient(to bottom, #fff, #000)", &mut defs, "k");
+        assert!(defs.contains(r#"x1="0.5000" y1="0.0000" x2="0.5000" y2="1.0000""#), "{defs}");
+        assert!(defs.contains(r#"offset="1.0000""#));
+        let mut defs = String::new();
+        css_paint("radial-gradient(circle, #ff0000 0%, #0000ff 100%)", &mut defs, "k");
+        assert!(defs.contains("<radialGradient"), "{defs}");
+        // Rendered: left red, right blue.
+        let key = render_key(&KeySpec { background: Some("linear-gradient(90deg, #ff0000 0%, #0000ff 100%)".into()), ..Default::default() }, 72);
+        let (l, r) = (key.get_pixel(2, 36).0, key.get_pixel(69, 36).0);
+        assert!(l[0] > 200 && l[2] < 60 && r[2] > 200 && r[0] < 60, "{l:?} {r:?}");
+        // Not a gradient, or nonsense: a colour (escaped) as before.
+        assert_eq!(css_paint("#123456", &mut String::new(), "k"), "#123456");
+        assert_eq!(css_paint("linear-gradient(90deg, \"/><script>, #000)", &mut String::new(), "k"), "linear-gradient(90deg, &quot;/&gt;&lt;script&gt;, #000)");
+        assert_eq!(css_paint("linear-gradient(90deg, #fff)", &mut String::new(), "k"), "linear-gradient(90deg, #fff)");
     }
 
     #[test]
