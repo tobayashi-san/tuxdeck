@@ -82,6 +82,8 @@ const VERDICTS = {
   issues: () => ({ cls: 'warn', label: t('Issues on Linux'), text: t('Works on Linux, with issues') }),
   fails: () => ({ cls: 'bad', label: t('Fails on Linux'), text: t('Does not work on Linux') }),
   unsupported: () => ({ cls: 'bad', label: t('Not for Linux'), text: t('Does not run on Linux (macOS/Windows program)') }),
+  // Only its files were checked (not installed, no bubblewrap: not started).
+  static: () => ({ cls: 'info', label: t('Made for Linux'), text: t('Its program runs on Linux (files checked, not started)') }),
 };
 
 const CHECK_TITLES = {
@@ -125,7 +127,8 @@ function linuxSection(item) {
     report ? h('ul.mk-linux-checks', null, report.checks.map((c) => h('li', { class: c.ok === true ? 'ok' : c.ok === false ? 'bad' : 'skip' },
       h('span.mk-linux-mark', null, mark(c.ok)),
       h('span', null, CHECK_TITLES[c.id]?.() || c.id, c.detail && c.ok !== true ? h('span.mk-linux-detail', null, c.detail) : null)))) : null,
-    !report && !busy ? h('p.mk-note', null, t('Not tested on Linux yet. The test runs the plugin in an isolated test instance (simulated Stream Deck, no access to your files) and checks that it starts, that its actions and settings work and that it reports no errors.')) : null,
+    !report && !busy ? h('p.mk-note', null, t('Not tested on Linux yet. The test runs the plugin in an isolated test instance (simulated Stream Deck, folders of its own) and checks that it starts, that its actions and settings work and that it reports no errors.')) : null,
+    report?.static ? h('p.mk-note', null, t('Plugins that are not installed are only started for the test with bubblewrap (a sandbox without access to your files and the network). Without it only the files are checked; after installing, the plugin is tested completely.')) : null,
     h('div.mk-linux-actions', null,
       h('button.btn', {
         disabled: busy || !canTest,

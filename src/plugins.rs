@@ -396,24 +396,33 @@ pub fn write_zip_entry(f: &mut impl std::io::Read, out: &Path, unpacked: &mut u6
     Ok(())
 }
 
-/// Install a `.streamDeckPlugin` archive (zip containing `<uuid>.sdPlugin/`).
-pub fn install_archive(data: &[u8], plugins_dir: &Path) -> Result<String> {
-    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(data)).context("not a zip archive")?;
-    let mut root: Option<String> = None;
+/// The `<uuid>.sdPlugin` folder of a plugin archive (any case, like on Windows and macOS).
+fn archive_root(zip: &mut zip::ZipArchive<std::io::Cursor<&[u8]>>) -> Result<String> {
     for i in 0..zip.len() {
         let f = zip.by_index(i)?;
-        if let Some(n) = entry_path(f.name()) {
-            if let Some(first) = n.components().next() {
-                let s = first.as_os_str().to_string_lossy().to_string();
-                // Any case, like on Windows and macOS (`….sdplugin`).
-                if s.to_ascii_lowercase().ends_with(".sdplugin") {
-                    root = Some(s);
-                    break;
-                }
+        if let Some(first) = entry_path(f.name()).and_then(|n| n.components().next().map(|c| c.as_os_str().to_string_lossy().to_string())) {
+            if first.to_ascii_lowercase().ends_with(".sdplugin") {
+                return Ok(first);
             }
         }
     }
-    let Some(root) = root else { bail!("archive contains no .sdPlugin directory") };
+    bail!("archive contains no .sdPlugin directory")
+}
+
+/// Unpack a plugin archive into `scratch` (removed by the caller) and read it, without
+/// installing or running anything.
+pub fn inspect_archive(data: &[u8], scratch: &Path) -> Result<Plugin> {
+    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(data)).context("not a zip archive")?;
+    let root = archive_root(&mut zip)?;
+    let dir = scratch.join(format!("{}.sdPlugin", &root[..root.len() - ".sdPlugin".len()]));
+    unpack_plugin(&mut zip, &root, &dir)?;
+    Plugin::load(&dir, false, "en")
+}
+
+/// Install a `.streamDeckPlugin` archive (zip containing `<uuid>.sdPlugin/`).
+pub fn install_archive(data: &[u8], plugins_dir: &Path) -> Result<String> {
+    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(data)).context("not a zip archive")?;
+    let root = archive_root(&mut zip)?;
     // Installed under the usual spelling, which the plugin scan looks for.
     let name = format!("{}.sdPlugin", &root[..root.len() - ".sdPlugin".len()]);
     // Each install unpacks into a folder of its own next to the plugins (not scanned: no

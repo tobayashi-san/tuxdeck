@@ -197,10 +197,17 @@ pub fn end(key: &str) {
     running().lock().remove(key);
 }
 
+/// `TUXDECK_NO_SANDBOX` (tests, development): no sandbox, and plugins that are not
+/// installed are started for the check too.
+fn no_sandbox() -> bool {
+    std::env::var_os("TUXDECK_NO_SANDBOX").is_some_and(|v| !v.is_empty())
+}
+
 /// bubblewrap for sandboxing the plugin under test: `TUXDECK_BWRAP`, `bwrap` on the
 /// PATH or `<data>/tools/bwrap-root/bin/bwrap` (e.g. a Nix GC root).
 fn bwrap(paths: &Paths) -> Option<PathBuf> {
-    if std::env::var_os("TUXDECK_NO_SANDBOX").is_some() {
+    // `TUXDECK_BWRAP=none`: as if there were none (tests).
+    if no_sandbox() || std::env::var_os("TUXDECK_BWRAP").is_some_and(|v| v == "none") {
         return None;
     }
     let candidates = std::env::var_os("TUXDECK_BWRAP")
@@ -283,7 +290,7 @@ fn resolve(program: &str) -> PathBuf {
 }
 
 /// Run the check (blocking, up to a few minutes) and store the result. The plugin runs in
-/// a bubblewrap sandbox (see `sandbox_args`); without bubblewrap there is no check.
+/// a bubblewrap sandbox (see `sandbox_args`) if bubblewrap is there.
 pub fn run(paths: &Paths, node: &str, source: Source, key: &str, extra: Value) -> Result<Value> {
     let tools = paths.data.join("tools");
     std::fs::create_dir_all(&tools)?;
@@ -296,12 +303,15 @@ pub fn run(paths: &Paths, node: &str, source: Source, key: &str, extra: Value) -
         Source::Dir(d) => ("--plugin-dir", d.canonicalize()?),
         Source::Archive(f) => ("--plugin", f.canonicalize()?),
     };
-    let sandbox = match bwrap(paths) {
-        Some(bw) => Some(bw),
-        // Only on explicit request (tests, development): the plugin then sees everything.
-        None if std::env::var_os("TUXDECK_NO_SANDBOX").is_some() => None,
-        None => bail!(crate::tr!("The Linux check runs the plugin in a sandbox: install bubblewrap (bwrap) first.")),
-    };
+    // With bubblewrap the plugin runs in a sandbox. Without it, an installed plugin is
+    // tested in the isolated test instances only (it runs with the user's rights anyway
+    // once used); a plugin that is not installed is never started, only its files are
+    // checked (or on explicit request: tests, development).
+    let sandbox = bwrap(paths);
+    if sandbox.is_none() && matches!(source, Source::Archive(_)) && !no_sandbox() {
+        let Source::Archive(file) = source else { unreachable!() };
+        return static_check(paths, file, key, extra);
+    }
     let mut cmd = match &sandbox {
         Some(bw) => {
             let mut binds = vec![exe.clone(), script.clone(), plugin.clone(), node.clone()];
@@ -316,7 +326,19 @@ pub fn run(paths: &Paths, node: &str, source: Source, key: &str, extra: Value) -
             c.args(sandbox_args(&binds)).arg("--setenv").arg("TUXDECK_NODE").arg(&node).arg(&node);
             c
         }
-        None => Command::new(&node),
+        None => {
+            // Only what the check needs from the session (no tokens or other secrets),
+            // and a HOME of its own; the test instances get their own HOME and data too.
+            let mut c = Command::new(&node);
+            c.env_clear();
+            for k in ["PATH", "LANG", "TUXDECK_BROWSER"] {
+                if let Some(v) = std::env::var_os(k) {
+                    c.env(k, v);
+                }
+            }
+            c.env("HOME", std::env::temp_dir()).env("TUXDECK_NODE", &node);
+            c
+        }
     };
     cmd.arg(&script).arg("--bin").arg(&exe).arg(flag).arg(&plugin);
     if let Some(e) = &elgato {
@@ -373,6 +395,34 @@ pub fn run(paths: &Paths, node: &str, source: Source, key: &str, extra: Value) -
     Ok(report)
 }
 
+/// The check of a plugin that is not installed, without bubblewrap: its files only (is
+/// its program one that runs on Linux), nothing is started. Kept on this computer.
+fn static_check(paths: &Paths, file: &Path, key: &str, extra: Value) -> Result<Value> {
+    let scratch = paths.data.join("tools").join(format!("inspect-{}", uuid::Uuid::new_v4().simple()));
+    let plugin = std::fs::read(file).map_err(anyhow::Error::from).and_then(|b| crate::plugins::inspect_archive(&b, &scratch));
+    let _ = std::fs::remove_dir_all(&scratch);
+    let plugin = plugin?;
+    let (verdict, check) = match &plugin.runtime {
+        crate::plugins::Runtime::Unsupported(why) => ("unsupported", serde_json::json!({"id": "linux_runtime", "ok": false, "detail": why})),
+        _ => ("static", serde_json::json!({"id": "linux_runtime", "ok": true})),
+    };
+    let mut report = serde_json::json!({
+        "uuid": plugin.uuid, "name": plugin.name(), "version": plugin.manifest.version, "verdict": verdict,
+        "checks": [check], "static": true, "sandboxed": false, "local_only": true,
+        "tested_at": chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        "app_version": env!("CARGO_PKG_VERSION"),
+    });
+    if let Value::Object(x) = extra {
+        for (k, v) in x {
+            report[k.as_str()] = v;
+        }
+    }
+    let mut s = store(paths).lock();
+    s.insert(key.to_string(), report.clone());
+    let _ = crate::profile::write_atomic(&store_file(paths), &serde_json::to_vec_pretty(&*s)?);
+    Ok(report)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -388,6 +438,45 @@ mod tests {
         for hidden in ["/", "/home", "/mnt", "/media", "/run/media", "/srv", "/run/dbus", "/run/user", "/var"] {
             assert!(!bound.contains(&hidden), "{hidden} must not be visible");
         }
+    }
+
+    /// A `.streamDeckPlugin` whose program is `code`.
+    fn plugin_zip(uuid: &str, code: &str) -> Vec<u8> {
+        use std::io::Write;
+        let mut buf = std::io::Cursor::new(Vec::new());
+        {
+            let mut z = zip::ZipWriter::new(&mut buf);
+            let o = zip::write::SimpleFileOptions::default();
+            z.start_file(format!("{uuid}.sdPlugin/manifest.json"), o).unwrap();
+            let m = serde_json::json!({"Name": "Static", "UUID": uuid, "Version": "1.2", "Author": "t", "SDKVersion": 2, "CodePath": code, "Icon": "i",
+                                       "OS": [{"Platform": "mac", "MinimumVersion": "10.15"}], "Actions": [{"UUID": format!("{uuid}.a"), "Name": "A", "Icon": "i", "States": [{"Image": "i"}]}]});
+            z.write_all(m.to_string().as_bytes()).unwrap();
+            z.start_file(format!("{uuid}.sdPlugin/{code}"), o).unwrap();
+            z.write_all(b"MZ").unwrap();
+            z.finish().unwrap();
+        }
+        buf.into_inner()
+    }
+
+    #[test]
+    fn plugins_that_are_not_installed_get_their_files_checked_without_bubblewrap() {
+        let dir = std::env::temp_dir().join(format!("sd-linuxcheck-static-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let paths = Paths { data: dir.join("data"), config: dir.join("config") };
+        std::fs::create_dir_all(&paths.data).unwrap();
+        for (uuid, code, verdict, ok) in [("com.t.node", "plugin.js", "static", true), ("com.t.win", "plugin.exe", "unsupported", false)] {
+            let file = dir.join(format!("{uuid}.streamDeckPlugin"));
+            std::fs::write(&file, plugin_zip(uuid, code)).unwrap();
+            let r = static_check(&paths, &file, &format!("cat:{uuid}"), serde_json::json!({"source": "openaction"})).unwrap();
+            assert_eq!((r["uuid"].as_str(), r["verdict"].as_str(), r["version"].as_str()), (Some(uuid), Some(verdict), Some("1.2")));
+            assert_eq!(r["checks"][0]["ok"], ok, "{r}");
+            // Not a test that ran: stays on this computer.
+            assert_eq!((r["static"].as_bool(), r["local_only"].as_bool(), r["source"].as_str()), (Some(true), Some(true), Some("openaction")));
+            assert_eq!(store(&paths).lock()[&format!("cat:{uuid}")]["verdict"], verdict);
+        }
+        // Nothing unpacked is left behind.
+        assert!(std::fs::read_dir(paths.data.join("tools")).map(|d| d.count()).unwrap_or(0) == 0);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

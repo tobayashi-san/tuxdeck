@@ -17,8 +17,8 @@
     (`-pluginUUID`, like the official app) and property inspectors only with an alias
     from the UI; other local programs can't pose as a plugin or read its settings.
   - Data and configuration folders are only accessible to the user (0700).
-  - The Linux check sandbox has no network and sees only system folders; without
-    bubblewrap the check doesn't run. Results are stored under the checked plugin.
+  - The Linux check sandbox (bubblewrap) has no network and sees only system folders.
+    Results are stored under the checked plugin.
   - `openUrl` from plugins can't open TuxDeck's own pages; `import-elgato` unpacks into a
     private temporary folder; plugin files are never installed group/world-writable;
     Hyprland sockets of other users are ignored; `POST /api/settings` changes nothing when
@@ -100,6 +100,10 @@
 - **Gradient key backgrounds:** besides colours, keys can have a linear or radial gradient:
   ready-made ones, an editor (type, angle, up to six colours) and CSS pasted from
   cssgradient.io (`linear-gradient(…)`, `radial-gradient(…)`).
+- **Linux check without bubblewrap:** bubblewrap is optional. Without it, installed
+  plugins are tested in the isolated test instances (they run with your rights anyway
+  once used); plugins that are not installed are not started, only their files are
+  checked ("Made for Linux"). No more "install bubblewrap first" warnings.
 - **Icon colour:** below a key's image, its icon can be drawn white, black or in a colour
   of one's own (the image's shape in that colour), e.g. a black icon on a light gradient.
   Dark titles get a light outline instead of a black one.

@@ -221,7 +221,7 @@ All optional; if one is missing, only the affected key reports an error.
 | Open Application with a `.desktop` file | `gtk-launch` (`libgtk-3-bin`) or `gio` (`libglib2.0-bin`); without them TuxDeck runs the entry's command itself |
 | Node.js plugins | `node` (Node.js ≥ 20) |
 | HTML plugins | Chromium, Chrome, Brave, Edge or Vivaldi |
-| Linux check of plugins | `node` and `bwrap` (`bubblewrap`): the plugin under test runs without network and sees only system folders, not your files |
+| Linux check of plugins | `node`. Optional `bwrap` (`bubblewrap`): the plugin under test then runs without network and sees only system folders, not your files, and plugins can be tested before installing; without it installed plugins are tested in the isolated test instances and for others only the files are checked |
 | Smart Profiles on X11 | `xprop` (`x11-utils`) |
 | Notifications | `notify-send` (`libnotify-bin`) |
 </details>

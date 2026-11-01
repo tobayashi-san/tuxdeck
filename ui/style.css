@@ -700,10 +700,12 @@ body.market-open .market-btn { background: var(--accent); border-color: var(--ac
 .mk-badge.ok { background: #14532d; color: #86efac; }
 .mk-badge.warn { background: #4a3510; color: #fbbf24; }
 .mk-badge.bad { background: #4c1515; color: #fca5a5; }
+.mk-badge.info { background: #172b4d; color: #93c5fd; }
 .mk-linux-verdict { font-weight: 600; margin-bottom: 8px; }
 .mk-linux-verdict.ok { color: #86efac; }
 .mk-linux-verdict.warn { color: #fbbf24; }
 .mk-linux-verdict.bad { color: #fca5a5; }
+.mk-linux-verdict.info { color: #93c5fd; }
 .mk-linux-checks { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .mk-linux-checks li { display: flex; gap: 8px; }
 .mk-linux-checks li.bad { color: #fca5a5; }

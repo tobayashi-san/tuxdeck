@@ -1899,6 +1899,30 @@ function pluginVariant(uuid, changes = {}, manifestChanges = {}) {
 }
 
 /** "Works on Linux" checks of plugins (catalogue badge). */
+/** Linux checks on a computer without bubblewrap: installed plugins are tested in the
+ * test instances, plugins that are not installed only get their files checked. */
+async function suiteLinuxCheckPlain(d) {
+  await test('linux check without bubblewrap: an installed plugin is tested completely', async () => {
+    await d.req('POST', '/api/import', pluginVariant('com.e2e.good'), { 'x-filename': 'good.streamDeckPlugin' });
+    await d.post('/api/plugins/com.e2e.good/linux-check');
+    await linuxChecksDone(d);
+    const r = (await d.get('/api/linux-checks')).results['com.e2e.good'];
+    eq([r?.verdict, r?.sandboxed, !!r?.static], ['works', false, false], JSON.stringify(r?.checks));
+    eq(d.logsSince(0, /bubblewrap/i), [], 'no message about bubblewrap');
+  });
+
+  await test('linux check without bubblewrap: a catalogue plugin is not started, its files are checked', async () => {
+    const m = d.mark();
+    eq((await d.post('/api/catalogue/linux-check', { id: 'com.e2e.direct' })).key, 'com.e2e.direct');
+    await linuxChecksDone(d);
+    const r = (await d.get('/api/linux-checks')).results['com.e2e.direct'];
+    eq([r?.verdict, r?.static, r?.local_only, r?.source, r?.checks?.map((c) => [c.id, c.ok])], ['static', true, true, 'openaction', [['linux_runtime', true]]]);
+    eq(d.logsSince(m, /\[com\.e2e\.direct\]|started plugin com\.e2e\.direct/), [], 'the plugin never ran');
+    eq((await d.get('/api/catalogue/com.e2e.direct')).state.linux_check?.verdict, 'static', 'shown in the catalogue');
+    eq(d.logsSince(0, /WARN.*Linux/), [], 'no warning');
+  });
+}
+
 async function suiteLinuxCheck(d) {
   const variants = {
     'com.e2e.good': pluginVariant('com.e2e.good'),
@@ -4133,6 +4157,7 @@ const GROUPS = [
   { model: 'neo', name: 'neo: convert', run: suiteCompat },
   // The deliberately crashing test plugin also runs (and is given up) in the outer instance.
   { model: 'neo', name: 'neo: linux-check', run: suiteLinuxCheck, allow: /Plugin com\.e2e\.crash exited/ },
+  { model: 'neo', name: 'neo: linux-check-plain', run: suiteLinuxCheckPlain, opts: { env: () => ({ TUXDECK_NO_SANDBOX: '', TUXDECK_BWRAP: 'none' }) } },
   // Refused packages and links are logged as errors.
   { model: 'neo', name: 'neo: catalogue', run: suiteCatalogue, allow: /Installation failed|official app/ },
   { model: 'plus', name: 'plus', run: suitePlus },

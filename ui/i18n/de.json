@@ -327,7 +327,6 @@
  "Not now": "Jetzt nicht",
  "Not saved yet": "Noch nicht gespeichert",
  "Not supported on Linux": "Unter Linux nicht unterstützt",
- "Not tested on Linux yet. The test runs the plugin in an isolated test instance (simulated Stream Deck, no access to your files) and checks that it starts, that its actions and settings work and that it reports no errors.": "Noch nicht auf Linux getestet. Der Test führt das Plugin in einer abgeschotteten Test-Instanz aus (simuliertes Stream Deck, kein Zugriff auf deine Dateien) und prüft, ob es startet, ob seine Aktionen und Einstellungen funktionieren und ob es Fehler meldet.",
  "Nothing": "Nichts",
  "November": "November",
  "OBS Studio": "OBS Studio",
@@ -502,7 +501,6 @@
  "Text": "Text",
  "The Linux check of all plugins is already running.": "Die Linux-Prüfung aller Plugins läuft bereits.",
  "The Linux check took too long and was stopped.": "Die Linux-Prüfung hat zu lange gedauert und wurde abgebrochen.",
- "The Linux check runs the plugin in a sandbox: install bubblewrap (bwrap) first.": "Die Linux-Prüfung führt das Plugin in einer Sandbox aus: Installiere zuerst bubblewrap (bwrap).",
  "The author marked this plugin as made with the help of AI.": "Der Autor hat angegeben, dass dieses Plugin mit Hilfe von KI entstanden ist.",
  "The backup is being created and downloaded.": "Das Backup wird erstellt und heruntergeladen.",
  "The details are not available right now.": "Die Details sind gerade nicht verfügbar.",
@@ -765,5 +763,9 @@
  "Voice channel": "Sprachkanal",
  "Icon colour": "Icon-Farbe",
  "As it comes": "Original",
- "Icon colour of your own": "Eigene Icon-Farbe"
+ "Icon colour of your own": "Eigene Icon-Farbe",
+ "Made for Linux": "Für Linux gemacht",
+ "Its program runs on Linux (files checked, not started)": "Sein Programm läuft unter Linux (Dateien geprüft, nicht gestartet)",
+ "Not tested on Linux yet. The test runs the plugin in an isolated test instance (simulated Stream Deck, folders of its own) and checks that it starts, that its actions and settings work and that it reports no errors.": "Noch nicht unter Linux getestet. Der Test startet das Plugin in einer abgetrennten Testinstanz (simuliertes Stream Deck, eigene Ordner) und prüft, ob es startet, ob seine Aktionen und Einstellungen funktionieren und ob es keine Fehler meldet.",
+ "Plugins that are not installed are only started for the test with bubblewrap (a sandbox without access to your files and the network). Without it only the files are checked; after installing, the plugin is tested completely.": "Nicht installierte Plugins werden für den Test nur mit bubblewrap gestartet (einer Sandbox ohne Zugriff auf deine Dateien und das Netz). Ohne bubblewrap werden nur die Dateien geprüft; nach der Installation wird das Plugin vollständig getestet."
 }
