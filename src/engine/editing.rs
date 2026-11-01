@@ -33,72 +33,24 @@ impl Engine {
     }
 
     /// Create a profile with Linux-friendly defaults laid out for the model's keys.
+    /// The starter profile of a new deck: TuxDeck's "Standard" profile. Everything works
+    /// on a stock Linux desktop with no setup (media keys via playerctl/wpctl/pactl,
+    /// xdg-open, loginctl; brightness and sleep are the deck's). The + also gets
+    /// brightness and volume on its first two dials.
     pub fn create_default_profile(&mut self, model: &Model) -> String {
-        let mut p = Profile::new(&self.paths.profiles(), &crate::tr!("Default Profile"), model.model_id);
-        let page_id = p.manifest.pages.pages[0].clone();
-        let page = p.pages.get_mut(&page_id).unwrap();
-        // Icon-only keys using the bundled starter icons, so the starter profile looks tidy and
-        // every key is self-explanatory.
-        let mk = |uuid: &str, settings: Value, icon: &str| {
-            let d = builtin::def(uuid).unwrap();
-            let mut a = ActionInstance::new(uuid, d.name, d.states);
-            a.settings = settings;
-            if let Some(url) = crate::resources::starter_icon_data_url(icon) {
-                for st in a.states.iter_mut() {
-                    st.image = Some(url.clone());
-                }
-            }
-            a
-        };
-        // Everything works on a stock Linux desktop with no setup: media keys via
-        // playerctl/wpctl/pactl, xdg-open, loginctl; brightness and sleep are the deck's.
-        let media = || {
-            [
-                mk(MULTIMEDIA, json!({"actionIdx": 0}), "previous"),
-                mk(MULTIMEDIA, json!({"actionIdx": 1}), "play"),
-                mk(MULTIMEDIA, json!({"actionIdx": 2}), "next"),
-                mk(MULTIMEDIA, json!({"actionIdx": 4}), "mute"),
-                mk(MULTIMEDIA, json!({"actionIdx": 6}), "volume-down"),
-                mk(MULTIMEDIA, json!({"actionIdx": 5}), "volume-up"),
-            ]
-        };
-        let sleep = || mk(SLEEP, json!({}), "sleep");
-        let brightness = || mk(BRIGHTNESS, json!({"actionIdx": BRIGHTNESS_CYCLE}), "brightness");
-        let (cols, rows) = (model.cols as usize, model.rows as usize);
-        let mut keys: Vec<((usize, usize), ActionInstance)> = Vec::new();
-        if rows == 1 {
-            // Pedal: previous, play/pause, next.
-            keys.extend(media().into_iter().take(cols).enumerate().map(|(i, a)| ((i, 0), a)));
-        } else if rows == 2 && cols >= 4 {
-            // Neo and +: the media remote plus the deck controls, row by row.
-            let all = media().into_iter().chain([sleep(), brightness()]);
-            keys.extend(all.enumerate().map(|(i, a)| ((i % cols, i / cols), a)));
-        } else {
-            // The media remote as a 3x2 block: all of a Mini; top left on the bigger decks,
-            // which also get desktop shortcuts bottom left and the deck controls bottom
-            // right. The remaining keys are left free for the user.
-            keys.extend(media().into_iter().enumerate().map(|(i, a)| ((i % 3, i / 3), a)));
-            if rows >= 3 && cols >= 5 {
-                let last = rows - 1;
-                keys.push(((0, last), mk(OPEN, json!({"path": "~"}), "home")));
-                keys.push(((1, last), mk(OPEN, json!({"path": "loginctl lock-session"}), "lock")));
-                keys.push(((2, last), mk(TIMER, json!({"seconds": 300}), "timer")));
-                keys.push(((cols - 2, last), sleep()));
-                keys.push(((cols - 1, last), brightness()));
-            }
-        }
-        for ((c, r), a) in keys {
-            page.controller_mut("Keypad").actions.insert(format!("{c},{r}"), a);
-        }
+        let t = templates::TEMPLATES.iter().find(|t| t.id == templates::STANDARD).unwrap();
+        let mut p = self.profile_from_template(t, model, &crate::tr!("Default Profile"));
         if model.encoders > 0 {
-            page.controller_mut("Encoder").actions.insert("0,0".into(), brightness());
-            page.controller_mut("Encoder").actions.insert("1,0".into(), mk(MULTIMEDIA, json!({"actionIdx": 4}), "volume-up"));
-        }
-        if model.kind == Kind::Neo {
-            let d = builtin::def(DIGITAL_TIME).unwrap();
-            let mut a = ActionInstance::new(DIGITAL_TIME, d.name, 1);
-            a.settings = json!({"layout": "digital_time_01", "theme": "", "24HourFormat": true});
-            page.controller_mut("Neo").actions.insert(NEO_INFOBAR.into(), a);
+            let first = p.manifest.pages.pages[0].clone();
+            let page = p.pages.get_mut(&first).unwrap();
+            let dial = |uuid: &str, settings: Value| {
+                let d = builtin::def(uuid).unwrap();
+                let mut a = ActionInstance::new(uuid, d.name, d.states);
+                a.settings = settings;
+                a
+            };
+            page.controller_mut("Encoder").actions.insert("0,0".into(), dial(BRIGHTNESS, json!({"actionIdx": BRIGHTNESS_CYCLE})));
+            page.controller_mut("Encoder").actions.insert("1,0".into(), dial(MULTIMEDIA, json!({"actionIdx": 4})));
         }
         let _ = p.save_all();
         let id = p.id.clone();

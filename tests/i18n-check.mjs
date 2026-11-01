@@ -67,7 +67,7 @@ for (const f of fs.readdirSync(path.join(ROOT, 'src'), { recursive: true }).filt
 // Sample profiles: names, descriptions and key titles (translated at runtime).
 const templates = read('src/engine/templates.rs');
 for (const m of templates.matchAll(/\b(?:name|description): "([^"]+)"/g)) add(m[1], 'src/engine/templates.rs');
-for (const m of templates.matchAll(/\bk\("([^"]+)"/g)) add(m[1], 'src/engine/templates.rs (key)');
+for (const m of templates.matchAll(/\b(?:k|on)\("([^"]+)"/g)) add(m[1], 'src/engine/templates.rs (key)');
 const builtin = read('src/builtin.rs');
 // Formatting-independent: rustfmt may put the def! arguments on separate lines.
 for (const m of builtin.matchAll(/def!\(\s*\w+,\s*"[^"]+",\s*"([^"]+)",\s*"([^"]+)"/g)) {

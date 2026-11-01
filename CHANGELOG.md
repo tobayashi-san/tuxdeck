@@ -100,6 +100,14 @@
 - **Gradient key backgrounds:** besides colours, keys can have a linear or radial gradient:
   ready-made ones, an editor (type, angle, up to six colours) and CSS pasted from
   cssgradient.io (`linear-gradient(…)`, `radial-gradient(…)`).
+- **New profiles:** the starter profile ("Standard") and the samples Work, Play and
+  Streaming were redone in one calm look: dark keys with a light line icon, the title
+  below and a small dot in the colour of the key's group (media, voice, programs, tools,
+  system, live, scenes, games); live, recording and mute keys turn red while on. Each has
+  two 4×2 pages: the profile's main actions on top, controls below. On the XL both pages
+  sit side by side, on 5×3 decks one at a time with page keys. The dark background is the
+  key's own (a gradient), so it can be changed in the editor. Existing profiles are not
+  changed.
 - **Hyprland without uinput:** a hotkey that is one of Hyprland's own key bindings
   (e.g. Super+T for a terminal, workspaces, a screenshot bind) now runs that binding;
   before, the keys only reached the focused window and Hyprland didn't react. Works

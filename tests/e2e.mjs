@@ -224,8 +224,8 @@ const CATALOGUE = {
     full['me.amankhanna.oadiscord'] = { name: 'Discord', author: 'e2e', repository: 'https://github.com/e2e/discord', download_url: `${base}/dl/discord.streamDeckPlugin` };
     this.files.set('/catalogue-full.json', Buffer.from(JSON.stringify(full)));
     this.files.set('/dl/obs.streamDeckPlugin', zip(pluginWithActions('de.felitendo.obs-tools',
-      ['recordtoggle', 'streamtoggle', 'smartscene', 'mutetoggle', 'screenshot', 'virtualcam', 'sourcevisibility'])));
-    this.files.set('/dl/discord.streamDeckPlugin', zip(pluginWithActions('me.amankhanna.oadiscord', ['togglemute', 'toggledeafen'])));
+      ['recordtoggle', 'streamtoggle', 'smartscene', 'mutetoggle', 'screenshot', 'virtualcam', 'sourcevisibility', 'previousscene', 'nextscene', 'recordtools', 'studiomode'])));
+    this.files.set('/dl/discord.streamDeckPlugin', zip(pluginWithActions('me.amankhanna.oadiscord', ['togglemute', 'toggledeafen', 'voicechannel', 'pushtotalk'])));
     this.server = http.createServer((req, res) => {
       const body = this.files.get(req.url.split('?')[0]);
       res.writeHead(body ? 200 : 404, { 'content-type': req.url.endsWith('.json') || req.url.startsWith('/repos/') ? 'application/json' : 'application/octet-stream' });
@@ -580,26 +580,38 @@ async function suiteCommon(d, { keys }) {
   });
 
   await test('starter: layout made for the deck', async () => {
+    const st = await d.state();
+    const pages = st.profiles.find((p) => p.id === st.devices[0].profile).pages;
     const kp = (await d.page()).controllers.find((c) => c.Type === 'Keypad').Actions;
-    const media = 'com.elgato.streamdeck.system.multimedia';
+    const mm = 'system.multimedia';
     const at = (c, r) => kp[`${c},${r}`]?.UUID?.replace('com.elgato.streamdeck.', '');
     for (const coord of Object.keys(kp)) {
       const [c, r] = coord.split(',').map(Number);
       assert(c < cols && r < rows, `${coord} fits on a ${cols}x${rows} deck`);
     }
-    // The media remote (previous, play, next / mute, volume down, up) sits top left.
-    const mediaCols = rows === 2 && cols >= 4 ? cols : 3;
-    for (let i = 0; i < 6; i++) eq(kp[`${i % mediaCols},${Math.floor(i / mediaCols)}`]?.UUID, media, `media key ${i}`);
-    if (rows >= 3) {
-      // Desktop shortcuts bottom left, deck controls bottom right, the rest is free.
-      const last = rows - 1;
-      eq([at(0, last), at(1, last), at(2, last), at(cols - 2, last), at(cols - 1, last)],
-        ['system.open', 'system.open', 'system.timer', 'system.sleep', 'system.keybrightness']);
-      eq(Object.keys(kp).length, 11);
+    if (rows === 1) {
+      // Pedal: previous, play/pause, next.
+      eq([at(0, 0), at(1, 0), at(2, 0)], [mm, mm, mm]);
     } else if (cols >= 4) {
-      eq([at(2, 1), at(3, 1)], ['system.sleep', 'system.keybrightness']);
+      // The "Standard" profile's 4×2 pages: music and volume, lock and sleep on the right.
+      eq([at(0, 0), at(1, 0), at(2, 0), at(3, 0)], [mm, mm, mm, 'system.open'], 'top row');
+      eq([at(0, 1), at(1, 1), at(2, 1), at(3, 1)], [mm, mm, mm, 'system.sleep'], 'bottom row');
+      if (cols >= 8 && rows >= 4) {
+        // XL: both pages next to each other on one page.
+        eq([at(4, 0), at(7, 1), pages.length], ['system.open', 'system.keybrightness', 1]);
+      } else {
+        eq(pages.length, 2, 'second page with programs');
+        if (rows > 2) eq(at(cols - 1, rows - 1), 'page.next', 'page key bottom right');
+      }
+    } else {
+      // Mini: the keys in order, the page key bottom right.
+      eq([at(0, 0), at(1, 0), at(2, 0), at(0, 1), at(1, 1), at(2, 1)], [mm, mm, mm, 'system.open', mm, 'page.next']);
     }
-    for (const a of Object.values(kp)) assert(/^data:image\/svg/.test(a.States?.[0]?.Image || ''), `${a.UUID} has a starter icon`);
+    for (const a of Object.values(kp)) {
+      if (/page\.(next|previous)$/.test(a.UUID)) continue;
+      assert(/^data:image\/svg/.test(a.States?.[0]?.Image || ''), `${a.UUID} has an icon`);
+      assert(a.States[0].Title && a.States[0].ShowTitle === true, `${a.UUID} shows its title`);
+    }
   });
 
   await test('render: every key preview is a PNG', async () => {
@@ -612,9 +624,14 @@ async function suiteCommon(d, { keys }) {
     const coords = Object.keys(keypad?.Actions || {});
     assert(coords.length > 0, 'default profile has actions');
     const m = d.mark();
+    const before = await d.device();
     for (const c of coords) await d.press('Keypad', c);
     assert(d.logsSince(m, /DRYRUN/).length >= 1, 'some dry-run side effect');
     eq(d.logsSince(m, /WARN|ERROR/), [], 'no warnings');
+    // The starter profile has a Sleep key (and page keys): back to how it was.
+    const after = await d.device();
+    if (after.sleeping) await d.post(`/api/devices/${after.id}`, { brightness: before.brightness });
+    if (after.page !== before.page) await d.post(`/api/devices/${after.id}`, { page: before.page });
   });
 }
 
@@ -849,8 +866,16 @@ async function suiteNeoActions(d) {
   });
 }
 
+/** Tests that count pages start from a profile with one page (the starter has two). */
+async function onePage(d) {
+  const st = await d.state();
+  const prof = st.profiles.find((p) => p.id === st.devices[0].profile);
+  for (const pg of prof.pages.slice(1)) await d.del(`/api/pages/${prof.id}/${pg}`);
+}
+
 /** Neo: pages, folders, slots, multi actions, profiles, validation. */
 async function suiteNeoEditing(d) {
+  await onePage(d);
   const st0 = await d.state();
   const P = st0.devices[0].profile;
   const page0 = st0.devices[0].page;
@@ -1510,6 +1535,7 @@ async function suiteNeoSystem(d) {
 
 async function suitePlus(d) {
   await suiteCommon(d, { keys: [4, 2] });
+  await onePage(d);
   const st = await d.state();
   const P = st.devices[0].profile;
 
@@ -1711,17 +1737,22 @@ async function suiteCompat(d) {
 
   await test('samples: the Work profile is created with its icons and working keys', async () => {
     const list = await d.get('/api/templates');
-    eq(list.map((x) => x.id), ['stream', 'work', 'play']);
+    eq(list.map((x) => x.id), ['standard', 'work', 'play', 'stream']);
     assert(list.every((x) => x.icons.length === 8 && x.icons.every((i) => /^data:image\/svg/.test(i))), 'icons');
     const r = await d.post('/api/templates/work', { model: st.devices[0].model });
     eq(r.failed, []);
     const prof = (await d.state()).profiles.find((p) => p.id === r.id);
     eq(prof.pages.length, 2);
-    const kp = (await d.page(r.id, prof.pages[0])).controllers.find((c) => c.Type === 'Keypad').Actions;
-    eq(Object.keys(kp).length, 8);
-    eq([kp['0,0'].UUID, kp['0,0'].Settings.path], ['com.elgato.streamdeck.system.open', '~']);
-    eq(kp['2,1'].Settings.Hotkeys[0].LinuxCode, 99, 'screenshot = Print');
-    assert(Object.values(kp).every((a) => /^data:image\/svg/.test(a.States[0].Image || '')), 'every key has its icon');
+    const keys = async (i) => (await d.page(r.id, prof.pages[i])).controllers.find((c) => c.Type === 'Keypad').Actions;
+    const [kp, kp2] = [await keys(0), await keys(1)];
+    eq([Object.keys(kp).length, Object.keys(kp2).length], [8, 8]);
+    eq([kp['0,0'].UUID, kp['0,0'].Settings.path], ['com.elgato.streamdeck.system.open', 'xdg-open mailto:']);
+    eq([kp['3,1'].States[0].Title, kp['3,1'].Settings.path], ['Lock', 'loginctl lock-session']);
+    eq(kp2['3,1'].Settings.Hotkeys[0].LinuxCode, 99, 'screenshot = Print');
+    eq(kp2['0,0'].Settings.Hotkeys[0].LinuxCode, 46, 'copy = Ctrl+C');
+    for (const a of [...Object.values(kp), ...Object.values(kp2)]) {
+      assert(/^data:image\/svg/.test(a.States[0].Image || '') && a.States[0].ShowTitle === true && a.States[0].Title, `${a.States[0].Title}: icon and title`);
+    }
     eq((await d.get(`/api/profiles/${r.id}/conversion`)).needed, false, 'a sample profile needs no conversion');
   });
 }
@@ -2849,6 +2880,7 @@ async function suiteMultiDeck(d) {
 
 /** Every built-in action: behaviour and failure messages (dry run). */
 async function suiteBuiltins(d) {
+  await onePage(d);
   const st0 = await d.state();
   const P = st0.devices[0].profile;
   const page0 = st0.devices[0].page;
@@ -3301,8 +3333,9 @@ async function suiteElgatoLibrary(d) {
     await d.kill();
     // As the starter profile stored it: the icon file as a data URL in the page manifest.
     const old = 'data:image/svg+xml;base64,' + fs.readFileSync(path.join(ROOT, 'tests/fixtures/old-starter-play.svg')).toString('base64');
+    // The manifest of the page with that key (the starter profile has two pages).
     const file = walkFiles(path.join(d.data, 'ProfilesV2', `${dev.profile}.sdProfile`)).filter((f) => f.endsWith('manifest.json'))
-      .find((f) => /"3,1"/.test(fs.readFileSync(f, 'utf8')));
+      .find((f) => JSON.parse(fs.readFileSync(f, 'utf8')).Controllers?.find((c) => c.Type === 'Keypad')?.Actions?.['3,1']?.UUID === 'com.elgato.streamdeck.system.multimedia');
     const m = JSON.parse(fs.readFileSync(file, 'utf8'));
     const kp = m.Controllers.find((c) => c.Type === 'Keypad');
     kp.Actions['3,1'].States[0].Image = old;
@@ -3834,20 +3867,24 @@ async function suiteConvertEdge(d) {
   });
 
   await test('sample profiles without their catalogue plugins: keys keep their look and wait for a command', async () => {
+    const pagesOf = async (id) => {
+      const prof = (await d.state()).profiles.find((p) => p.id === id);
+      return Promise.all(prof.pages.map(async (pg) => (await d.page(id, pg)).controllers.find((c) => c.Type === 'Keypad').Actions));
+    };
     const r = await d.post('/api/templates/stream', { model: '20GBJ9901' });
     eq(r.failed, ['OBS Tools'], 'by name');
-    const kp = (await d.page(r.id, (await d.state()).profiles.find((p) => p.id === r.id).pages[0])).controllers.find((c) => c.Type === 'Keypad').Actions;
+    const [kp, kp2] = await pagesOf(r.id);
     for (const coord of ['0,0', '1,0', '2,0', '3,0', '0,1', '1,1', '2,1']) {
       eq([kp[coord].UUID, kp[coord].Settings.path], [O, ''], coord);
       assert(kp[coord].States[0].Title && /^data:image\/svg/.test(kp[coord].States[0].Image), `${coord} title and icon`);
     }
-    eq([kp['3,1'].UUID, kp['3,1'].Settings.path], [WEBSITE, 'https://dashboard.twitch.tv/']);
+    eq([kp2['3,1'].UUID, kp2['3,1'].Settings.path], [WEBSITE, 'https://dashboard.twitch.tv/']);
     eq((await d.get(`/api/profiles/${r.id}/conversion`)).needed, false, 'nothing to convert');
     const play = await d.post('/api/templates/play', { model: '20GBJ9901' });
     eq(play.failed, ['Discord']);
-    const pk = (await d.page(play.id, (await d.state()).profiles.find((p) => p.id === play.id).pages[0])).controllers.find((c) => c.Type === 'Keypad').Actions;
-    eq([pk['0,0'].States[0].Title, pk['0,0'].Settings.path], ['Steam', 'e2e-steam-launcher'], 'installed program found');
-    eq([pk['1,0'].States[0].Title, pk['1,0'].Settings.path], ['Heroic', ''], 'a program that is not installed gets no command');
+    const [pk, pk2] = await pagesOf(play.id);
+    eq([pk['3,0'].States[0].Title, pk['3,0'].Settings.path], ['Steam', 'e2e-steam-launcher'], 'installed program found');
+    eq([pk2['0,0'].States[0].Title, pk2['0,0'].Settings.path], ['Heroic', ''], 'a program that is not installed gets no command');
     await d.del(`/api/profiles/${r.id}`);
     await d.del(`/api/profiles/${play.id}`);
   });
@@ -3856,16 +3893,18 @@ async function suiteConvertEdge(d) {
 /** Sample profiles on every deck, with the catalogue plugins they use. */
 async function suiteTemplates(d) {
   const GEOM = { '20GBJ9901': [4, 2], '20GBA9901': [5, 3], '20GAA9902': [5, 3], '20GAI9901': [3, 2], '20GAT9901': [8, 4], '20GBD9901': [4, 2], '20GBF9901': [3, 1] };
-  const KEYS = { stream: [8], work: [8, 4], play: [8] };
-  // Keys per page: all on one page if they fit, the sample's pages on Neo and + (touch
-  // points / swipe), three on the Pedal, else pages with Previous/Next Page keys.
-  const expectedPages = (t, model, cap) => {
-    const total = KEYS[t].reduce((a, b) => a + b, 0);
+  const IDS = ['standard', 'work', 'play', 'stream'];
+  // Keys per page. Every profile has two 4×2 pages: on Neo and + one per page (touch
+  // points / swipe), side by side on the XL, one per page with Previous/Next Page keys in
+  // the free bottom row of 5×3 decks; the Mini gets them in order with page keys in its
+  // bottom corners; the Pedal three keys.
+  const expectedPages = (model, cap) => {
     if (model === '20GBF9901') return [3];
-    if (total <= cap) return [total];
-    if (model === '20GBJ9901' || model === '20GBD9901') return KEYS[t];
+    if (model === '20GBJ9901' || model === '20GBD9901') return [8, 8];
+    if (model === '20GAT9901') return [16];
+    if (cap === 15) return [9, 9];
     const pages = [];
-    for (let left = total; left > 0;) {
+    for (let left = 16; left > 0;) {
       const prev = pages.length > 0;
       const next = left > cap - prev;
       const keys = Math.min(left, cap - prev - next);
@@ -3878,17 +3917,17 @@ async function suiteTemplates(d) {
 
   await test('samples: names, descriptions and the icons of the first page', async () => {
     const list = await d.get('/api/templates');
-    eq(list.map((t) => [t.id, t.name]), [['stream', 'Stream'], ['work', 'Work'], ['play', 'Play']]);
+    eq(list.map((t) => [t.id, t.name]), [['standard', 'Standard'], ['work', 'Work'], ['play', 'Play'], ['stream', 'Streaming']]);
     assert(list.every((t) => t.description && t.icons.length === 8 && t.icons.every((i) => /^data:image\/svg/.test(i))), 'descriptions and icons');
   });
 
-  await test('samples: Stream, Work and Play fit every deck (Neo, MK.2, Original, Mini, XL, +, Pedal)', async () => {
+  await test('samples: Standard, Work, Play and Streaming fit every deck (Neo, MK.2, Original, Mini, XL, +, Pedal)', async () => {
     for (const [model, [cols, rows]] of Object.entries(GEOM)) {
-      for (const t of Object.keys(KEYS)) {
+      for (const t of IDS) {
         const r = await d.post(`/api/templates/${t}`, { model });
         eq(r.failed, [], `${t} on ${model}: plugins installed`);
         const prof = (await d.state()).profiles.find((p) => p.id === r.id);
-        const want = expectedPages(t, model, cols * rows);
+        const want = expectedPages(model, cols * rows);
         eq([prof.model, prof.pages.length], [model, want.length], `${t} on ${model}`);
         for (const [i, pg] of prof.pages.entries()) {
           const page = await d.page(r.id, pg);
@@ -3898,7 +3937,7 @@ async function suiteTemplates(d) {
             const [c, rr] = coord.split(',').map(Number);
             assert(c < cols && rr < rows, `${t} on ${model}: ${coord} is outside ${cols}x${rows}`);
             if (/^com\.elgato\.streamdeck\.page\.(next|previous)$/.test(a.UUID)) continue;
-            assert(a.States.every((s) => /^data:image\/svg/.test(s.Image || '') && s.Title && s.ShowTitle === false), `${t} ${model} ${coord}: icon and hidden title`);
+            assert(a.States.every((s) => /^data:image\/svg/.test(s.Image || '') && s.Title && s.ShowTitle === true), `${t} ${model} ${coord}: icon and title`);
           }
           eq(!!page.controllers.find((c) => c.Type === 'Neo')?.Actions?.['1,0'], model === '20GBJ9901', `${t} on ${model}: info bar`);
         }
@@ -3908,29 +3947,30 @@ async function suiteTemplates(d) {
   });
 
   await test('samples: plugin keys use the installed plugins and run; shortcuts and commands work', async () => {
+    const pageKeys = async (id, i) => (await d.page(id, (await d.state()).profiles.find((p) => p.id === id).pages[i])).controllers.find((c) => c.Type === 'Keypad').Actions;
     const s = await d.post('/api/templates/stream', { model: '20GBJ9901' });
-    const sp = (await d.state()).profiles.find((p) => p.id === s.id).pages[0];
-    const kp = (await d.page(s.id, sp)).controllers.find((c) => c.Type === 'Keypad').Actions;
-    eq(['1,0', '2,0', '3,0', '0,1', '1,1', '2,1'].map((c) => kp[c].UUID.replace('de.felitendo.obs-tools.', '')),
-      ['recordtoggle', 'streamtoggle', 'smartscene', 'mutetoggle', 'screenshot', 'virtualcam']);
+    const kp = await pageKeys(s.id, 0);
+    eq(['0,0', '1,0', '2,0', '3,0', '0,1', '1,1', '2,1'].map((c) => kp[c].UUID.replace('de.felitendo.obs-tools.', '')),
+      ['streamtoggle', 'recordtoggle', 'previousscene', 'nextscene', 'mutetoggle', 'recordtools', 'smartscene']);
     await d.post(`/api/devices/${dev}`, { profile: s.id });
     let m = d.mark();
     await d.press('Keypad', '1,0');
     await d.waitLog(/\[de\.felitendo\.obs-tools\] keyDown 1/, m, 8000);
     const w = await d.post('/api/templates/work', { model: '20GBJ9901' });
     await d.post(`/api/devices/${dev}`, { profile: w.id });
-    await pressAndWait(d, '2,1', /send_key_state.*key = "code:107".*"down"/); // Print
     await pressAndWait(d, '3,1', /DRYRUN exec "sh" "-c" "loginctl lock-session"/);
-    await pressAndWait(d, '0,0', new RegExp(`DRYRUN exec "xdg-open" "${d.home.replace(/[/.]/g, '\\$&')}"`));
+    await pressAndWait(d, '0,0', /DRYRUN exec "sh" "-c" "xdg-open mailto:"/);
+    await pressAndWait(d, '0,1', /DRYRUN exec "sh" "-c" "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle/);
     const p2 = (await d.state()).profiles.find((p) => p.id === w.id).pages[1];
     await d.post(`/api/devices/${dev}`, { page: p2 });
     m = d.mark();
     await d.press('Keypad', '0,0'); // Copy
     await d.waitLog(/send_key_state.*CTRL.*key = "code:54".*"down"/, m);
+    await pressAndWait(d, '3,1', /send_key_state.*key = "code:107".*"down"/); // Print
     const pl = await d.post('/api/templates/play', { model: '20GBJ9901' });
     eq(pl.failed, []);
-    const pk = (await d.page(pl.id, (await d.state()).profiles.find((p) => p.id === pl.id).pages[0])).controllers.find((c) => c.Type === 'Keypad').Actions;
-    eq([pk['2,0'].UUID, pk['3,0'].UUID], ['me.amankhanna.oadiscord.togglemute', 'me.amankhanna.oadiscord.toggledeafen']);
+    const pk = await pageKeys(pl.id, 0);
+    eq(['0,0', '1,0', '2,0'].map((c) => pk[c].UUID), ['me.amankhanna.oadiscord.togglemute', 'me.amankhanna.oadiscord.toggledeafen', 'me.amankhanna.oadiscord.voicechannel']);
     await linuxChecksDone(d);
   });
 

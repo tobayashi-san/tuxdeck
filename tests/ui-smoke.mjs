@@ -736,6 +736,12 @@ const UNLABELLED_BUTTONS = `[...document.querySelectorAll('button, [role=button]
 // -------------------------------------------------------------------------------- suites
 
 async function suiteNeo(d, b) {
+  // The page tests count from one page (the starter profile has two).
+  {
+    const st = await d.state();
+    const prof = st.profiles.find((p) => p.id === st.devices[0].profile);
+    for (const pg of prof.pages.slice(1)) await d.api(`/api/pages/${prof.id}/${pg}`, 'DELETE');
+  }
   await b.open(await d.loginUrl());
 
   await test('loads: device grid, live connection, no errors', async () => {
@@ -1700,15 +1706,15 @@ async function suiteProfiles(d, b) {
     await b.waitFor(`document.querySelectorAll('#profile-select option').length === 1`, 'list updated');
   });
 
-  await test('samples: the picker shows Stream, Work and Play; "Work" is created and activated', async () => {
+  await test('samples: the picker shows Standard, Work, Play and Streaming; "Work" is created and activated', async () => {
     await b.profileMenu('Add a sample profile…');
     await b.waitDialog('Add a sample profile');
-    await b.waitFor(`document.querySelectorAll('dialog[open] .sample-card').length === 3`, 'three cards');
-    eq(await b.eval(`[...document.querySelectorAll('dialog[open] .sample-name')].map((x) => x.textContent)`), ['Stream', 'Work', 'Play']);
-    eq(await b.eval(`[...document.querySelectorAll('dialog[open] .sample-card')].map((c) => c.querySelectorAll('.sample-keys img').length)`), [8, 8, 8], 'previews of eight keys');
-    eq(await b.eval(`[...document.querySelectorAll('dialog[open] .sample-card')].map((c) => c.classList.contains('selected'))`), [true, false, false], 'first one preselected');
+    await b.waitFor(`document.querySelectorAll('dialog[open] .sample-card').length === 4`, 'four cards');
+    eq(await b.eval(`[...document.querySelectorAll('dialog[open] .sample-name')].map((x) => x.textContent)`), ['Standard', 'Work', 'Play', 'Streaming']);
+    eq(await b.eval(`[...document.querySelectorAll('dialog[open] .sample-card')].map((c) => c.querySelectorAll('.sample-keys img').length)`), [8, 8, 8, 8], 'previews of eight keys');
+    eq(await b.eval(`[...document.querySelectorAll('dialog[open] .sample-card')].map((c) => c.classList.contains('selected'))`), [true, false, false, false], 'first one preselected');
     await b.clickText('dialog[open] .sample-card', 'Work');
-    eq(await b.eval(`[...document.querySelectorAll('dialog[open] .sample-card')].map((c) => c.classList.contains('selected'))`), [false, true, false], 'Work selected');
+    eq(await b.eval(`[...document.querySelectorAll('dialog[open] .sample-card')].map((c) => c.classList.contains('selected'))`), [false, true, false, false], 'Work selected');
     await b.dialogButton('Add');
     const id = await until(async () => { const a = await active(); return a !== DEFAULT && a; }, 'sample profile active', 10000);
     const prof = await profile(id);

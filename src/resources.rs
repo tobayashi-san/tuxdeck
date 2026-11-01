@@ -184,6 +184,16 @@ pub fn layout_font_dirs(paths: &Paths) -> Vec<PathBuf> {
 #[folder = "assets/iconpack/"]
 struct DefaultIconPack;
 
+/// The paths of an icon of the bundled set (24×24 units, no fill), e.g. for key images
+/// drawn in our own style.
+pub fn pack_glyph(name: &str) -> Option<String> {
+    let f = DefaultIconPack::get(&format!("icons/{name}.svg"))?;
+    let svg = std::str::from_utf8(f.data.as_ref()).ok()?;
+    let start = svg.find("<g ")?;
+    let inner = &svg[start + svg[start..].find('>')? + 1..];
+    Some(inner.strip_suffix("</g></svg>")?.to_string())
+}
+
 const DEFAULT_ICONPACK_ID: &str = "tuxdeck-essentials";
 /// Bump to re-seed the pack after changing the icons (user deletions still stick for the
 /// current version).
