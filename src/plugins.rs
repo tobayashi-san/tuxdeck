@@ -270,7 +270,28 @@ pub fn html_browser() -> Option<PathBuf> {
             return Some(PathBuf::from(b));
         }
         let path = std::env::var_os("PATH")?;
-        for name in ["chromium", "chromium-browser", "google-chrome-stable", "google-chrome", "brave", "brave-browser", "microsoft-edge", "vivaldi"] {
+        // Distribution packages name some browsers by channel (Arch: brave-origin-nightly-bin
+        // installs only `brave-origin-nightly`).
+        const NAMES: &[&str] = &[
+            "chromium",
+            "chromium-browser",
+            "google-chrome-stable",
+            "google-chrome",
+            "brave",
+            "brave-browser",
+            "brave-origin",
+            "microsoft-edge",
+            "microsoft-edge-stable",
+            "vivaldi",
+            "vivaldi-stable",
+            "google-chrome-beta",
+            "google-chrome-unstable",
+            "brave-browser-beta",
+            "brave-browser-nightly",
+            "brave-origin-beta",
+            "brave-origin-nightly",
+        ];
+        for name in NAMES {
             for d in std::env::split_paths(&path) {
                 let p = d.join(name);
                 if p.is_file() {
