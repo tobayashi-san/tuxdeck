@@ -36,6 +36,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["v4"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 xkbcommon-dl = "0.4"
+zbus = { version = "5", default-features = false, features = ["tokio"] }
 
 [profile.release]
 lto = "thin"

@@ -7,8 +7,8 @@
 //! and an imported `/Applications/Firefox.app` match a Firefox window.
 //!
 //! Focus sources: Hyprland's event socket (`activewindow>>class,title`), otherwise
-//! polling `xprop` in an X11 session (not XWayland). Disabled with
-//! `TUXDECK_NO_WINDOW_WATCH=1` (tests).
+//! polling `xprop` in an X11 session (not XWayland), otherwise a KWin script on KDE
+//! Plasma Wayland (see `kwin`). Disabled with `TUXDECK_NO_WINDOW_WATCH=1` (tests).
 
 use crate::engine::Shared;
 use std::io::{BufRead, BufReader};
@@ -80,14 +80,14 @@ fn focus_event_class(line: &str) -> Option<&str> {
     line.strip_prefix("activewindow>>").map(|rest| rest.split(',').next().unwrap_or(""))
 }
 
-/// Whether TuxDeck learns which window is active here (Hyprland, X11 with xprop); off on
-/// GNOME/KDE Wayland and in tests.
+/// Whether TuxDeck learns which window is active here (Hyprland, X11 with xprop, KDE
+/// Plasma once its KWin script runs); off on GNOME Wayland and in tests.
 pub fn available() -> bool {
     if std::env::var_os("TUXDECK_NO_WINDOW_WATCH").is_some() {
         return false;
     }
     let xprop = || std::env::var_os("PATH").is_some_and(|p| std::env::split_paths(&p).any(|d| d.join("xprop").is_file()));
-    crate::input::hypr_instance().is_some() || (x11_session() && xprop())
+    crate::input::hypr_instance().is_some() || (x11_session() && xprop()) || crate::kwin::active()
 }
 
 /// Window classes of the open windows (for the profile editor), without TuxDeck's own.
@@ -96,6 +96,8 @@ pub fn open_windows() -> Vec<(String, String)> {
         crate::input::hyprctl_command().args(["clients", "-j"]).output().ok().and_then(|out| clients_from_json(&out.stdout)).unwrap_or_default()
     } else if x11_session() {
         x11_windows()
+    } else if crate::kwin::active() {
+        crate::kwin::open_windows()
     } else {
         vec![]
     };
@@ -180,8 +182,10 @@ pub fn spawn_watcher(sh: Shared) {
                 }
                 std::thread::sleep(Duration::from_millis(800));
             }
+        } else if crate::kwin::wanted() {
+            crate::kwin::run(sh);
         } else {
-            tracing::info!("Smart Profiles: off (the active window is only known on Hyprland and X11)");
+            tracing::info!("Smart Profiles: off (the active window is only known on Hyprland, KDE Plasma and X11)");
         }
     });
 }

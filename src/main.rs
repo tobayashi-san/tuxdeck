@@ -9,6 +9,7 @@ mod i18n;
 mod iconpacks;
 mod input;
 mod keymap;
+mod kwin;
 mod layout;
 mod linuxcheck;
 mod net;
@@ -767,6 +768,7 @@ fn run(paths: paths::Paths, open_browser: bool) -> Result<()> {
             alive.store(false, Ordering::Relaxed);
         }
         sdk::stop_plugins(&shared);
+        kwin::stop().await;
         tokio::time::sleep(Duration::from_millis(300)).await;
         Ok::<_, anyhow::Error>(())
     })?;

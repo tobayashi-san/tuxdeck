@@ -57,7 +57,7 @@ be installed. Plugins that only contain a macOS or Windows program do not run on
 | ✅ Neo info bar | clock, page indicator and your own text (placeholders, colours, gradients) |
 | ✅ Plugins | Node.js and HTML plugins from the catalogue or as `.streamDeckPlugin` |
 | ✅ Icon packs | as `.streamDeckIconPack`, picked in the image editor via "Icon…" |
-| ✅ Smart Profiles | on Hyprland and X11 |
+| ✅ Smart Profiles | on Hyprland, KDE Plasma and X11 |
 | ✅ Linux check | badge per plugin: starts, actions, keys/dials, settings page and log tested in an isolated instance (automatic after installing, or "Test on Linux") |
 | ✅ Backups | Settings → Backups: download/restore (also the official app's backups), daily automatic backups |
 | ❌ Mac/Windows-only plugins | plugins that ship a Mac or Windows program do not run; the UI marks them |
@@ -281,10 +281,12 @@ Environment variables: `TUXDECK_DATA_DIR`, `TUXDECK_CONFIG_DIR`, `TUXDECK_NODE`
 Link a profile to an application in the profile menu under "Smart Profile (per
 application)…". While a window of that application has focus, the device shows the
 profile, afterwards the previously selected one again. Matching uses the window class (Hyprland:
-`hyprctl clients`, X11: `WM_CLASS`); separate several applications with `;`. Imported Mac
-profiles with `/Applications/Firefox.app` also match `firefox`. If you pick another profile
-yourself, that choice sticks. GNOME and KDE on Wayland offer no general way to find the
-active window; there the feature stays off.
+`hyprctl clients`, X11: `WM_CLASS`, KDE Plasma: the window list in that dialog); separate
+several applications with `;`. Imported Mac profiles with `/Applications/Firefox.app` also
+match `firefox`. If you pick another profile yourself, that choice sticks. On KDE Plasma
+(Wayland, Plasma 5 or 6) TuxDeck loads a small KWin script (`tuxdeck-focus`) that reports
+the active window to it over the session bus, and removes it when it stops. GNOME on
+Wayland offers no general way to find the active window; there the feature stays off.
 </details>
 
 <details>

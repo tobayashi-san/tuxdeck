@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Smart Profiles on KDE Plasma (Wayland):** a small KWin script reports the active window
+  and the open windows over the session bus (Plasma 5 and 6). TuxDeck only accepts these
+  reports from KWin, loads the script again after a KWin restart and removes it when it
+  stops. Hyprland and X11 work as before.
+
 ## 0.6.0-beta.2 – 2026-11-01
 
 - **Security** (findings of a full review):
