@@ -215,8 +215,8 @@ async function smartProfile() {
     classes.length ? h('div.chip-row', null, classes.slice(0, 12).map((c) =>
       h('button.chip', { type: 'button', onclick: () => { input.value = c; input.focus(); } }, c))) : null,
     wins.active ? h('p.field-help', null, t('Currently active: {app}', { app: wins.active })) : null,
-    // GNOME and KDE on Wayland don't tell other programs which window is active.
-    wins.available === false ? h('p.modal-text.warn-text', null, t('On this desktop TuxDeck can\'t see which window is active, so Smart Profiles don\'t switch here. They work on Hyprland and in X11 sessions.')) : null);
+    // GNOME on Wayland doesn't tell other programs which window is active.
+    wins.available === false ? h('p.modal-text.warn-text', null, t('On this desktop TuxDeck can\'t see which window is active, so Smart Profiles don\'t switch here. They work on Hyprland, KDE Plasma and in X11 sessions.')) : null);
   // With several decks that can show the profile: only one of them, or every one.
   const decks = S.state.devices.filter((x) => compatibleModel(x.model, prof.model));
   const deckSelect = h('select.select', null,

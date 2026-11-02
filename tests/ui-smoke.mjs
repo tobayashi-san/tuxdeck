@@ -101,7 +101,7 @@ async function freePort() {
 }
 
 function findBrowser() {
-  const candidates = [opt('--browser'), process.env.BROWSER, 'google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser', 'brave'];
+  const candidates = [opt('--browser'), process.env.BROWSER, 'google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser', 'brave', 'brave-browser', 'brave-origin', 'brave-origin-nightly'];
   for (const c of candidates.filter(Boolean)) {
     try {
       return execFileSync('sh', ['-c', `command -v "${c}"`]).toString().trim() || null;

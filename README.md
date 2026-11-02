@@ -47,7 +47,7 @@ and anything you downloaded elsewhere installs from the file.
 and so do its backups.
 
 **Made for Linux, not ported to it.** Wayland and X11, GNOME, KDE, Hyprland, Sway. On
-Hyprland and X11, profiles follow the window in focus. Plugins get a Linux check (test
+Hyprland, KDE Plasma and X11, profiles follow the window in focus. Plugins get a Linux check (test
 instances, a sandbox with bubblewrap), and a badge tells you whether they work on Linux.
 
 ![The plugin catalogue: open-source Stream Deck plugins, installed with one click](https://github.com/tobayashi-san/tuxdeck/raw/main/docs/images/plugins.png)

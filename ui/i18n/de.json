@@ -698,7 +698,7 @@
  "unsupported multimedia action {idx}": "Nicht unterstützte Multimedia-Aktion {idx}",
  "Amber": "Bernstein",
  "Mono": "Mono",
- "On this desktop TuxDeck can't see which window is active, so Smart Profiles don't switch here. They work on Hyprland and in X11 sessions.": "Auf diesem Desktop sieht TuxDeck nicht, welches Fenster aktiv ist; Smart Profiles schalten hier deshalb nicht um. Sie funktionieren unter Hyprland und in X11-Sitzungen.",
+ "On this desktop TuxDeck can't see which window is active, so Smart Profiles don't switch here. They work on Hyprland, KDE Plasma and in X11 sessions.": "Auf diesem Desktop sieht TuxDeck nicht, welches Fenster aktiv ist; Smart Profiles schalten hier deshalb nicht um. Sie funktionieren unter Hyprland, KDE Plasma und in X11-Sitzungen.",
  "Saved. Smart Profiles don't switch on this desktop.": "Gespeichert. Smart Profiles schalten auf diesem Desktop nicht um.",
  "Before the new icons": "Vor den neuen Icons",
  "Gradient": "Verlauf",

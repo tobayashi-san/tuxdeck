@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Smart Profiles on KDE Plasma (Wayland):** a small KWin script reports the active window
+  and the open windows over the session bus (Plasma 5 and 6). TuxDeck only accepts these
+  reports from KWin, loads the script again after a KWin restart and removes it when it
+  stops. Hyprland and X11 work as before.
+- **Browsers:** HTML plugins and the app window also find Chromium-based browsers that are
+  only installed under a channel name, such as `brave-origin-nightly`,
+  `google-chrome-beta` or `vivaldi-stable`.
+
 ## 0.6.0-beta.2 – 2026-11-01
 
 - **Security** (findings of a full review):
